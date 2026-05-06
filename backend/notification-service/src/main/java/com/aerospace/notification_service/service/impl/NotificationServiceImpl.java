@@ -1,73 +1,179 @@
 package com.aerospace.notification_service.service.impl;
 
-import com.aerospace.notification_service.entity.*;
+import com.aerospace.notification_service.entity.NotificationLog;
+import com.aerospace.notification_service.entity.NotificationStatus;
+import com.aerospace.notification_service.entity.NotificationType;
+import com.aerospace.notification_service.event.*;
 import com.aerospace.notification_service.repository.NotificationRepository;
+import com.aerospace.notification_service.service.EmailService;
 import com.aerospace.notification_service.service.NotificationService;
+import com.aerospace.notification_service.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class NotificationServiceImpl implements NotificationService {
 
+    private final WebSocketService webSocketService;
+    private final EmailService emailService;
     private final NotificationRepository notificationRepository;
-    private final JavaMailSender mailSender;
 
-    @Value("${notification.email.enabled:false}")
-    private boolean emailEnabled;
-
-    @Value("${notification.email.recipient:warehouse@aerospace.com}")
-    private String recipient;
+    // ── Kafka Event Handlers ─────────────────────────────────────────────────
 
     @Override
-    @Transactional
-    public void sendLowStockAlert(Long partId, String partName, int currentQty, int reorderLevel) {
-        String msg = String.format(
-            "LOW STOCK ALERT — Part: %s (ID: %d) | Current: %d units | Reorder Level: %d | Action Required: Raise Purchase Order",
-            partName, partId, currentQty, reorderLevel
-        );
-        deliver(partId, partName, null, NotificationType.LOW_STOCK, msg);
+    public void handleStockLow(StockLowEvent event) {
+        log.info("[NOTIFY] LOW_STOCK → partId={}, qty={}, reorderLevel={}",
+                event.getPartId(), event.getCurrentQuantity(), event.getReorderLevel());
+
+        String message = String.format(
+                "⚠️ LOW STOCK ALERT: Part '%s' (Batch: %s) has only %d units remaining. " +
+                        "Reorder level is %d. Location: %s",
+                event.getPartName(), event.getBatchNumber(),
+                event.getCurrentQuantity(), event.getReorderLevel(), event.getLocation());
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.LOW_STOCK)
+                .partId(event.getPartId())
+                .partName(event.getPartName())
+                .batchNumber(event.getBatchNumber())
+                .message(message)
+                .location(event.getLocation())
+                .severity("WARNING")
+                .build(), message);
     }
 
     @Override
-    @Transactional
-    public void sendQAAlert(Long partId, String batchNumber, String status, String remarks, String inspector) {
-        NotificationType type = "APPROVED".equals(status) ? NotificationType.QA_APPROVED : NotificationType.QA_REJECTED;
-        String msg = String.format(
-            "QA DECISION — Batch: %s | Part ID: %d | Decision: %s | Inspector: %s | Remarks: %s",
-            batchNumber, partId, status, inspector != null ? inspector : "System", remarks
-        );
-        deliver(partId, null, batchNumber, type, msg);
+    public void handleQaStatusChanged(QAStatusChangedEvent event) {
+        String status = event.getNewStatus() != null ? event.getNewStatus() : event.getDecision();
+        log.info("[NOTIFY] QA_STATUS_CHANGED → partId={}, status={}, expired={}",
+                event.getPartId(), status, event.isBatchExpired());
+
+        NotificationType type;
+        String severity;
+        String message;
+
+        if (event.isBatchExpired()) {
+            type = NotificationType.BATCH_EXPIRED;
+            severity = "ERROR";
+            message = String.format(
+                    "❌ BATCH EXPIRED: Part '%s' (Batch: %s) was REJECTED — batch expired on %s. " +
+                            "Immediate disposal required. Inspector: %s | Location: %s",
+                    event.getPartName(), event.getBatchNumber(), event.getExpiryDate(),
+                    event.getInspectorName(), event.getLocation());
+
+        } else {
+            type = switch (status.toUpperCase()) {
+                case "APPROVED" -> NotificationType.QA_APPROVED;
+                case "REJECTED" -> NotificationType.QA_REJECTED;
+                default -> NotificationType.QA_PENDING;
+            };
+            severity = switch (type) {
+                case QA_APPROVED -> "SUCCESS";
+                case QA_REJECTED -> "ERROR";
+                default -> "INFO";
+            };
+            message = switch (type) {
+                case QA_APPROVED -> String.format(
+                        "✅ QA APPROVED: Part '%s' (Batch: %s) has passed inspection. " +
+                                "Inspector: %s | Location: %s | Remarks: %s",
+                        event.getPartName(), event.getBatchNumber(),
+                        event.getInspectorName(), event.getLocation(), event.getRemarks());
+                case QA_REJECTED -> String.format(
+                        "❌ QA REJECTED: Part '%s' (Batch: %s) failed inspection. " +
+                                "Inspector: %s | Location: %s | Reason: %s",
+                        event.getPartName(), event.getBatchNumber(),
+                        event.getInspectorName(), event.getLocation(), event.getRemarks());
+                default -> String.format(
+                        "🔍 QA PENDING: Part '%s' (Batch: %s) is awaiting QA inspection at %s.",
+                        event.getPartName(), event.getBatchNumber(), event.getLocation());
+            };
+        }
+
+        dispatch(NotificationLog.builder()
+                .type(type)
+                .partId(event.getPartId())
+                .partName(event.getPartName())
+                .batchNumber(event.getBatchNumber())
+                .message(message)
+                .inspectorName(event.getInspectorName())
+                .location(event.getLocation())
+                .severity(severity)
+                .build(), message);
     }
 
     @Override
-    @Transactional
-    public void sendMaterialIssuedAlert(Long partId, String batchNumber, int qty, String workOrderId) {
-        String msg = String.format(
-            "MATERIAL ISSUED — Part ID: %d | Batch: %s | Qty: %d | Work Order: %s",
-            partId, batchNumber, qty, workOrderId != null ? workOrderId : "N/A"
-        );
-        deliver(partId, null, batchNumber, NotificationType.MATERIAL_ISSUED, msg);
+    public void handleMaterialIssued(MaterialIssuedEvent event) {
+        log.info("[NOTIFY] MATERIAL_ISSUED → partId={}, qty={}, issuedTo={}",
+                event.getPartId(), event.getQuantityIssued(), event.getIssuedTo());
+
+        String message = String.format(
+                "📦 MATERIAL ISSUED: %d units of '%s' (Batch: %s) issued to %s by %s. " +
+                        "Remaining stock: %d. Location: %s",
+                event.getQuantityIssued(), event.getPartName(), event.getBatchNumber(),
+                event.getIssuedTo(), event.getIssuedBy(),
+                event.getRemainingQuantity(), event.getLocation());
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.MATERIAL_ISSUED)
+                .partId(event.getPartId())
+                .partName(event.getPartName())
+                .batchNumber(event.getBatchNumber())
+                .message(message)
+                .location(event.getLocation())
+                .severity("INFO")
+                .build(), message);
     }
 
     @Override
-    @Transactional
-    public void sendStockReceivedAlert(Long partId, String partName, String batchNumber) {
-        String msg = String.format(
-            "STOCK RECEIVED — Part: %s (ID: %d) | Batch: %s | Status: PENDING_QA | QA inspection required",
-            partName, partId, batchNumber != null ? batchNumber : "N/A"
-        );
-        deliver(partId, partName, batchNumber, NotificationType.STOCK_RECEIVED, msg);
+    public void handleStockReceived(StockReceivedEvent event) {
+        log.info("[NOTIFY] STOCK_RECEIVED → partId={}, qty={}, supplier={}",
+                event.getPartId(), event.getQuantityReceived(), event.getSupplier());
+
+        String message = String.format(
+                "📥 STOCK RECEIVED: %d units of '%s' (Batch: %s) received from %s. " +
+                        "Batch is PENDING QA inspection. Location: %s | Received by: %s",
+                event.getQuantityReceived(), event.getPartName(), event.getBatchNumber(),
+                event.getSupplier(), event.getLocation(), event.getReceivedBy());
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.STOCK_RECEIVED)
+                .partId(event.getPartId())
+                .partName(event.getPartName())
+                .batchNumber(event.getBatchNumber())
+                .message(message)
+                .location(event.getLocation())
+                .severity("INFO")
+                .build(), message);
     }
+
+    @Override
+    public void handlePartCreated(PartCreatedEvent event) {
+        log.info("[NOTIFY] PART_CREATED → partId={}, name={}", event.getPartId(), event.getPartName());
+
+        String message = String.format(
+                "🆕 NEW PART REGISTERED: '%s' (Batch: %s) added to inventory by %s. " +
+                        "Initial qty: %d | Reorder level: %d | Location: %s",
+                event.getPartName(), event.getBatchNumber(), event.getCreatedBy(),
+                event.getInitialQuantity(), event.getReorderLevel(), event.getLocation());
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.PART_CREATED)
+                .partId(event.getPartId())
+                .partName(event.getPartName())
+                .batchNumber(event.getBatchNumber())
+                .message(message)
+                .location(event.getLocation())
+                .severity("INFO")
+                .build(), message);
+    }
+
+    // ── REST Queries ─────────────────────────────────────────────────────────
 
     @Override
     public List<NotificationLog> getRecent() {
@@ -79,44 +185,54 @@ public class NotificationServiceImpl implements NotificationService {
         return notificationRepository.findByPartIdOrderByCreatedAtDesc(partId);
     }
 
-    // Core delivery method — logs to DB + console always, email only if enabled
-    private void deliver(Long partId, String partName, String batchNumber,
-                         NotificationType type, String message) {
-        // Always log to console — useful during development
-        log.info("NOTIFICATION [{}] → {}", type, message);
+    @Override
+    public List<NotificationLog> getByBatchNumber(String batchNumber) {
+        return notificationRepository.findByBatchNumberOrderByCreatedAtDesc(batchNumber);
+    }
 
-        NotificationLog logEntry = NotificationLog.builder()
-                .type(type)
-                .partId(partId)
-                .partName(partName)
-                .batchNumber(batchNumber)
-                .message(message)
-                .recipient(recipient)
-                .status(NotificationStatus.PENDING)
-                .build();
+    @Override
+    public List<NotificationLog> getByType(String type) {
+        return notificationRepository.findByTypeOrderByCreatedAtDesc(NotificationType.valueOf(type.toUpperCase()));
+    }
 
-        if (emailEnabled) {
-            try {
-                SimpleMailMessage mail = new SimpleMailMessage();
-                mail.setTo(recipient);
-                mail.setSubject("[Aerospace ERP] " + type.name().replace("_", " "));
-                mail.setText(message + "\n\nTimestamp: " + LocalDateTime.now());
-                mailSender.send(mail);
+    // ── Orchestration ────────────────────────────────────────────────────────
 
-                logEntry.setStatus(NotificationStatus.SENT);
-                logEntry.setSentAt(LocalDateTime.now());
-                log.info("Email sent to: {}", recipient);
-            } catch (Exception e) {
-                logEntry.setStatus(NotificationStatus.FAILED);
-                logEntry.setErrorMessage(e.getMessage());
-                log.error("Email delivery failed: {}", e.getMessage());
-            }
-        } else {
-            // Email disabled — mark as SENT since console log is the delivery
-            logEntry.setStatus(NotificationStatus.SENT);
-            logEntry.setSentAt(LocalDateTime.now());
+    /**
+     * Dispatches via WebSocket (sync) + Email (async) then persists the log.
+     */
+    private void dispatch(NotificationLog log_, String message) {
+        boolean wsSent = false;
+        boolean emailSent = false;
+        String errorMsg = null;
+
+        try {
+            webSocketService.broadcast(log_);
+            wsSent = true;
+        } catch (Exception ex) {
+            log.error("[NOTIFY] WebSocket dispatch failed for partId={}: {}", log_.getPartId(), ex.getMessage());
+            errorMsg = "WS: " + ex.getMessage();
         }
 
-        notificationRepository.save(logEntry);
+        try {
+            emailService.sendAsync(log_);
+            emailSent = true; // async — assume success; failures logged inside EmailService
+        } catch (Exception ex) {
+            log.error("[NOTIFY] Email dispatch failed for partId={}: {}", log_.getPartId(), ex.getMessage());
+            errorMsg = (errorMsg != null ? errorMsg + " | " : "") + "EMAIL: " + ex.getMessage();
+        }
+
+        NotificationStatus status = (wsSent || emailSent)
+                ? NotificationStatus.SENT
+                : NotificationStatus.FAILED;
+
+        log_.setWebsocketSent(wsSent);
+        log_.setEmailSent(emailSent);
+        log_.setStatus(status);
+        log_.setSentAt(LocalDateTime.now());
+        log_.setErrorMessage(errorMsg);
+
+        notificationRepository.save(log_);
+        log.info("[NOTIFY] ✅ Persisted notification | type={} partId={} status={}",
+                log_.getType(), log_.getPartId(), status);
     }
 }

@@ -9,8 +9,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,6 +22,8 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
+
+    // ── Shared base consumer properties ────────────────────────────────────
 
     private Map<String, Object> baseProps() {
         Map<String, Object> props = new HashMap<>();
@@ -31,31 +35,52 @@ public class KafkaConfig {
         return props;
     }
 
+    // ── Generic typed factory builder ───────────────────────────────────────
+
     private <T> ConcurrentKafkaListenerContainerFactory<String, T> factory(Class<T> clazz) {
         JsonDeserializer<T> deser = new JsonDeserializer<>(clazz);
         deser.setUseTypeHeaders(false);
         deser.addTrustedPackages("*");
+
         ErrorHandlingDeserializer<T> errorDeser = new ErrorHandlingDeserializer<>(deser);
+
         ConsumerFactory<String, T> cf = new DefaultKafkaConsumerFactory<>(
-            baseProps(), new StringDeserializer(), errorDeser);
-        ConcurrentKafkaListenerContainerFactory<String, T> f = new ConcurrentKafkaListenerContainerFactory<>();
+                baseProps(), new StringDeserializer(), errorDeser);
+
+        ConcurrentKafkaListenerContainerFactory<String, T> f =
+                new ConcurrentKafkaListenerContainerFactory<>();
         f.setConsumerFactory(cf);
+
+        // Retry failed messages 3 times with 2s backoff before logging and skipping
+        f.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(2000L, 3)));
+
         return f;
     }
 
-    @Bean public ConcurrentKafkaListenerContainerFactory<String, StockLowEvent> stockLowListenerFactory() {
+    // ── One factory bean per event type ─────────────────────────────────────
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, StockLowEvent> stockLowListenerFactory() {
         return factory(StockLowEvent.class);
     }
 
-    @Bean public ConcurrentKafkaListenerContainerFactory<String, QAStatusChangedEvent> qaStatusListenerFactory() {
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, QAStatusChangedEvent> qaStatusListenerFactory() {
         return factory(QAStatusChangedEvent.class);
     }
 
-    @Bean public ConcurrentKafkaListenerContainerFactory<String, MaterialIssuedEvent> materialIssuedListenerFactory() {
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, MaterialIssuedEvent> materialIssuedListenerFactory() {
         return factory(MaterialIssuedEvent.class);
     }
 
-    @Bean public ConcurrentKafkaListenerContainerFactory<String, StockReceivedEvent> stockReceivedListenerFactory() {
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, StockReceivedEvent> stockReceivedListenerFactory() {
         return factory(StockReceivedEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, PartCreatedEvent> partCreatedListenerFactory() {
+        return factory(PartCreatedEvent.class);
     }
 }

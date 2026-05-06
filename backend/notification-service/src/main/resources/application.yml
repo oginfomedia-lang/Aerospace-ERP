@@ -9,17 +9,22 @@ spring:
     url: jdbc:postgresql://localhost:5432/notification_db
     username: postgres
     password: postgres@123
+    driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
       group-id: notification-group
-      auto-offset-reset: latest
+      auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
@@ -44,9 +49,18 @@ spring:
 # Notification settings
 notification:
   email:
-    enabled: false        # set true when you have real SMTP credentials
-    recipient: warehouse-manager@aerospace.com
-  low-stock-threshold: 10 # alert if approved qty drops below this
+    enabled: true
+    from: sadavarteshraddha03@gmail.com
+    recipients: sadavarteshraddha03@gmail.com
+  low-stock-threshold: 10
+
+  kafka:
+    topics:
+      stock-low: stock-low-events
+      qa-status-changed: qa-status-changed-events
+      material-issued: material-issued-events
+      stock-received: stock-received-events
+      part-created: part-created-events
 
 logging:
   level:

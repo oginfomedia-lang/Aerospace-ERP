@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import InventoryList from './pages/InventoryList';
 import TransactionHistory from './pages/TransactionHistory';
 import QAInspection from './pages/QAInspection';
+import Notifications from './pages/Notifications';
 
 function App() {
   return (
@@ -30,6 +31,8 @@ function App() {
 
           {/* QA Service route — talks to port 8082 */}
           <Route path="/qa" element={<QAInspection />} />
+
+          <Route path='/notifications' element={<Notifications />} />
 
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

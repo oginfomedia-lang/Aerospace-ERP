@@ -11,8 +11,18 @@ import java.util.List;
 @Repository
 public interface NotificationRepository extends JpaRepository<NotificationLog, Long> {
 
-    List<NotificationLog> findByPartIdOrderByCreatedAtDesc(Long partId);
-    List<NotificationLog> findByStatusOrderByCreatedAtDesc(NotificationStatus status);
-    List<NotificationLog> findByTypeOrderByCreatedAtDesc(NotificationType type);
+    // Last N notifications — controller uses top 20
     List<NotificationLog> findTop20ByOrderByCreatedAtDesc();
+
+    // All notifications for a specific part
+    List<NotificationLog> findByPartIdOrderByCreatedAtDesc(Long partId);
+
+    // Filter by type
+    List<NotificationLog> findByTypeOrderByCreatedAtDesc(NotificationType type);
+
+    // Filter by status
+    List<NotificationLog> findByStatusOrderByCreatedAtDesc(NotificationStatus status);
+
+    // Filter by batch
+    List<NotificationLog> findByBatchNumberOrderByCreatedAtDesc(String batchNumber);
 }

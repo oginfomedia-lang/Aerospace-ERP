@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
-  Plane, ChevronRight
+  Plane, ChevronRight, Bell
 } from 'lucide-react';
 
 interface Props {
@@ -27,6 +27,12 @@ const navItems = [
     label: 'QA Inspection',
     icon: <ShieldCheck size={18} />,
     description: 'Compliance decisions'   // talks to qa-service port 8082
+  },
+  {
+    path: '/notifications',
+    label: 'Notifications',
+    icon: <Bell size={18} />,
+    description: 'Alerts & event feed'    // talks to notification-service port 8083
   },
 ];
 
@@ -106,6 +112,10 @@ const Layout = ({ children }: Props) => {
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[10px] text-slate-400 font-bold">QA Service · :8082</span>
           </div>
+          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] text-slate-400 font-bold">Notifications · :8083</span>
+          </div>
         </div>
       </aside>
 
@@ -129,6 +139,7 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/dashboard' && 'Dashboard'}
               {location.pathname === '/inventory' && 'Inventory'}
               {location.pathname === '/qa' && 'QA Inspection'}
+              {location.pathname === '/notifications' && 'Notifications'}
               {location.pathname.includes('/transactions') && 'Transaction History'}
             </span>
           </div>

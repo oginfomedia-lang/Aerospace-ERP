@@ -1,9 +1,7 @@
 package com.aerospace.notification_service.entity;
 
-public class NotificationStatus {
-
-    public static final NotificationStatus SENT = null;
-    public static final NotificationStatus FAILED = null;
-    public static final NotificationStatus PENDING = null;
-    
+public enum NotificationStatus {
+    PENDING,    // created but not yet dispatched
+    SENT,       // successfully delivered (WebSocket + Email)
+    FAILED      // dispatch failed — see errorMessage on NotificationLog
 }

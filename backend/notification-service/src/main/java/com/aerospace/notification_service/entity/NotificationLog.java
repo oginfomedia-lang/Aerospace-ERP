@@ -2,6 +2,8 @@ package com.aerospace.notification_service.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.nio.channels.Channel;
 import java.time.LocalDateTime;
 
 // Every notification sent is stored here — full audit trail
@@ -36,8 +38,17 @@ public class NotificationLog {
     @Column(nullable = false)
     private NotificationStatus status;
 
+    //Channel tracking
+    private boolean websocketSent;
+    private boolean emailSent;
+
     private String recipient;
     private String errorMessage;
+
+    // Metadata from the triggering event
+    private String inspectorName;
+    private String location;
+    private String severity;   
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

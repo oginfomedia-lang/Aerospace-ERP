@@ -1,19 +1,28 @@
 package com.aerospace.notification_service.event;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-// Matches MaterialIssuedEvent in inventory-service
-// Published to: inventory.material.issued
+import java.time.LocalDateTime;
+
+/**
+ * Published by Inventory Service when stock is issued to production.
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MaterialIssuedEvent {
-    private Long materialId;
+
+    private Long partId;
+    private String partName;
     private String batchNumber;
-    private Integer quantity;
-    private String issuedTo;
-    private String workOrderId;
+    private Integer quantityIssued;
+    private Integer remainingQuantity;
+    private String issuedTo;            // production order / department
+    private String issuedBy;
     private String location;
+    private LocalDateTime issuedAt;
 }

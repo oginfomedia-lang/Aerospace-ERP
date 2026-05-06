@@ -2,6 +2,8 @@ package com.aerospace.inventory_service.service.impl;
 
 import com.aerospace.inventory_service.dto.*;
 import com.aerospace.inventory_service.entity.*;
+import com.aerospace.inventory_service.event.*;
+import com.aerospace.inventory_service.event.producer.InventoryProducer;
 import com.aerospace.inventory_service.exception.ResourceNotFoundException;
 import com.aerospace.inventory_service.mapper.PartMapper;
 import com.aerospace.inventory_service.repository.*;
@@ -28,6 +30,10 @@ public class PartServiceImpl implements PartService {
     private final TransactionService transactionService;
     private final PartMapper mapper;
     private final UomConversionRepository uomRepository;
+    private final InventoryProducer inventoryProducer;
+
+    // ── CREATE PART ──────────────────────────────────────────────────────────
+    // Kafka: PART_CREATED → notification-service logs "New Part Registered"
 
     @Override
     @Transactional
@@ -37,8 +43,31 @@ public class PartServiceImpl implements PartService {
             throw new RuntimeException("Part with this SKU/Serial already exists");
         }
         Part part = mapper.toEntity(dto);
-        return mapper.toDTO(partRepository.save(part));
+        Part saved = partRepository.save(part);
+
+        try {
+            inventoryProducer.sendCreatedEvent(
+                PartCreatedEvent.builder()
+                    .partId(saved.getId())
+                    .partName(saved.getName())
+                    .id(saved.getId())           // legacy field
+                    .name(saved.getName())       // legacy field
+                    .serialNumber(dto.getSerialNumber()) // legacy field
+                    .batchNumber("")
+                    .initialQuantity(0)
+                    .reorderLevel(saved.getReorderLevel() != null ? saved.getReorderLevel() : 0)
+                    .location("")
+                    .createdBy("System")
+                    .build()
+            );
+        } catch (Exception ex) {
+            log.warn("[KAFKA] PART_CREATED publish failed for partId={}: {}", saved.getId(), ex.getMessage());
+        }
+
+        return mapper.toDTO(saved);
     }
+
+    // ── GET BY ID ────────────────────────────────────────────────────────────
 
     @Override
     public PartResponseDTO getById(Long id) {
@@ -47,9 +76,9 @@ public class PartServiceImpl implements PartService {
         return mapWithLiveStock(part, StockStatus.APPROVED);
     }
 
-    // expiryDate is saved onto the StockBalance row here.
-    // ExpiryScheduler queries: findAllByExpiryDateBeforeAndStatus(now, APPROVED)
-    // and auto-rejects those rows — it needs this value to exist in the DB.
+    // ── ADD STOCK (inward-from-grn) ──────────────────────────────────────────
+    // Kafka: STOCK_RECEIVED → notification-service logs "Stock Received"
+
     @Override
     @Transactional
     public PartResponseDTO addStock(Long id, int quantity, String batch, String loc, LocalDateTime expiryDate) {
@@ -64,19 +93,38 @@ public class PartServiceImpl implements PartService {
 
         balance.setQuantity(balance.getQuantity() + quantity);
         balance.setLocation(loc);
-        balance.setExpiryDate(expiryDate); // persisted to DB — scheduler reads this
+        balance.setExpiryDate(expiryDate);
         balanceRepository.save(balance);
 
         transactionService.logTransaction(id, batch, "GRN_RECEIPT", quantity, "Inward to PENDING_QA");
+
+        try {
+            inventoryProducer.sendStockReceivedEvent(
+                StockReceivedEvent.builder()
+                    .partId(id)
+                    .partName(part.getName())
+                    .batchNumber(batch)
+                    .quantityReceived(quantity)
+                    .supplier("GRN")
+                    .location(loc != null ? loc : "")
+                    .receivedBy("System")
+                    .build()
+            );
+        } catch (Exception ex) {
+            log.warn("[KAFKA] STOCK_RECEIVED publish failed for partId={}: {}", id, ex.getMessage());
+        }
 
         PartResponseDTO response = mapper.toDTO(part);
         response.setQuantity(balance.getQuantity());
         response.setBatchNumber(batch);
         response.setLocation(loc);
-        response.setExpiryDate(expiryDate); // included in response so frontend can display immediately
+        response.setExpiryDate(expiryDate);
         response.setStatus(StockStatus.PENDING_QA.name());
         return response;
     }
+
+    // ── ISSUE TO PRODUCTION ──────────────────────────────────────────────────
+    // Kafka: MATERIAL_ISSUED + (optionally) STOCK_LOW
 
     @Override
     @Transactional
@@ -95,12 +143,52 @@ public class PartServiceImpl implements PartService {
 
         transactionService.logTransaction(id, batch, "PRODUCTION_ISSUE", -quantity, "Material Issued");
 
+        int remaining = balance.getQuantity();
+
+        try {
+            inventoryProducer.sendMaterialIssuedEvent(
+                MaterialIssuedEvent.builder()
+                    .partId(id)
+                    .partName(part.getName())
+                    .batchNumber(batch)
+                    .quantityIssued(quantity)
+                    .remainingQuantity(remaining)
+                    .issuedTo("Production")
+                    .issuedBy("System")
+                    .location(balance.getLocation() != null ? balance.getLocation() : "")
+                    .build()
+            );
+        } catch (Exception ex) {
+            log.warn("[KAFKA] MATERIAL_ISSUED publish failed for partId={}: {}", id, ex.getMessage());
+        }
+
+        // Trigger LOW_STOCK alert if remaining drops at or below reorder level
+        if (part.getReorderLevel() != null && remaining <= part.getReorderLevel()) {
+            try {
+                inventoryProducer.sendLowStockEvent(
+                    StockLowEvent.builder()
+                        .partId(id)
+                        .partName(part.getName())
+                        .batchNumber(batch)
+                        .currentQuantity(remaining)
+                        .reorderLevel(part.getReorderLevel())
+                        .location(balance.getLocation() != null ? balance.getLocation() : "")
+                        .build()
+                );
+            } catch (Exception ex) {
+                log.warn("[KAFKA] STOCK_LOW publish failed for partId={}: {}", id, ex.getMessage());
+            }
+        }
+
         PartResponseDTO response = mapper.toDTO(part);
-        response.setQuantity(balance.getQuantity());
+        response.setQuantity(remaining);
         response.setBatchNumber(batch);
         response.setStatus(StockStatus.APPROVED.name());
         return response;
     }
+
+    // ── PROCESS QA DECISION ──────────────────────────────────────────────────
+    // Kafka: QA_STATUS_CHANGED → notification-service logs QA_APPROVED / QA_REJECTED
 
     @Override
     @Transactional
@@ -114,7 +202,7 @@ public class PartServiceImpl implements PartService {
 
         int qty = pending.getQuantity();
         String loc = pending.getLocation();
-        LocalDateTime expiry = pending.getExpiryDate(); // carry expiry date forward to next status
+        LocalDateTime expiry = pending.getExpiryDate();
         balanceRepository.delete(pending);
 
         StockBalance target = balanceRepository
@@ -125,11 +213,32 @@ public class PartServiceImpl implements PartService {
 
         target.setQuantity(target.getQuantity() + qty);
         target.setLocation(loc);
-        target.setExpiryDate(expiry); // carry expiry to APPROVED/REJECTED row — scheduler still needs it
+        target.setExpiryDate(expiry);
         balanceRepository.save(target);
 
         transactionService.logTransaction(id, batch, "QA_DECISION", 0,
                 "Moved to " + newStatus + ": " + remarks);
+
+        try {
+            boolean expired = expiry != null && expiry.isBefore(LocalDateTime.now());
+            inventoryProducer.sendQAStatusChangedEvent(
+                QAStatusChangedEvent.builder()
+                    .partId(id)
+                    .partName(part.getName())
+                    .batchNumber(batch)
+                    .newStatus(newStatus)
+                    .decision(newStatus)
+                    .status(newStatus)           // legacy field
+                    .inspectorName("QA Inspector")
+                    .location(loc != null ? loc : "")
+                    .remarks(remarks != null ? remarks : "")
+                    .batchExpired(expired)
+                    .expiryDate(expiry != null ? expiry.toString() : "")
+                    .build()
+            );
+        } catch (Exception ex) {
+            log.warn("[KAFKA] QA_STATUS_CHANGED publish failed for partId={}: {}", id, ex.getMessage());
+        }
 
         PartResponseDTO response = mapper.toDTO(part);
         response.setQuantity(target.getQuantity());
@@ -139,6 +248,8 @@ public class PartServiceImpl implements PartService {
         response.setExpiryDate(expiry);
         return response;
     }
+
+    // ── REST QUERIES ─────────────────────────────────────────────────────────
 
     @Override
     public List<PartResponseDTO> getAllParts() {
@@ -204,7 +315,6 @@ public class PartServiceImpl implements PartService {
                         .partId(partId).batchNumber(batch)
                         .status(StockStatus.RESERVED).quantity(0).build());
 
-        // Carry expiry date from APPROVED → RESERVED so scheduler still tracks it
         reservedStock.setExpiryDate(approvedStock.getExpiryDate());
         reservedStock.setQuantity(reservedStock.getQuantity() + quantity);
         balanceRepository.save(reservedStock);
@@ -228,7 +338,6 @@ public class PartServiceImpl implements PartService {
             factor = conv.getFactor();
         }
 
-        // null expiryDate — caller should use addStock() directly if expiry is known
         return addStock(id, (int) (inputQty * factor), batch, loc, null);
     }
 
@@ -251,50 +360,44 @@ public class PartServiceImpl implements PartService {
                         .location(toBin).status(source.getStatus()).quantity(0).build());
 
         target.setQuantity(target.getQuantity() + qty);
-        target.setExpiryDate(source.getExpiryDate()); // carry expiry date to new bin
+        target.setExpiryDate(source.getExpiryDate());
         balanceRepository.save(target);
 
         transactionService.logTransaction(id, batch, "LOCATION_TRANSFER",
                 qty, "Moved from " + fromBin + " to " + toBin);
     }
 
-    // -------------------------------------------------------------------------
-    // Private Helpers
-    // -------------------------------------------------------------------------
+    // ── Private Helpers ──────────────────────────────────────────────────────
 
     private PartResponseDTO mapWithLiveStock(Part part, StockStatus status) {
-    PartResponseDTO dto = mapper.toDTO(part);
+        PartResponseDTO dto = mapper.toDTO(part);
 
-    List<StockBalance> balances = balanceRepository.findAllBalancesByPart(part.getId());
+        List<StockBalance> balances = balanceRepository.findAllBalancesByPart(part.getId());
 
-    // Aggregate total quantity filtered by status
-    long totalQty = balances.stream()
-            .filter(b -> status == null || b.getStatus() == status)
-            .mapToLong(b -> b.getQuantity() != null ? b.getQuantity() : 0L)
-            .sum();
-    dto.setQuantity((int) totalQty);
+        long totalQty = balances.stream()
+                .filter(b -> status == null || b.getStatus() == status)
+                .mapToLong(b -> b.getQuantity() != null ? b.getQuantity() : 0L)
+                .sum();
+        dto.setQuantity((int) totalQty);
 
-    if (!balances.isEmpty()) {
-        // FIX: Don't blindly take get(0)
-        // Priority order: APPROVED first, then PENDING_QA, then RESERVED, then REJECTED
-        // This ensures the displayed status reflects the most useful state
-        StockBalance primaryBalance = balances.stream()
-                .min(java.util.Comparator.comparingInt(b -> switch (b.getStatus()) {
-                    case APPROVED    -> 0;
-                    case PENDING_QA  -> 1;
-                    case RESERVED    -> 2;
-                    case REJECTED    -> 3;
-                }))
-                .orElse(balances.get(0));
+        if (!balances.isEmpty()) {
+            StockBalance primaryBalance = balances.stream()
+                    .min(java.util.Comparator.comparingInt(b -> switch (b.getStatus()) {
+                        case APPROVED   -> 0;
+                        case PENDING_QA -> 1;
+                        case RESERVED   -> 2;
+                        case REJECTED   -> 3;
+                    }))
+                    .orElse(balances.get(0));
 
-        dto.setBatchNumber(primaryBalance.getBatchNumber());
-        dto.setStatus(primaryBalance.getStatus().name());
-        dto.setLocation(primaryBalance.getLocation());
-        dto.setExpiryDate(primaryBalance.getExpiryDate());
-    } else {
-        dto.setStatus("EMPTY");
+            dto.setBatchNumber(primaryBalance.getBatchNumber());
+            dto.setStatus(primaryBalance.getStatus().name());
+            dto.setLocation(primaryBalance.getLocation());
+            dto.setExpiryDate(primaryBalance.getExpiryDate());
+        } else {
+            dto.setStatus("EMPTY");
+        }
+
+        return dto;
     }
-
-    return dto;
-}
 }

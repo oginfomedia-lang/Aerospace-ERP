@@ -3,10 +3,10 @@ server:
 
 spring:
   application:
-    name: order-service
+    name: work-order-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/work_order_db
+    url: jdbc:postgresql://localhost:5432/workorder_db
     username: postgres
     password: postgres@123
     driver-class-name: org.postgresql.Driver
@@ -15,43 +15,45 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
-    deserialization:
-      fail-on-unknown-properties: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
 
   kafka:
     bootstrap-servers: localhost:9092
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      properties:
-        spring.json.add.type.headers: false
     consumer:
-      group-id: work-order-group
-      auto-offset-reset: earliest
+      group-id: workorder-group
+      auto-offset-reset: latest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
         spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.trusted.packages: "*"
         spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
 
-# Kafka topic names — must match inventory-service KafkaTopics.java
-work-order:
+# Kafka topic names — consumed and produced by this service
+workorder:
   kafka:
     topics:
-      work-order-created:   work-order-created-events
-      work-order-updated:   work-order-updated-events
-      material-requested:   material-requested-events
+      work-order-created: work-order-created-events
+      work-order-updated: work-order-updated-events
       work-order-completed: work-order-completed-events
-      # consumed from inventory-service:
-      stock-low:            stock-low-events
+      material-request: material-request-events
+      qa-status-changed: qa-status-changed-events    # consumed from inventory-service
+
+# Cross-service HTTP clients (used by RestTemplate for inventory stock checks)
+services:
+  inventory:
+    base-url: http://localhost:8081/api/v1
 
 logging:
   level:
-    com.aerospace.work_order_service: DEBUG
+    com.aerospace.workorder_service: DEBUG
     org.apache.kafka: WARN
+    org.hibernate.SQL: WARN

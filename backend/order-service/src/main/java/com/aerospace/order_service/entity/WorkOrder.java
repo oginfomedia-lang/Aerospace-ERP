@@ -19,20 +19,20 @@ public class WorkOrder {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // e.g. WO-2026-001 — generated on creation
+    // e.g. WO-2024-00142 — auto-generated on create
     @Column(nullable = false, unique = true)
-    private String workOrderNumber;
+    private String woNumber;
 
+    // Aircraft or system this WO is for
     @Column(nullable = false)
-    private String title;
-
-    private String description;
-
-    // Aircraft registration or asset tag this WO is against
     private String aircraftId;
 
-    // Task reference — e.g. AMM task number in real aerospace
-    private String taskReference;
+    private String aircraftType;   // e.g. Boeing 737, Airbus A320
+
+    @Column(nullable = false)
+    private String taskDescription;
+
+    private String taskCode;       // ATA chapter code e.g. ATA-32-00
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -40,35 +40,38 @@ public class WorkOrder {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private WorkOrderPriority priority;
+    private Priority priority;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private WorkOrderType type;
-
-    private String assignedTo;       // technician name or team
+    private String assignedTo;     // technician name / team
     private String createdBy;
+    private String location;       // hangar / bay
+
+    private LocalDateTime dueDate;
+    private LocalDateTime startedAt;
+    private LocalDateTime completedAt;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    private LocalDateTime scheduledDate;
-    private LocalDateTime startedAt;
-    private LocalDateTime completedAt;
-    private LocalDateTime dueDate;
+    private LocalDateTime updatedAt;
 
-    private String completionNotes;
-    private String rejectionReason;
+    private String remarks;
+    private String closureNotes;
 
-    // One WO can request multiple material lines
-    @OneToMany(mappedBy = "workOrder", cascade = CascadeType.ALL, orphanRemoval = true)
+    // One WO has many material line items
+    @OneToMany(mappedBy = "workOrder", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
-    private List<MaterialRequest> materialRequests = new ArrayList<>();
+    private List<MaterialLineItem> materialLineItems = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
         if (this.status == null) this.status = WorkOrderStatus.DRAFT;
-        if (this.priority == null) this.priority = WorkOrderPriority.MEDIUM;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

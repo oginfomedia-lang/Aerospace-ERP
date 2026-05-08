@@ -58,12 +58,12 @@ public class WorkOrder {
     private String remarks;
     private String closureNotes;
 
-    // One WO has many material line items
-    @OneToMany(mappedBy = "workOrder", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    // One WO has many material line items   .....orphanRemoval = true deletes line items removed from list. FetchType.EAGER loads line items immediately
+    @OneToMany(mappedBy = "workOrder", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER) //cascade -> saving one work order means saving all line items
     @Builder.Default
     private List<MaterialLineItem> materialLineItems = new ArrayList<>();
 
-    @PrePersist
+    @PrePersist // Automatically sets timestamps before first save. Defensive default status ensures new work orders don't accidentally start in invalid state.
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();

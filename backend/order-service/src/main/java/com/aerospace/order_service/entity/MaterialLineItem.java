@@ -15,9 +15,9 @@ public class MaterialLineItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY) //load work order only when accessed
     @JoinColumn(name = "work_order_id", nullable = false)
-    @ToString.Exclude
+    @ToString.Exclude //prevent circular reference infinite loop
     private WorkOrder workOrder;
 
     // References inventory-service part ID

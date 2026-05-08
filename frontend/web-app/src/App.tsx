@@ -7,6 +7,7 @@ import InventoryList from './pages/InventoryList';
 import TransactionHistory from './pages/TransactionHistory';
 import QAInspection from './pages/QAInspection';
 import Notifications from './pages/Notifications';
+import WorkOrders from './pages/WorkOrders';
 
 function App() {
   return (
@@ -33,6 +34,9 @@ function App() {
           <Route path="/qa" element={<QAInspection />} />
 
           <Route path='/notifications' element={<Notifications />} />
+
+          {/* Workorder service */}
+          <Route path='/work-orders' element={<WorkOrders />} />
 
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

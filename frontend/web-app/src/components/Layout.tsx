@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
-  Plane, ChevronRight, Bell
+  Plane, ChevronRight, Bell,
+  Wrench
 } from 'lucide-react';
+import path from 'path';
 
 interface Props {
   children: React.ReactNode;
@@ -34,6 +36,12 @@ const navItems = [
     icon: <Bell size={18} />,
     description: 'Alerts & event feed'    // talks to notification-service port 8083
   },
+  {
+    path: '/work-orders',
+    label: 'Work Orders',
+    icon: <Wrench size={18} />,
+    description: 'Maintainance task management'
+  }
 ];
 
 const Layout = ({ children }: Props) => {

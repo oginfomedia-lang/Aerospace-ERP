@@ -1,0 +1,382 @@
+import React, { useState } from 'react';
+import { X, PlusCircle, Trash2, Plane, Wrench, AlertTriangle } from 'lucide-react';
+import workOrderApi from '../api/workOrderAxios';
+import { CreateWorkOrderRequest, MaterialLineItemRequest, Priority, ApiResponse, WorkOrder } from '../types/workOrder';
+import toast from 'react-hot-toast';
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const PRIORITIES: Priority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+
+const priorityStyle: Record<Priority, string> = {
+  LOW:      'border-emerald-300 bg-emerald-50 text-emerald-700',
+  MEDIUM:   'border-amber-300  bg-amber-50  text-amber-700',
+  HIGH:     'border-orange-300 bg-orange-50 text-orange-700',
+  CRITICAL: 'border-red-400    bg-red-50    text-red-700',
+};
+
+const emptyLine = (): MaterialLineItemRequest => ({
+  partId: 0,
+  partName: '',
+  partNumber: '',
+  quantityRequired: 1,
+  remarks: '',
+});
+
+export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState<CreateWorkOrderRequest>({
+    aircraftId: '',
+    aircraftType: '',
+    taskDescription: '',
+    taskCode: '',
+    priority: 'MEDIUM',
+    assignedTo: '',
+    createdBy: '',
+    location: '',
+    dueDate: '',
+    remarks: '',
+    materialItems: [],
+  });
+
+  const set = (field: keyof CreateWorkOrderRequest, value: any) =>
+    setForm(f => ({ ...f, [field]: value }));
+
+  const addLine = () =>
+    setForm(f => ({ ...f, materialItems: [...(f.materialItems ?? []), emptyLine()] }));
+
+  const removeLine = (i: number) =>
+    setForm(f => ({ ...f, materialItems: f.materialItems?.filter((_, idx) => idx !== i) }));
+
+  const updateLine = (i: number, field: keyof MaterialLineItemRequest, value: any) =>
+    setForm(f => ({
+      ...f,
+      materialItems: f.materialItems?.map((l, idx) =>
+        idx === i ? { ...l, [field]: value } : l
+      ),
+    }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.aircraftId.trim() || !form.taskDescription.trim()) {
+      toast.error('Aircraft ID and Task Description are required.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await toast.promise(
+        workOrderApi.post<ApiResponse<WorkOrder>>('/work-orders', {
+          ...form,
+          dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+          materialItems: form.materialItems?.filter(l => l.partId > 0),
+        }),
+        {
+          loading: 'Creating work order...',
+          success: (res) => `${res.data.data.woNumber} created successfully`,
+          error: (err) => err.response?.data?.message || 'Failed to create work order',
+        }
+      );
+      onSuccess();
+      onClose();
+      resetForm();
+    } catch {}
+    finally { setSubmitting(false); }
+  };
+
+  const resetForm = () => setForm({
+    aircraftId: '', aircraftType: '', taskDescription: '', taskCode: '',
+    priority: 'MEDIUM', assignedTo: '', createdBy: '', location: '',
+    dueDate: '', remarks: '', materialItems: [],
+  });
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-200">
+              <Wrench size={20} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">New Work Order</h2>
+              <p className="text-xs text-slate-500 font-medium">Fill in task and material requirements</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-400">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-8 py-6 space-y-5">
+
+          {/* Aircraft */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+                Aircraft ID *
+              </label>
+              <div className="relative">
+                <Plane size={14} className="absolute left-3 top-3 text-slate-400" />
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. VT-AXB"
+                  value={form.aircraftId}
+                  onChange={e => set('aircraftId', e.target.value)}
+                  className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+                Aircraft Type
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Boeing 737-800"
+                value={form.aircraftType}
+                onChange={e => set('aircraftType', e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Task */}
+          <div>
+            <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+              Task Description *
+            </label>
+            <textarea
+              required
+              rows={2}
+              placeholder="Describe the maintenance task..."
+              value={form.taskDescription}
+              onChange={e => set('taskDescription', e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+            />
+          </div>
+
+          {/* Task Code + Priority */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+                ATA Task Code
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. ATA-32-00"
+                value={form.taskCode}
+                onChange={e => set('taskCode', e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+                Priority *
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {PRIORITIES.map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => set('priority', p)}
+                    className={`py-2 rounded-xl text-[10px] font-black border-2 transition-all ${
+                      form.priority === p
+                        ? priorityStyle[p] + ' border-current shadow-sm'
+                        : 'border-slate-200 text-slate-400 hover:border-slate-300'
+                    }`}
+                  >
+                    {p === 'CRITICAL' ? 'AOG' : p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Assigned / Created / Location / Due */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+                Assigned To
+              </label>
+              <input
+                type="text"
+                placeholder="Technician / Team"
+                value={form.assignedTo}
+                onChange={e => set('assignedTo', e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+                Created By
+              </label>
+              <input
+                type="text"
+                placeholder="Your name"
+                value={form.createdBy}
+                onChange={e => set('createdBy', e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+                Location / Hangar
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Hangar 3 - Bay B"
+                value={form.location}
+                onChange={e => set('location', e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+                Due Date
+              </label>
+              <input
+                type="datetime-local"
+                value={form.dueDate}
+                onChange={e => set('dueDate', e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Remarks */}
+          <div>
+            <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
+              Remarks
+            </label>
+            <input
+              type="text"
+              placeholder="Additional notes..."
+              value={form.remarks}
+              onChange={e => set('remarks', e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
+          {/* Material Line Items */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                Material Requirements
+              </label>
+              <button
+                type="button"
+                onClick={addLine}
+                className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition"
+              >
+                <PlusCircle size={14} /> Add Part
+              </button>
+            </div>
+
+            {(form.materialItems ?? []).length === 0 ? (
+              <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-xs font-bold">
+                No parts added yet — click "Add Part" to specify material requirements
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {form.materialItems?.map((line, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-2 items-center bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                    <div className="col-span-2">
+                      <input
+                        type="number"
+                        placeholder="Part ID"
+                        value={line.partId || ''}
+                        onChange={e => updateLine(i, 'partId', Number(e.target.value))}
+                        className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="col-span-4">
+                      <input
+                        type="text"
+                        placeholder="Part name"
+                        value={line.partName}
+                        onChange={e => updateLine(i, 'partName', e.target.value)}
+                        className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <input
+                        type="text"
+                        placeholder="SKU / Part #"
+                        value={line.partNumber}
+                        onChange={e => updateLine(i, 'partNumber', e.target.value)}
+                        className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="Qty"
+                        value={line.quantityRequired}
+                        onChange={e => updateLine(i, 'quantityRequired', Number(e.target.value))}
+                        className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="col-span-1 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => removeLine(i)}
+                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="grid grid-cols-12 gap-2 px-3">
+                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">PART ID</span>
+                  <span className="col-span-4 text-[10px] text-slate-400 font-bold">NAME</span>
+                  <span className="col-span-3 text-[10px] text-slate-400 font-bold">SKU</span>
+                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">QTY</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AOG Warning */}
+          {form.priority === 'CRITICAL' && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 rounded-2xl border border-red-200">
+              <AlertTriangle size={14} className="text-red-600 flex-shrink-0" />
+              <p className="text-xs text-red-700 font-bold">
+                AOG — Aircraft On Ground. This work order will be flagged for immediate attention.
+              </p>
+            </div>
+          )}
+        </form>
+
+        {/* Footer */}
+        <div className="px-8 py-5 border-t border-slate-100 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-2xl transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="px-8 py-2.5 bg-blue-600 text-white text-sm font-black rounded-2xl hover:bg-blue-700 transition shadow-lg shadow-blue-200 disabled:opacity-60"
+          >
+            Create Work Order
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

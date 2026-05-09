@@ -24,7 +24,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final EmailService emailService;
     private final NotificationRepository notificationRepository;
 
-    // ── Kafka Event Handlers ─────────────────────────────────────────────────
+    // ── Inventory Kafka Event Handlers ────────────────────────────────────────
 
     @Override
     public void handleStockLow(StockLowEvent event) {
@@ -66,17 +66,16 @@ public class NotificationServiceImpl implements NotificationService {
                             "Immediate disposal required. Inspector: %s | Location: %s",
                     event.getPartName(), event.getBatchNumber(), event.getExpiryDate(),
                     event.getInspectorName(), event.getLocation());
-
         } else {
             type = switch (status.toUpperCase()) {
                 case "APPROVED" -> NotificationType.QA_APPROVED;
                 case "REJECTED" -> NotificationType.QA_REJECTED;
-                default -> NotificationType.QA_PENDING;
+                default         -> NotificationType.QA_PENDING;
             };
             severity = switch (type) {
                 case QA_APPROVED -> "SUCCESS";
                 case QA_REJECTED -> "ERROR";
-                default -> "INFO";
+                default          -> "INFO";
             };
             message = switch (type) {
                 case QA_APPROVED -> String.format(
@@ -173,7 +172,98 @@ public class NotificationServiceImpl implements NotificationService {
                 .build(), message);
     }
 
-    // ── REST Queries ─────────────────────────────────────────────────────────
+    // ── Work Order Kafka Event Handlers ───────────────────────────────────────
+
+    @Override
+    public void handleWorkOrderCreated(WorkOrderCreatedEvent event) {
+        log.info("[NOTIFY] WORK_ORDER_CREATED → woNumber={}, aircraft={}, priority={}",
+                event.getWoNumber(), event.getAircraftId(), event.getPriority());
+
+        String severity = "CRITICAL".equals(event.getPriority()) ? "ERROR" : "INFO";
+        String message = String.format(
+                "🔧 WORK ORDER CREATED: %s raised for aircraft %s. Task: %s. " +
+                        "Priority: %s | Location: %s | Created by: %s",
+                event.getWoNumber(), event.getAircraftId(),
+                event.getTaskDescription(), event.getPriority(),
+                event.getLocation() != null ? event.getLocation() : "—",
+                event.getCreatedBy() != null ? event.getCreatedBy() : "System");
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.WORK_ORDER_CREATED)
+                .partId(event.getWorkOrderId())       // reusing partId field for WO ID
+                .partName(event.getWoNumber())        // reusing partName for WO number
+                .batchNumber(event.getAircraftId())   // reusing batchNumber for aircraft ID
+                .message(message)
+                .location(event.getLocation())
+                .severity(severity)
+                .build(), message);
+    }
+
+    @Override
+    public void handleWorkOrderUpdated(WorkOrderStatusChangedEvent event) {
+        log.info("[NOTIFY] WORK_ORDER_UPDATED → woNumber={}, {} → {}",
+                event.getWoNumber(), event.getFromStatus(), event.getToStatus());
+
+        String severity = switch (event.getToStatus() != null ? event.getToStatus() : "") {
+            case "COMPLETED" -> "SUCCESS";
+            case "ON_HOLD"   -> "WARNING";
+            case "CANCELLED" -> "ERROR";
+            default          -> "INFO";
+        };
+
+        String icon = switch (event.getToStatus() != null ? event.getToStatus() : "") {
+            case "IN_PROGRESS" -> "▶️";
+            case "ON_HOLD"     -> "⏸️";
+            case "COMPLETED"   -> "✅";
+            case "CANCELLED"   -> "❌";
+            case "OPEN"        -> "📋";
+            default            -> "🔄";
+        };
+
+        String message = String.format(
+                "%s WORK ORDER %s: %s moved from %s → %s. Aircraft: %s | Changed by: %s | Remarks: %s",
+                icon, event.getToStatus(), event.getWoNumber(),
+                event.getFromStatus() != null ? event.getFromStatus() : "—",
+                event.getToStatus(), event.getAircraftId(),
+                event.getChangedBy() != null ? event.getChangedBy() : "System",
+                event.getRemarks()   != null ? event.getRemarks()   : "—");
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.WORK_ORDER_UPDATED)
+                .partId(event.getWorkOrderId())
+                .partName(event.getWoNumber())
+                .batchNumber(event.getAircraftId())
+                .message(message)
+                .location(null)
+                .severity(severity)
+                .build(), message);
+    }
+
+    @Override
+    public void handleWorkOrderCompleted(WorkOrderCompletedEvent event) {
+        log.info("[NOTIFY] WORK_ORDER_COMPLETED → woNumber={}, aircraft={}",
+                event.getWoNumber(), event.getAircraftId());
+
+        String message = String.format(
+                "✅ WORK ORDER COMPLETED: %s for aircraft %s has been closed. " +
+                        "Task: %s | Completed by: %s | Notes: %s",
+                event.getWoNumber(), event.getAircraftId(),
+                event.getTaskDescription(),
+                event.getCompletedBy()  != null ? event.getCompletedBy()  : "System",
+                event.getClosureNotes() != null ? event.getClosureNotes() : "—");
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.WORK_ORDER_COMPLETED)
+                .partId(event.getWorkOrderId())
+                .partName(event.getWoNumber())
+                .batchNumber(event.getAircraftId())
+                .message(message)
+                .location(null)
+                .severity("SUCCESS")
+                .build(), message);
+    }
+
+    // ── REST Queries ──────────────────────────────────────────────────────────
 
     @Override
     public List<NotificationLog> getRecent() {
@@ -192,32 +282,32 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public List<NotificationLog> getByType(String type) {
-        return notificationRepository.findByTypeOrderByCreatedAtDesc(NotificationType.valueOf(type.toUpperCase()));
+        return notificationRepository.findByTypeOrderByCreatedAtDesc(
+                NotificationType.valueOf(type.toUpperCase()));
     }
 
-    // ── Orchestration ────────────────────────────────────────────────────────
+    // ── Orchestration ─────────────────────────────────────────────────────────
 
-    /**
-     * Dispatches via WebSocket (sync) + Email (async) then persists the log.
-     */
     private void dispatch(NotificationLog log_, String message) {
-        boolean wsSent = false;
+        boolean wsSent    = false;
         boolean emailSent = false;
-        String errorMsg = null;
+        String  errorMsg  = null;
 
         try {
             webSocketService.broadcast(log_);
             wsSent = true;
         } catch (Exception ex) {
-            log.error("[NOTIFY] WebSocket dispatch failed for partId={}: {}", log_.getPartId(), ex.getMessage());
+            log.error("[NOTIFY] WebSocket dispatch failed for partId={}: {}",
+                    log_.getPartId(), ex.getMessage());
             errorMsg = "WS: " + ex.getMessage();
         }
 
         try {
             emailService.sendAsync(log_);
-            emailSent = true; // async — assume success; failures logged inside EmailService
+            emailSent = true;
         } catch (Exception ex) {
-            log.error("[NOTIFY] Email dispatch failed for partId={}: {}", log_.getPartId(), ex.getMessage());
+            log.error("[NOTIFY] Email dispatch failed for partId={}: {}",
+                    log_.getPartId(), ex.getMessage());
             errorMsg = (errorMsg != null ? errorMsg + " | " : "") + "EMAIL: " + ex.getMessage();
         }
 

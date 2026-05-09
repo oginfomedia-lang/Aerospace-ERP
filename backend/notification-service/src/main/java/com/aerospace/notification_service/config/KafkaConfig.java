@@ -57,30 +57,55 @@ public class KafkaConfig {
         return f;
     }
 
-    // ── One factory bean per event type ─────────────────────────────────────
+    // ── Inventory event factories ─────────────────────────────────────────────
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, StockLowEvent> stockLowListenerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, StockLowEvent>
+    stockLowListenerFactory() {
         return factory(StockLowEvent.class);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, QAStatusChangedEvent> qaStatusListenerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, QAStatusChangedEvent>
+    qaStatusListenerFactory() {
         return factory(QAStatusChangedEvent.class);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, MaterialIssuedEvent> materialIssuedListenerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, MaterialIssuedEvent>
+    materialIssuedListenerFactory() {
         return factory(MaterialIssuedEvent.class);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, StockReceivedEvent> stockReceivedListenerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, StockReceivedEvent>
+    stockReceivedListenerFactory() {
         return factory(StockReceivedEvent.class);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, PartCreatedEvent> partCreatedListenerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, PartCreatedEvent>
+    partCreatedListenerFactory() {
         return factory(PartCreatedEvent.class);
+    }
+
+    // ── Work order event factories ────────────────────────────────────────────
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, WorkOrderCreatedEvent>
+    workOrderCreatedListenerFactory() {
+        return factory(WorkOrderCreatedEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, WorkOrderStatusChangedEvent>
+    workOrderUpdatedListenerFactory() {
+        return factory(WorkOrderStatusChangedEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, WorkOrderCompletedEvent>
+    workOrderCompletedListenerFactory() {
+        return factory(WorkOrderCompletedEvent.class);
     }
 }

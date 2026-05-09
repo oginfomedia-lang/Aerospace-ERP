@@ -15,16 +15,12 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
       group-id: notification-group
-      auto-offset-reset: earliest
+      auto-offset-reset: latest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
@@ -32,13 +28,11 @@ spring:
         spring.json.trusted.packages: "*"
         spring.json.use.type.headers: false
 
-  # Email config — using Gmail as example
-  # For development: set spring.mail.test-connection=false to skip real sending
   mail:
     host: smtp.gmail.com
     port: 587
-    username: sadavarteshraddha03@gmail.com   # replace with your email
-    password: your-app-password      # replace with Gmail app password
+    username: sadavarteshraddha03@gmail.com
+    password: your-app-password
     properties:
       mail:
         smtp:
@@ -46,21 +40,25 @@ spring:
           starttls:
             enable: true
 
-# Notification settings
 notification:
   email:
-    enabled: true
-    from: sadavarteshraddha03@gmail.com
-    recipients: sadavarteshraddha03@gmail.com
+    enabled: false                             # set true once Gmail app password is configured
+    from: noreply@aerospace.local
+    recipients: admin@aerospace.local
   low-stock-threshold: 10
 
   kafka:
     topics:
-      stock-low: stock-low-events
+      # ── Inventory topics ──────────────────────────────────────────────────
+      stock-low:         stock-low-events
       qa-status-changed: qa-status-changed-events
-      material-issued: material-issued-events
-      stock-received: stock-received-events
-      part-created: part-created-events
+      material-issued:   material-issued-events
+      stock-received:    stock-received-events
+      part-created:      part-created-events
+      # ── Work order topics ─────────────────────────────────────────────────
+      work-order-created:   work-order-created-events
+      work-order-updated:   work-order-updated-events
+      work-order-completed: work-order-completed-events
 
 logging:
   level:

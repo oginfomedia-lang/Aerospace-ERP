@@ -7,12 +7,17 @@ import java.util.List;
 
 public interface NotificationService {
 
-    // ── Triggered by Kafka consumers ────────────────────────────────────────
+    // ── Triggered by Kafka consumers — Inventory ─────────────────────────────
     void handleStockLow(StockLowEvent event);
     void handleQaStatusChanged(QAStatusChangedEvent event);
     void handleMaterialIssued(MaterialIssuedEvent event);
     void handleStockReceived(StockReceivedEvent event);
     void handlePartCreated(PartCreatedEvent event);
+
+    // ── Triggered by Kafka consumers — Work Orders ────────────────────────────
+    void handleWorkOrderCreated(WorkOrderCreatedEvent event);
+    void handleWorkOrderUpdated(WorkOrderStatusChangedEvent event);
+    void handleWorkOrderCompleted(WorkOrderCompletedEvent event);
 
     // ── REST queries ────────────────────────────────────────────────────────
     List<NotificationLog> getRecent();

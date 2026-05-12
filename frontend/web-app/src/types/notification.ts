@@ -4,6 +4,7 @@
 export type NotificationSeverity = 'SUCCESS' | 'WARNING' | 'ERROR' | 'INFO';
 
 export type NotificationType =
+  // ── Inventory types ────────────────────────────────────────────────────────
   | 'LOW_STOCK'
   | 'QA_APPROVED'
   | 'QA_REJECTED'
@@ -12,16 +13,20 @@ export type NotificationType =
   | 'STOCK_RECEIVED'
   | 'EXPIRY_WARNING'
   | 'MATERIAL_ISSUED'
-  | 'PART_CREATED';
+  | 'PART_CREATED'
+  // ── Work order types ───────────────────────────────────────────────────────
+  | 'WORK_ORDER_CREATED'
+  | 'WORK_ORDER_UPDATED'
+  | 'WORK_ORDER_COMPLETED';
 
 export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED';
 
 export interface NotificationLog {
   id: number;
   type: NotificationType;
-  partId: number | null;
-  partName: string | null;
-  batchNumber: string | null;
+  partId: number | null;       // also holds workOrderId for WO notifications
+  partName: string | null;     // also holds woNumber for WO notifications
+  batchNumber: string | null;  // also holds aircraftId for WO notifications
   message: string;
   status: NotificationStatus;
   websocketSent: boolean;
@@ -31,7 +36,7 @@ export interface NotificationLog {
   inspectorName: string | null;
   location: string | null;
   severity: NotificationSeverity;
-  createdAt: string;    // ISO datetime
+  createdAt: string;
   sentAt: string | null;
 }
 
@@ -40,7 +45,6 @@ export interface NotificationApiResponse<T> {
   data: T;
 }
 
-// Sidebar stats derived from the feed — computed client-side
 export interface NotificationStats {
   total: number;
   warnings: number;

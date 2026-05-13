@@ -1,0 +1,62 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: production-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/production_db
+    username: postgres
+    password: postgres@123
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: production-group
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "*"
+        spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+production:
+  kafka:
+    topics:
+      production-order-created:   production-order-created-events
+      production-order-updated:   production-order-updated-events
+      production-order-completed: production-order-completed-events
+      quality-check-required:     quality-check-required-events
+      # consumed from other services
+      work-order-completed:       work-order-completed-events
+      qa-status-changed:          qa-status-changed-events
+      material-issued:            material-issued-events
+
+  # Auto-create PO from work order when WO is completed
+  auto-create-from-work-order: true
+
+services:
+  inventory:
+    base-url: http://localhost:8081/api/v1
+  work-order:
+    base-url: http://localhost:8084/api/v1
+
+logging:
+  level:
+    com.aerospace.production_service: DEBUG
+    org.apache.kafka: WARN
+    org.hibernate.SQL: WARN

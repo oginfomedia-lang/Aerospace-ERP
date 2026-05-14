@@ -99,11 +99,13 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     // ── READ ──────────────────────────────────────────────────────────────────
 
     @Override
+    @Transactional(readOnly = true)
     public ProductionOrderResponseDTO getById(Long id) {
         return mapper.toDTO(findOrThrow(id));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ProductionOrderResponseDTO getByPoNumber(String poNumber) {
         return mapper.toDTO(orderRepository.findByPoNumber(poNumber)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -111,21 +113,25 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ProductionOrderResponseDTO> getAll() {
         return orderRepository.findAll().stream().map(mapper::toDTO).toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<ProductionOrderResponseDTO> getAllPaged(Pageable pageable) {
         return orderRepository.findAll(pageable).map(mapper::toDTO);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ProductionOrderResponseDTO> getByStatus(ProductionOrderStatus status) {
         return orderRepository.findByStatus(status).stream().map(mapper::toDTO).toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ProductionOrderResponseDTO> searchByProductName(String name) {
         return orderRepository.findByProductNameContainingIgnoreCase(name)
                 .stream().map(mapper::toDTO).toList();

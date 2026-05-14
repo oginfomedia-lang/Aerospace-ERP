@@ -8,6 +8,7 @@ import TransactionHistory from './pages/TransactionHistory';
 import QAInspection from './pages/QAInspection';
 import Notifications from './pages/Notifications';
 import WorkOrders from './pages/WorkOrders';
+import ProductionOrders from './pages/ProductionOrders';
 
 function App() {
   return (
@@ -35,8 +36,10 @@ function App() {
 
           <Route path='/notifications' element={<Notifications />} />
 
-          {/* Workorder service */}
           <Route path='/work-orders' element={<WorkOrders />} />
+
+          {/* Production service */}
+          <Route path='/production' element={<ProductionOrders />} />
 
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

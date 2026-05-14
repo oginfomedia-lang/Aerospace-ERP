@@ -19,7 +19,7 @@ import toast from 'react-hot-toast';
 const statusStyle: Record<ProductionOrderStatus, string> = {
   PLANNED:      'bg-slate-100  text-slate-600  border-slate-200',
   RELEASED:     'bg-blue-50    text-blue-700   border-blue-200',
-  IN_PROGRESS:  'bg-amber-50   text-amber-700  border-amber-200',
+  IN_PRODUCTION:  'bg-amber-50   text-amber-700  border-amber-200',
   QUALITY_CHECK: 'bg-indigo-50  text-indigo-700 border-indigo-200',
   COMPLETED:    'bg-emerald-50 text-emerald-700 border-emerald-200',
   ON_HOLD:      'bg-orange-50  text-orange-700 border-orange-200',
@@ -29,7 +29,7 @@ const statusStyle: Record<ProductionOrderStatus, string> = {
 const statusIcon: Record<ProductionOrderStatus, React.ReactNode> = {
   PLANNED:      <Clock size={12} />,
   RELEASED:     <PlayCircle size={12} />,
-  IN_PROGRESS:  <Activity size={12} />,
+  IN_PRODUCTION:  <Activity size={12} />,
   QUALITY_CHECK: <ClipboardCheck size={12} />,
   COMPLETED:    <CheckCircle2 size={12} />,
   ON_HOLD:      <PauseCircle size={12} />,
@@ -47,7 +47,7 @@ const STATUS_FILTERS: { key: ProductionOrderStatus | 'ALL'; label: string }[] = 
   { key: 'ALL',          label: 'All'           },
   { key: ProductionOrderStatus.PLANNED,      label: 'Planned'       },
   { key: ProductionOrderStatus.RELEASED,     label: 'Released'      },
-  { key: ProductionOrderStatus.IN_PROGRESS,  label: 'In Progress'   },
+  { key: ProductionOrderStatus.IN_PRODUCTION,  label: 'In Progress'   },
   { key: ProductionOrderStatus.QUALITY_CHECK, label: 'Quality Check' },
   { key: ProductionOrderStatus.COMPLETED,    label: 'Completed'     },
   { key: ProductionOrderStatus.ON_HOLD,      label: 'On Hold'       },
@@ -213,12 +213,12 @@ const ProductionOrders: React.FC = () => {
   };
 
   const statCards = stats ? [
-    { title: 'Total Orders',  value: stats.totalOrders,     icon: <Factory size={20} />,      color: 'from-indigo-600 to-indigo-700' },
-    { title: 'Active',        value: stats.activeOrders,    icon: <Activity size={20} />,     color: 'from-amber-500 to-amber-600' },
-    { title: 'Completed',     value: stats.completedOrders, icon: <CheckCircle2 size={20} />,  color: 'from-emerald-600 to-emerald-700' },
-    { title: 'On Hold',       value: stats.onHoldOrders,    icon: <PauseCircle size={20} />,   color: 'from-orange-500 to-orange-600' },
-    { title: 'Overdue',       value: stats.overdueOrders,   icon: <AlertTriangle size={20} />, color: 'from-red-600 to-red-700' },
-    { title: 'Success Rate',  value: `${Math.round(stats.completionRate)}%`, icon: <BarChart3 size={20} />, color: 'from-blue-600 to-blue-700' },
+    { title: 'Total Orders',  value: stats.totalOrders,        icon: <Factory size={20} />,      color: 'from-indigo-600 to-indigo-700' },
+    { title: 'In Production', value: stats.inProductionOrders, icon: <Activity size={20} />,     color: 'from-amber-500 to-amber-600' },
+    { title: 'Completed',     value: stats.completedOrders,    icon: <CheckCircle2 size={20} />,  color: 'from-emerald-600 to-emerald-700' },
+    { title: 'On Hold',       value: stats.onHoldOrders,       icon: <PauseCircle size={20} />,   color: 'from-orange-500 to-orange-600' },
+    { title: 'QA Check',      value: stats.qualityCheckOrders, icon: <ClipboardCheck size={20} />, color: 'from-blue-500 to-blue-600' },
+    { title: 'Success Rate',  value: `${Math.round(stats.overallCompletionRate)}%`, icon: <BarChart3 size={20} />, color: 'from-blue-600 to-blue-700' },
   ] : [];
 
   return (

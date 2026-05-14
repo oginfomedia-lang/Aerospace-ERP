@@ -69,13 +69,17 @@ export interface ProductionOrder {
 
 export interface DashboardStats {
   totalOrders: number;
-  activeOrders: number;
+  plannedOrders: number;
+  inProductionOrders: number;
+  qualityCheckOrders: number;
   completedOrders: number;
   onHoldOrders: number;
-  overdueOrders: number;
-  completionRate: number;
-  totalProduced: number;
-  totalRejected: number;
+  cancelledOrders: number;
+  totalPlannedQty: number;
+  totalProducedQty: number;
+  totalRejectedQty: number;
+  overallCompletionRate: number;
+  overallRejectionRate: number;
 }
 
 export interface ApiResponse<T> {

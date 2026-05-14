@@ -22,7 +22,7 @@ interface Props {
 const statusStyle: Record<ProductionOrderStatus, string> = {
   PLANNED:      'bg-slate-100  text-slate-600  border-slate-200',
   RELEASED:     'bg-blue-50    text-blue-700   border-blue-200',
-  IN_PROGRESS:  'bg-amber-50   text-amber-700  border-amber-200',
+  IN_PRODUCTION:  'bg-amber-50   text-amber-700  border-amber-200',
   QUALITY_CHECK: 'bg-indigo-50  text-indigo-700 border-indigo-200',
   COMPLETED:    'bg-emerald-50 text-emerald-700 border-emerald-200',
   ON_HOLD:      'bg-orange-50  text-orange-700 border-orange-200',
@@ -74,7 +74,7 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
             <Activity size={14} /> Start Production
           </button>
         );
-      case ProductionOrderStatus.IN_PROGRESS:
+      case ProductionOrderStatus.IN_PRODUCTION:
         return (
           <div className="flex gap-2">
             <button

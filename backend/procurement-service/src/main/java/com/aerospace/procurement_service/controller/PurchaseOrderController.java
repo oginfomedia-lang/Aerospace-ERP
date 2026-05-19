@@ -22,5 +22,15 @@ public class PurchaseOrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
     
-    // You can add endpoints here later to approve POs, mark them as received, or fetch them by ID!
+    @GetMapping
+    public ResponseEntity<java.util.List<PurchaseOrderResponse>> getAllPurchaseOrders() {
+        return ResponseEntity.ok(poService.getAllPurchaseOrders());
+    }
+
+    @PutMapping("/{id}/status")
+    public ResponseEntity<PurchaseOrderResponse> updatePOStatus(
+            @PathVariable Long id, 
+            @RequestParam com.aerospace.procurement_service.entity.POStatus status) {
+        return ResponseEntity.ok(poService.updatePOStatus(id, status));
+    }
 }

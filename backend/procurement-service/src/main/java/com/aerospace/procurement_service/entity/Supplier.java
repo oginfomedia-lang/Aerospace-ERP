@@ -1,5 +1,6 @@
 package com.aerospace.procurement_service.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.List;
@@ -31,6 +32,7 @@ public class Supplier {
 
     private String rating; // e.g., "A", "B", "C" based on performance
 
+    @JsonIgnore
     @OneToMany(mappedBy = "supplier", cascade = CascadeType.ALL)
     private List<PurchaseOrder> purchaseOrders;
 }

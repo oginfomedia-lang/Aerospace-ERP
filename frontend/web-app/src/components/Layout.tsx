@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell,
-  Wrench, Factory
+  Wrench, Factory, ShoppingCart, Users
 } from 'lucide-react';
 import path from 'path';
 
@@ -47,6 +47,18 @@ const navItems = [
     label: 'Production',
     icon: <Factory size={18} />,
     description: 'Manufacturing order tracking'
+  },
+  {
+    path: '/suppliers',
+    label: 'Suppliers',
+    icon: <Users size={18} />,
+    description: 'Vendor management'
+  },
+  {
+    path: '/purchase-orders',
+    label: 'Purchase Orders',
+    icon: <ShoppingCart size={18} />,
+    description: 'Procurement tracking'
   }
 ];
 
@@ -134,6 +146,10 @@ const Layout = ({ children }: Props) => {
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[10px] text-slate-400 font-bold">Production · :8085</span>
           </div>
+          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] text-slate-400 font-bold">Procurement · :8086</span>
+          </div>
         </div>
       </aside>
 
@@ -159,6 +175,8 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/qa' && 'QA Inspection'}
               {location.pathname === '/notifications' && 'Notifications'}
               {location.pathname === '/production' && 'Production'}
+              {location.pathname === '/suppliers' && 'Suppliers'}
+              {location.pathname === '/purchase-orders' && 'Purchase Orders'}
               {location.pathname.includes('/transactions') && 'Transaction History'}
             </span>
           </div>

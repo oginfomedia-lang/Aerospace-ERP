@@ -9,6 +9,8 @@ import QAInspection from './pages/QAInspection';
 import Notifications from './pages/Notifications';
 import WorkOrders from './pages/WorkOrders';
 import ProductionOrders from './pages/ProductionOrders';
+import ProcurementSuppliers from './pages/ProcurementSuppliers';
+import ProcurementOrders from './pages/ProcurementOrders';
 
 function App() {
   return (
@@ -40,6 +42,10 @@ function App() {
 
           {/* Production service */}
           <Route path='/production' element={<ProductionOrders />} />
+
+          {/* Procurement service */}
+          <Route path="/suppliers" element={<ProcurementSuppliers />} />
+          <Route path="/purchase-orders" element={<ProcurementOrders />} />
 
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class InventoryConsumer {
     private final ObjectMapper objectMapper;
+    private final com.aerospace.procurement_service.service.PurchaseOrderService poService;
 
     @KafkaListener(topics = "inventory-stock-low", groupId = "procurement-service-group", containerFactory = "kafkaListenerContainerFactory")
     public void handleStockLowEvent(StockLowEvent event) {
@@ -26,6 +27,11 @@ public class InventoryConsumer {
             event.getReorderLevel()
         );
 
-        //2.todo: call purchaseorderservice.createDraftPO(event.getPartId())
+        //2. Automatically create draft PO
+        try {
+            poService.createDraftPOFromStockLow(event);
+        } catch (Exception e) {
+            log.error("Failed to automatically create draft PO from stock low event", e);
+        }
     }
 }

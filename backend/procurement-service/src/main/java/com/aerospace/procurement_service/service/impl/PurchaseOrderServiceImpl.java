@@ -12,6 +12,7 @@ import com.aerospace.procurement_service.service.PurchaseOrderService;
 import com.aerospace.procurement_service.service.SupplierService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +21,13 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     private final PurchaseOrderRepository poRepository;
     private final SupplierService supplierService;
     private final PurchaseOrderMapper poMapper;
+    private final com.aerospace.procurement_service.event.producer.ProcurementEventPublisher eventPublisher;
 
     @Transactional
     public PurchaseOrderResponse createPurchaseOrder(PurchaseOrderRequest request) {
@@ -63,5 +66,73 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         // 6. Convert back to a response DTO for the frontend
         return poMapper.toDTO(savedPo);
+    }
+
+    @Override
+    public java.util.List<PurchaseOrderResponse> getAllPurchaseOrders() {
+        return poRepository.findAll().stream()
+                .map(poMapper::toDTO)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Transactional
+    @Override
+    public PurchaseOrderResponse updatePOStatus(Long id, com.aerospace.procurement_service.entity.POStatus status) {
+        PurchaseOrder po = poRepository.findById(id)
+                .orElseThrow(() -> new com.aerospace.procurement_service.exception.ResourceNotFoundException("PO not found with id " + id));
+        po.setStatus(status);
+        PurchaseOrder saved = poRepository.save(po);
+
+        if (status == com.aerospace.procurement_service.entity.POStatus.SENT_TO_VENDOR) {
+            com.aerospace.procurement_service.event.PurchaseOrderCreatedEvent event = com.aerospace.procurement_service.event.PurchaseOrderCreatedEvent.builder()
+                    .purchaseOrderId(saved.getId())
+                    .poNumber(saved.getPoNumber())
+                    .supplierName(saved.getSupplier().getName())
+                    .totalAmount(saved.getTotalAmount())
+                    .currency(saved.getCurrency())
+                    .expectedDeliveryDate(saved.getDeliveryDate())
+                    .build();
+            eventPublisher.publishPOCreatedEvent(event);
+        }
+
+        return poMapper.toDTO(saved);
+    }
+
+    @Transactional
+    @Override
+    public void createDraftPOFromStockLow(com.aerospace.procurement_service.event.StockLowEvent event) {
+        java.util.List<Supplier> suppliers = supplierService.getAllSuppliers();
+        Supplier defaultSupplier = suppliers.stream()
+                .filter(s -> "CERTIFIED".equalsIgnoreCase(s.getCertificationStatus()))
+                .findFirst()
+                .orElse(null);
+
+        if (defaultSupplier == null) {
+            log.warn("Cannot create draft PO automatically because no certified suppliers exist!");
+            return;
+        }
+
+        PurchaseOrder po = new PurchaseOrder();
+        po.setSupplier(defaultSupplier);
+        po.setOrderDate(LocalDateTime.now());
+        po.setDeliveryDate(LocalDateTime.now().plusDays(7));
+        po.setStatus(POStatus.DRAFT);
+        po.setPoNumber("PO-AUTO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        po.setCurrency("USD");
+        po.setRemarks("Auto-drafted due to low stock alert for Part: " + event.getPartName());
+
+        POLineItem item = new POLineItem();
+        item.setPurchaseOrder(po);
+        item.setSkuCode(event.getPartName());
+        item.setQuantity(event.getReorderLevel() * 2);
+        item.setUnitPrice(15.00);
+        item.setTotalPrice(item.getQuantity() * item.getUnitPrice());
+        item.setUom("PCS");
+
+        po.setItems(java.util.List.of(item));
+        po.setTotalAmount(item.getTotalPrice());
+
+        poRepository.save(po);
+        log.info("📢 [PROCUREMENT AUTO] Successfully created draft PO: {} for Part: {}", po.getPoNumber(), event.getPartName());
     }
 }

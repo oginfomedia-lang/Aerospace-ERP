@@ -33,3 +33,7 @@ spring:
       # No deserializer config here — handled by KafkaConfig beans above
 
     type: simple   # ADD THIS — use of  @Cacheable/@CacheEvict but never declared a cache manager
+
+app:
+  jwt:
+    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970

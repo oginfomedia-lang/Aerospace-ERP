@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell,
@@ -8,7 +8,7 @@ import {
 import path from 'path';
 
 interface Props {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 const navItems = [
@@ -184,7 +184,7 @@ const Layout = ({ children }: Props) => {
 
         {/* Page content */}
         <main className="flex-1 p-6 overflow-auto">
-          {children}
+          {children || <Outlet />}
         </main>
       </div>
     </div>

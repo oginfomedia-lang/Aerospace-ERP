@@ -6,6 +6,18 @@ const procurementApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// ✅ Request interceptor – attach JWT token
+procurementApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 procurementApi.interceptors.response.use(
   (res) => res,
   (err) => {

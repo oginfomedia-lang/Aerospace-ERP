@@ -4,8 +4,6 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 import com.aerospace.procurement_service.event.StockLowEvent;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class InventoryConsumer {
-    private final ObjectMapper objectMapper;
     private final com.aerospace.procurement_service.service.PurchaseOrderService poService;
 
     @KafkaListener(topics = "inventory-stock-low", groupId = "procurement-service-group", containerFactory = "kafkaListenerContainerFactory")

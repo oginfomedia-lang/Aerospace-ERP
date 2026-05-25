@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
-  Plane, ChevronRight, Bell,
+  Plane, ChevronRight, Bell, LogOut,
   Wrench, Factory, ShoppingCart, Users
 } from 'lucide-react';
 import path from 'path';
+import { useAuth } from '../context/AuthContext';
 
 interface Props {
   children?: React.ReactNode;
@@ -16,55 +17,68 @@ const navItems = [
     path: '/dashboard',
     label: 'Dashboard',
     icon: <LayoutDashboard size={18} />,
-    description: 'KPIs & overview'
+    description: 'KPIs & overview',
+    roles: []
   },
   {
     path: '/inventory',
     label: 'Inventory',
     icon: <Package size={18} />,
-    description: 'Parts & stock ledger'
+    description: 'Parts & stock ledger',
+    roles: ['STORE_KEEPER', 'PROCUREMENT_OFFICER', 'PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
   },
   {
     path: '/qa',
     label: 'QA Inspection',
     icon: <ShieldCheck size={18} />,
-    description: 'Compliance decisions'   // talks to qa-service port 8082
+    description: 'Compliance decisions',
+    roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
   },
   {
     path: '/notifications',
     label: 'Notifications',
     icon: <Bell size={18} />,
-    description: 'Alerts & event feed'    // talks to notification-service port 8083
+    description: 'Alerts & event feed',
+    roles: []
   },
   {
     path: '/work-orders',
     label: 'Work Orders',
     icon: <Wrench size={18} />,
-    description: 'Maintainance task management'
+    description: 'Maintainance task management',
+    roles: ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
   },
   {
     path: '/production',
     label: 'Production',
     icon: <Factory size={18} />,
-    description: 'Manufacturing order tracking'
+    description: 'Manufacturing order tracking',
+    roles: ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
   },
   {
     path: '/suppliers',
     label: 'Suppliers',
     icon: <Users size={18} />,
-    description: 'Vendor management'
+    description: 'Vendor management',
+    roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
   },
   {
     path: '/purchase-orders',
     label: 'Purchase Orders',
     icon: <ShoppingCart size={18} />,
-    description: 'Procurement tracking'
+    description: 'Procurement tracking',
+    roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
   }
 ];
 
 const Layout = ({ children }: Props) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { user, hasRole, logout } = useAuth();
+  
+  const visibleNavItems = navItems.filter(item => 
+    !item.roles.length || !user?.roles || user.roles.length === 0 || item.roles.some(role => hasRole(role))
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -102,7 +116,7 @@ const Layout = ({ children }: Props) => {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
-          {navItems.map(item => (
+          {visibleNavItems.map(item => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -166,7 +180,7 @@ const Layout = ({ children }: Props) => {
           </button>
 
           {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm flex-1">
             <span className="text-slate-400 font-medium">ERP</span>
             <ChevronRight size={14} className="text-slate-300" />
             <span className="font-black text-slate-900 capitalize">
@@ -180,6 +194,14 @@ const Layout = ({ children }: Props) => {
               {location.pathname.includes('/transactions') && 'Transaction History'}
             </span>
           </div>
+
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 rounded-xl transition-colors font-bold text-sm"
+          >
+            <LogOut size={16} />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
         </header>
 
         {/* Page content */}

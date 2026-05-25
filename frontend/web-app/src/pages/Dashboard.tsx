@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import api from '../api/axios';
-import { Package, AlertTriangle, Database, Activity, ShieldAlert, Ban, TrendingUp, RefreshCw } from 'lucide-react';
+import { Package, AlertTriangle, Database, Activity, ShieldAlert, Ban, TrendingUp, RefreshCw, UserCircle } from 'lucide-react';
 import { DashboardStats, ApiResponse, Part } from '../types/inventory';
 import { LowStockAlert } from '../components/LowStockAlert';
+import { useAuth } from '../context/AuthContext';
 
 // FIX: Math.random() in render causes a new ID on every re-render.
 // Generate it once with useRef so it stays stable for the session.
@@ -11,6 +12,7 @@ const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user, hasRole } = useAuth();
 
   // Stable session terminal ID — generated once, never changes
   const terminalId = useRef(Math.random().toString(36).substring(2, 9).toUpperCase());
@@ -48,28 +50,32 @@ const Dashboard = () => {
       val: stats.totalParts.toLocaleString(),
       icon: <Database size={20} />,
       color: 'from-blue-600 to-blue-700',
-      note: 'Registered parts'
+      note: 'Registered parts',
+      roles: ['STORE_KEEPER', 'PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
     },
     {
       title: 'Total Approved Units',
       val: stats.totalQuantity.toLocaleString(),
       icon: <Activity size={20} />,
       color: 'from-slate-800 to-slate-900',
-      note: 'Available for production'
+      note: 'Available for production',
+      roles: ['STORE_KEEPER', 'PRODUCTION_ENGINEER', 'QA_INSPECTOR', 'MANAGER', 'ADMIN']
     },
     {
       title: 'In QA Inspection',
       val: stats.pendingQAItems.toLocaleString(),
       icon: <ShieldAlert size={20} />,
       color: 'from-amber-500 to-amber-600',
-      note: 'Awaiting QA decision'
+      note: 'Awaiting QA decision',
+      roles: ['QA_INSPECTOR', 'PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
     },
     {
       title: 'Rejected Lots',
       val: stats.rejectedItems.toLocaleString(),
       icon: <Ban size={20} />,
       color: 'from-red-600 to-red-700',
-      note: 'Quarantined stock'
+      note: 'Quarantined stock',
+      roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
     },
     {
       title: 'Low Stock Alerts',
@@ -77,7 +83,8 @@ const Dashboard = () => {
       val: stats.lowStockItems.toLocaleString(),
       icon: <AlertTriangle size={20} />,
       color: 'from-orange-500 to-orange-600',
-      note: 'Below reorder level'
+      note: 'Below reorder level',
+      roles: ['STORE_KEEPER', 'PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
     },
     {
       title: 'Inventory Value',
@@ -85,9 +92,14 @@ const Dashboard = () => {
       val: stats.inventoryValue > 0 ? `$${stats.inventoryValue.toLocaleString()}` : 'Pending Pricing',
       icon: <TrendingUp size={20} />,
       color: 'from-indigo-600 to-indigo-700',
-      note: 'Finance integration pending'
+      note: 'Finance integration pending',
+      roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
     },
   ];
+
+  const visibleCards = cards.filter(card => 
+    !user?.roles || user.roles.length === 0 || card.roles.some(role => hasRole(role))
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -99,7 +111,16 @@ const Dashboard = () => {
         <div className="flex justify-between items-end mb-6">
           <div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">Executive Overview</h1>
-            <p className="text-slate-500 text-sm font-medium">Real-time material balances and quality compliance status.</p>
+            <p className="text-slate-500 text-sm font-medium flex items-center gap-2 mt-1">
+              <UserCircle size={16} className="text-blue-500" />
+              Welcome back, <span className="font-bold text-slate-700">{user?.username}</span> 
+              {user?.roles && user.roles.length > 0 && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  Role: <span className="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-md text-xs">{user.roles.join(', ')}</span>
+                </>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -118,7 +139,7 @@ const Dashboard = () => {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {cards.map((card, i) => (
+          {visibleCards.map((card, i) => (
             <div key={i} className="group bg-white rounded-3xl p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <div className="flex justify-between items-start">
                 <div className={`p-4 rounded-2xl bg-gradient-to-br ${card.color} text-white shadow-lg`}>

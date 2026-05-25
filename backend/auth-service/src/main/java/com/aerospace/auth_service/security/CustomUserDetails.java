@@ -2,7 +2,6 @@ package com.aerospace.auth_service.security;
 
 import com.aerospace.auth_service.entity.User;
 import lombok.AllArgsConstructor;
-import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -10,7 +9,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-@Getter
 @AllArgsConstructor
 public class CustomUserDetails implements UserDetails {
     private Long id;
@@ -32,6 +30,9 @@ public class CustomUserDetails implements UserDetails {
                 user.isEnabled()
         );
     }
+
+    public Long getId() { return id; }
+    public String getEmail() { return email; }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() { return authorities; }

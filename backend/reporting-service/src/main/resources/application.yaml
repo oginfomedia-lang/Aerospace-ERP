@@ -1,3 +1,49 @@
+server:
+  port: 8088
+
 spring:
   application:
     name: reporting-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/reporting_db
+    username: postgres
+    password: postgres@123
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: reporting-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: >
+          StockReceivedEvent:com.aerospace.reporting_service.event.StockReceivedEvent,
+          PartCreatedEvent:com.aerospace.reporting_service.event.PartCreatedEvent,
+          MaterialIssuedEvent:com.aerospace.reporting_service.event.MaterialIssuedEvent,
+          StockLowEvent:com.aerospace.reporting_service.event.StockLowEvent,
+          QAStatusChangedEvent:com.aerospace.reporting_service.event.QAStatusChangedEvent,
+          WorkOrderCreatedEvent:com.aerospace.reporting_service.event.WorkOrderCreatedEvent,
+          WorkOrderStatusChangedEvent:com.aerospace.reporting_service.event.WorkOrderStatusChangedEvent,
+          WorkOrderCompletedEvent:com.aerospace.reporting_service.event.WorkOrderCompletedEvent,
+          ProductionOrderCreatedEvent:com.aerospace.reporting_service.event.ProductionOrderCreatedEvent,
+          ProductionOrderCompletedEvent:com.aerospace.reporting_service.event.ProductionOrderCompletedEvent,
+          PurchaseOrderCreatedEvent:com.aerospace.reporting_service.event.PurchaseOrderCreatedEvent
+
+app:
+  jwt:
+    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+
+logging:
+  level:
+    com.aerospace: DEBUG
+    org.springframework.kafka: INFO

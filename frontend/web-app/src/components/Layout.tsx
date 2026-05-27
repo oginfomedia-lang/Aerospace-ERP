@@ -76,9 +76,12 @@ const Layout = ({ children }: Props) => {
   const location = useLocation();
   const { user, hasRole, logout } = useAuth();
   
-  const visibleNavItems = navItems.filter(item => 
-    !item.roles.length || !user?.roles || user.roles.length === 0 || item.roles.some(role => hasRole(role))
-  );
+  const visibleNavItems = navItems.filter(item =>
+    !item.roles.length ||
+    !user?.roles ||
+    user.roles.length === 0 ||
+    item.roles.some(role => hasRole(role))
+);
 
   return (
     <div className="min-h-screen bg-slate-50 flex">

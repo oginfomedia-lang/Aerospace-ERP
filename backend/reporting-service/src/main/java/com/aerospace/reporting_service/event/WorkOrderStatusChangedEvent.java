@@ -3,7 +3,10 @@ package com.aerospace.reporting_service.event;
 import lombok.Data;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class WorkOrderStatusChangedEvent {
     private Long workOrderId;
     private String woNumber;

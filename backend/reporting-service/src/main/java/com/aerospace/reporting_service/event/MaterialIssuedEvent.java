@@ -2,9 +2,12 @@ package com.aerospace.reporting_service.event;
 
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import lombok.Data;
 
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MaterialIssuedEvent {
     private Long partId;
     private String partName;

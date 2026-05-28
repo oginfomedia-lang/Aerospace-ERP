@@ -13,6 +13,6 @@ public class QAStatusChangedEvent {
     private String newStatus;
     private String decision;
     private String inspectorName;
-    private String Location;
+    private String location;
     private String remarks;
 }

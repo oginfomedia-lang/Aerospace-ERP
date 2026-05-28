@@ -5,6 +5,7 @@ import com.aerospace.reporting_service.entity.InventoryFact;
 import com.aerospace.reporting_service.event.StockReceivedEvent;
 import com.aerospace.reporting_service.event.QAStatusChangedEvent;
 import com.aerospace.reporting_service.event.MaterialIssuedEvent;
+import com.aerospace.reporting_service.event.StockLowEvent;
 import com.aerospace.reporting_service.repository.InventoryFactRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,6 +69,21 @@ public class InventoryEventConsumer {
             });
         } catch (Exception e) {
             log.error("Failed to parse material-issued message: {}", message, e);
+        }
+    }
+
+    @KafkaListener(topics = "stock-low-events", containerFactory = "reportingKafkaListenerContainerFactory")
+    public void handleStockLow(String message) {
+        try {
+            StockLowEvent event = objectMapper.readValue(message, StockLowEvent.class);
+            log.info("⚠️ Stock low alert: Part {} has low stock on batch {}", event.getPartName(), event.getBatchNumber());
+            inventoryFactRepository.findByBatchNumber(event.getBatchNumber()).ifPresent(fact -> {
+                fact.setStatus("LOW_STOCK");
+                fact.setLastUpdated(LocalDateTime.now());
+                inventoryFactRepository.save(fact);
+            });
+        } catch (Exception e) {
+            log.error("Failed to parse stock-low message: {}", message, e);
         }
     }
 }

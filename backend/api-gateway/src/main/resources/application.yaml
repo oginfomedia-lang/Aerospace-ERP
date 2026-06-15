@@ -1,0 +1,212 @@
+server:
+  port: 8089
+  forward-headers-strategy: framework
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+
+spring:
+  application:
+    name: api-gateway
+  
+  # Redis configuration for rate limiting (production)
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  cloud:
+    gateway:
+      # Global CORS configuration
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origins:
+              - "http://localhost:3000"
+              - "http://localhost:3001"
+            allowed-methods:
+              - "GET"
+              - "POST"
+              - "PUT"
+              - "DELETE"
+              - "OPTIONS"
+            allowed-headers:
+              - "*"
+            allow-credentials: true
+            max-age: 3600
+      
+      # Route definitions
+      routes:
+        # Auth Service Routes (public - no authentication)
+        - id: auth-service
+          uri: http://localhost:8087
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - name: DedupeResponseHeader
+              args:
+                name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+              # Add request/response logging (optional)
+            - name: StripPrefix
+              args:
+                parts: 0
+
+        # Inventory Service Routes (requires authentication)
+        - id: inventory-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/v1/inventory/**, /api/v1/dashboard/**
+          filters:
+            - name: DedupeResponseHeader
+              args:
+                name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - name: StripPrefix
+              args:
+                parts: 0
+
+        # QA Service Routes (requires authentication)
+        - id: qa-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/v1/qa/**
+          filters:
+            - name: DedupeResponseHeader
+              args:
+                name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - name: StripPrefix
+              args:
+                parts: 0
+
+        # Notification Service Routes (requires authentication)
+        - id: notification-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/v1/notifications/**
+          filters:
+            - name: DedupeResponseHeader
+              args:
+                name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - name: StripPrefix
+              args:
+                parts: 0
+
+        # Work Order Service Routes (requires authentication)
+        - id: work-order-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/v1/work-orders/**
+          filters:
+            - name: DedupeResponseHeader
+              args:
+                name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - name: StripPrefix
+              args:
+                parts: 0
+
+        # Production Service Routes (requires authentication)
+        - id: production-service
+          uri: http://localhost:8085
+          predicates:
+            - Path=/api/v1/production/**
+          filters:
+            - name: DedupeResponseHeader
+              args:
+                name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - name: StripPrefix
+              args:
+                parts: 0
+
+        # Procurement Service Routes (requires authentication)
+        - id: procurement-service
+          uri: http://localhost:8086
+          predicates:
+            - Path=/api/purchase-orders/**, /api/suppliers/**
+          filters:
+            - name: DedupeResponseHeader
+              args:
+                name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - name: StripPrefix
+              args:
+                parts: 0
+
+        # Reporting Service Routes (requires authentication)
+        - id: reporting-service
+          uri: http://localhost:8088
+          predicates:
+            - Path=/api/reports/**
+          filters:
+            - name: DedupeResponseHeader
+              args:
+                name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - name: StripPrefix
+              args:
+                parts: 0
+
+        # WebSocket routes for notification-service (requires special handling)
+        - id: notification-websocket
+          uri: ws://localhost:8083
+          predicates:
+            - Path=/ws/**
+          filters:
+            - name: DedupeResponseHeader
+              args:
+                name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+      # Load balancer configuration (if using service discovery later)
+      loadbalancer:
+        use404: false
+        eager-load:
+          enabled: false
+
+# JWT Configuration (must match auth-service)
+app:
+  jwt:
+    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+
+# Actuator endpoints for monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,metrics
+      base-path: /actuator
+  endpoint:
+    gateway:
+      enabled: true
+    health:
+      show-details: always
+  simple:
+    metrics:
+      export:
+        enabled: true
+        
+        # Logging
+logging:
+  level:
+    com.aerospace.apigateway: DEBUG
+    org.springframework.cloud.gateway: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Resilience4j circuit breaker configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      default:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10000ms
+        permitted-number-of-calls-in-half-open-state: 3
+  ratelimiter:
+    instances:
+      default:
+        limit-for-period: 100
+        limit-refresh-period: 1s
+        timeout-duration: 1000ms

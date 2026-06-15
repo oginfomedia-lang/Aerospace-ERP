@@ -31,7 +31,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Health and public endpoints (if any)
-                .requestMatchers("/actuator/health", "/api/v1/health").permitAll()
+                .requestMatchers("/actuator/health", "/api/v1/health", "/ws/**").permitAll()
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )

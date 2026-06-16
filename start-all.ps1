@@ -22,6 +22,7 @@ function Write-Warn { param($msg) Write-Host "   [!]   $msg" -ForegroundColor Ye
 # auth-service MUST start before downstream services.
 # api-gateway MUST start LAST (it depends on all others).
 $Services = @(
+    [PSCustomObject]@{ Name = "service-registry";     Port = 8761; Dir = "service-registry" },
     [PSCustomObject]@{ Name = "auth-service";         Port = 8087; Dir = "auth-service"         },
     [PSCustomObject]@{ Name = "inventory-service";    Port = 8081; Dir = "inventory-service"    },
     [PSCustomObject]@{ Name = "qa-service";           Port = 8082; Dir = "qa-service"           },

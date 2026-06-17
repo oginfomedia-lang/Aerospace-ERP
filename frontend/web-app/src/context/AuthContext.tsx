@@ -1,6 +1,7 @@
 // src/context/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { loginUser, registerUser } from '../api/authAxios';
+import { loginUser, registerUser, logoutUser } from '../api/authAxios';
+import { tokenStorage } from '../utils/tokenStorage';
 import toast from 'react-hot-toast';
 
 interface User {
@@ -21,7 +22,7 @@ interface AuthContextType {
     password: string;
     roles?: string[];
   }) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
   hasRole: (role: string) => boolean;
 }
@@ -47,11 +48,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Load stored token on mount
   useEffect(() => {
-    const storedToken = localStorage.getItem('auth_token');
-    const storedUser = localStorage.getItem('auth_user');
+    const storedToken = tokenStorage.getAccessToken();
+    const storedUser = tokenStorage.getUser();
     if (storedToken && storedUser) {
       setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      setUser(storedUser);
     }
     setIsLoading(false);
   }, []);
@@ -61,8 +62,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await loginUser({ username, password });
       const { token, username: uname, email, roles } = response;
       const userObj = { username: uname, email, roles };
-      localStorage.setItem('auth_token', token);
-      localStorage.setItem('auth_user', JSON.stringify(userObj));
       setToken(token);
       setUser(userObj);
       toast.success(`Welcome back, ${uname}!`);
@@ -91,12 +90,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    setToken(null);
-    setUser(null);
-    toast.success('Logged out');
+  const logout = async () => {
+    try {
+      const refreshToken = tokenStorage.getRefreshToken();
+      if (refreshToken) {
+        await logoutUser(refreshToken);
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Always clear local state and tokens
+      tokenStorage.clear();
+      setToken(null);
+      setUser(null);
+      toast.success('Logged out');
+    }
   };
 
   const hasRole = (role: string): boolean => {

@@ -15,7 +15,6 @@ com\aerospace\auth_service\config\SecurityConfig.class
 com\aerospace\auth_service\exception\GlobalExceptionHandler.class
 com\aerospace\auth_service\controller\AuthController.class
 com\aerospace\auth_service\dto\UserResponse$UserResponseBuilder.class
-com\aerospace\auth_service\service\AuthService.class
 com\aerospace\auth_service\dto\RegisterRequest.class
 com\aerospace\auth_service\entity\Role$RoleBuilder.class
 com\aerospace\auth_service\security\CustomUserDetailsService.class

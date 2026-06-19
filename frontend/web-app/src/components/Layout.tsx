@@ -21,38 +21,10 @@ const navItems = [
     roles: []
   },
   {
-    path: '/inventory',
-    label: 'Inventory',
-    icon: <Package size={18} />,
-    description: 'Parts & stock ledger',
-    roles: ['STORE_KEEPER', 'PROCUREMENT_OFFICER', 'PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
-  },
-  {
-    path: '/qa',
-    label: 'QA Inspection',
-    icon: <ShieldCheck size={18} />,
-    description: 'Compliance decisions',
-    roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
-  },
-  {
-    path: '/notifications',
-    label: 'Notifications',
-    icon: <Bell size={18} />,
-    description: 'Alerts & event feed',
-    roles: []
-  },
-  {
     path: '/work-orders',
     label: 'Work Orders',
     icon: <Wrench size={18} />,
     description: 'Maintainance task management',
-    roles: ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
-  },
-  {
-    path: '/production',
-    label: 'Production',
-    icon: <Factory size={18} />,
-    description: 'Manufacturing order tracking',
     roles: ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
   },
   {
@@ -68,6 +40,34 @@ const navItems = [
     icon: <ShoppingCart size={18} />,
     description: 'Procurement tracking',
     roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/inventory',
+    label: 'Inventory',
+    icon: <Package size={18} />,
+    description: 'Parts & stock ledger',
+    roles: ['STORE_KEEPER', 'PROCUREMENT_OFFICER', 'PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/qa',
+    label: 'QA Inspection',
+    icon: <ShieldCheck size={18} />,
+    description: 'Compliance decisions',
+    roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/production',
+    label: 'Production',
+    icon: <Factory size={18} />,
+    description: 'Manufacturing order tracking',
+    roles: ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/notifications',
+    label: 'Notifications',
+    icon: <Bell size={18} />,
+    description: 'Alerts & event feed',
+    roles: []
   }
 ];
 

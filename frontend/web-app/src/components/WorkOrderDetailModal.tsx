@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X, Clock, Package, CheckCircle2, XCircle, PlayCircle,
   PauseCircle, Plane, MapPin, User, Calendar, ChevronRight,
@@ -10,6 +11,7 @@ import {
   IssueMaterialRequest, StatusHistoryEntry, ApiResponse
 } from '../types/workOrder';
 import toast from 'react-hot-toast';
+import api from '../api/axios';
 
 interface Props {
   workOrder: WorkOrder | null;
@@ -62,11 +64,13 @@ const lineStatusStyle: Record<string, string> = {
 };
 
 export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClose, onSuccess }) => {
+  const navigate = useNavigate();
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'details' | 'material' | 'history'>('details');
   const [transitioning, setTransitioning] = useState(false);
   const [transitionRemarks, setTransitionRemarks] = useState('');
   const [issueForm, setIssueForm] = useState<{ [lineId: number]: { qty: string; batch: string } }>({});
+  const [inventoryLevels, setInventoryLevels] = useState<{ [partId: number]: { qty: number; batch: string } }>({});
 
   useEffect(() => {
     if (workOrder && isOpen) {
@@ -75,6 +79,29 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
       ).then(r => setHistory(r.data.data)).catch(() => setHistory([]));
     }
   }, [workOrder, isOpen]);
+
+  useEffect(() => {
+    if (workOrder && activeTab === 'material') {
+      workOrder.materialLineItems.forEach(line => {
+        if (line.partId) {
+          api.get(`/inventory/${line.partId}`).then(res => {
+            const data = res.data.data;
+            setInventoryLevels(prev => ({
+              ...prev,
+              [line.partId]: { qty: data.quantity, batch: data.batchNumber }
+            }));
+            // Auto-fill issue form batch if available
+            if (data.batchNumber && (!issueForm[line.id] || !issueForm[line.id].batch)) {
+              setIssueForm(prev => ({
+                ...prev,
+                [line.id]: { ...prev[line.id], batch: data.batchNumber, qty: prev[line.id]?.qty ?? '' }
+              }));
+            }
+          }).catch(() => {});
+        }
+      });
+    }
+  }, [workOrder, activeTab]);
 
   if (!isOpen || !workOrder) return null;
 
@@ -319,6 +346,47 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                           {line.quantityIssued}
                         </p>
                       </div>
+                    </div>
+
+                    {/* NEW: Inventory Stock Check */}
+                    <div className="flex items-center gap-4 pt-3 border-t border-slate-200 mt-3 mb-3">
+                      {inventoryLevels[line.partId] ? (
+                        <>
+                          <div className="flex-1">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-1">Stock Check</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                                {inventoryLevels[line.partId].qty} APPROVED in store
+                              </span>
+                              {inventoryLevels[line.partId].qty < (line.quantityRequired - line.quantityIssued) && (
+                                <span className="text-xs font-black text-red-600 bg-red-50 px-2 py-1 rounded-lg flex items-center gap-1">
+                                  <AlertTriangle size={10} /> Shortage: {(line.quantityRequired - line.quantityIssued) - inventoryLevels[line.partId].qty}
+                                </span>
+                              )}
+                              {inventoryLevels[line.partId].qty >= (line.quantityRequired - line.quantityIssued) && (line.quantityRequired - line.quantityIssued) > 0 && (
+                                <span className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg flex items-center gap-1">
+                                  <CheckCircle2 size={10} /> Ready to Issue
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {inventoryLevels[line.partId].qty < (line.quantityRequired - line.quantityIssued) && (
+                            <button
+                              onClick={() => {
+                                const shortage = (line.quantityRequired - line.quantityIssued) - inventoryLevels[line.partId].qty;
+                                navigate('/purchase-orders', { 
+                                  state: { prefillItems: [{ skuCode: line.partNumber || String(line.partId), quantity: shortage }], woNumber: wo.woNumber } 
+                                });
+                              }}
+                              className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 whitespace-nowrap"
+                            >
+                              Raise PO ↗
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-xs text-slate-400 italic flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Checking inventory...</div>
+                      )}
                     </div>
 
                     {/* Issue Material form — show only for PENDING lines */}

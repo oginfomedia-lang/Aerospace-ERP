@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ShoppingCart, Plus, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import procurementApi from '../api/procurementAxios';
 import { Supplier, PurchaseOrderResponse, PurchaseOrderRequest, POLineItemDTO } from '../types/procurement';
+import { GRNFromPOModal } from '../components/GRNFromPOModal';
 
 const ProcurementOrders = () => {
   const [orders, setOrders] = useState<PurchaseOrderResponse[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [selectedPOForGRN, setSelectedPOForGRN] = useState<PurchaseOrderResponse | null>(null);
+
+  const location = useLocation();
+  const state = location.state as { prefillItems?: any[], woNumber?: string } | null;
 
   // Form State
   const [supplierId, setSupplierId] = useState<number | ''>('');
@@ -41,6 +47,18 @@ const ProcurementOrders = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (state?.prefillItems && state.prefillItems.length > 0) {
+      setItems(state.prefillItems.map(i => ({ skuCode: i.skuCode, quantity: i.quantity, unitPrice: 0, uom: 'PCS' })));
+      setShowModal(true);
+      if (state.woNumber) {
+        setRemarks(`Material shortage for Work Order: ${state.woNumber}`);
+      }
+      // Clear state so it doesn't reopen on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [state]);
 
   const handleAddItem = () => {
     setItems([...items, { skuCode: '', quantity: 1, unitPrice: 0, uom: 'PCS' }]);
@@ -187,6 +205,14 @@ const ProcurementOrders = () => {
                       </button>
                     </div>
                   )}
+                  {order.status === 'RECEIVED' && (
+                    <button
+                      onClick={() => setSelectedPOForGRN(order)}
+                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                    >
+                      Process GRN Inward →
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -287,7 +313,7 @@ const ProcurementOrders = () => {
 
             <div className="p-6 border-t border-slate-100 shrink-0 bg-slate-50 flex justify-between items-center">
               <div className="text-sm text-slate-500 font-medium">
-                Total: <span className="text-slate-900 font-bold text-lg">${items.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                Total: <span className="text-slate-900 font-bold text-lg">${items.reduce((acc, item) => acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowModal(false)}
@@ -303,6 +329,17 @@ const ProcurementOrders = () => {
 
           </div>
         </div>
+      )}
+
+      {selectedPOForGRN && (
+        <GRNFromPOModal
+          po={selectedPOForGRN}
+          onClose={() => setSelectedPOForGRN(null)}
+          onSuccess={() => {
+            setSelectedPOForGRN(null);
+            fetchData();
+          }}
+        />
       )}
     </div>
   );

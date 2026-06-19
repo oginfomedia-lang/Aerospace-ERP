@@ -89,7 +89,7 @@ const InventoryList = () => {
     }
 
     const qtyStr = window.prompt(
-      `Issue from APPROVED stock.\nBatch: ${part.batchNumber}\nAvailable: ${part.quantity} units\n\nEnter quantity to issue:`
+      `Issue material based on user requirement.\nStep 5: Material will issue and stock will update.\n\nBatch: ${part.batchNumber}\nAvailable (Approved): ${part.quantity} units\n\nEnter quantity to issue:`
     );
     if (!qtyStr || isNaN(Number(qtyStr)) || Number(qtyStr) <= 0) return;
 
@@ -100,7 +100,7 @@ const InventoryList = () => {
         api.post(`/inventory/${part.id}/issue-to-production?${params}`),
         {
           loading: `Issuing ${qtyStr} units from batch ${part.batchNumber}...`,
-          success: 'Stock issued to production.',
+          success: `Material issued. Stock updated — ${qtyStr} units deducted from store.`,
           error: (err) => err.response?.data?.message || 'Issue failed — check batch approval status.',
         }
       );
@@ -245,7 +245,7 @@ const InventoryList = () => {
                         <button
                           onClick={() => handleIssue(part)}
                           className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition"
-                          title="Issue to Production"
+                          title="Issue Material (User Requirement)"
                           disabled={part.status !== 'APPROVED'}
                         >
                           <MinusCircle size={18} className={part.status !== 'APPROVED' ? 'opacity-30' : ''} />

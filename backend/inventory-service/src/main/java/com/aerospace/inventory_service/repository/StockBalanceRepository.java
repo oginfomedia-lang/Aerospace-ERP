@@ -26,7 +26,7 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Long
     @Query("SELECT SUM(s.quantity) FROM StockBalance s WHERE s.partId = :partId AND s.status = 'APPROVED'")
     Long getAvailableQuantity(@Param("partId") Long partId);
 
-    // FIX 2: Warehouse-wide approved total (used in DashboardService)
+    // Warehouse-wide approved total (used in DashboardService)
     // Replaces the inefficient findAll().stream().sum() pattern
     @Query("SELECT SUM(s.quantity) FROM StockBalance s WHERE s.status = 'APPROVED'")
     Long getTotalApprovedStock();

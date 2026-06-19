@@ -24,7 +24,7 @@ import java.util.List;
 public class PartController {
 
     private final PartService partService;
-    private final TransactionService transactionService; // FIX 2: was TransactionRepository — repositories never belong in controllers
+    private final TransactionService transactionService; 
 
     @PostMapping
     public ResponseEntity<ApiResponse<PartResponseDTO>> create(@RequestBody PartRequestDTO dto) {
@@ -50,24 +50,36 @@ public class PartController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partService.getById(id)));
     }
 
+    @GetMapping("/sku/{skuCode}")
+    public ResponseEntity<ApiResponse<PartResponseDTO>> getBySkuCode(@PathVariable String skuCode) {
+        return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partService.getBySkuCode(skuCode)));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
         partService.deletePart(id);
         return ResponseEntity.ok(new ApiResponse<>("DELETED", "Part removed successfully"));
     }
 
-    // ERP Step: Receive Stock
+    // ERP Step 1+2: Receive Stock & Prepare GRN (F-36 GRN Form)
     @PostMapping("/{id}/inward-from-grn")
     public ResponseEntity<ApiResponse<PartResponseDTO>> inwardStock(
             @PathVariable Long id,
             @RequestParam int qty,
             @RequestParam String batchNumber,
             @RequestParam String location,
-            @RequestParam(required = false) 
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) 
-            LocalDateTime expiryDate) {
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime expiryDate,
+            // GRN traceability fields (F-36 GRN form)
+            @RequestParam(required = false) String grnNumber,
+            @RequestParam(required = false) String challanNumber,
+            @RequestParam(required = false) String supplierName,
+            @RequestParam(required = false) String transportName,
+            @RequestParam(required = false) Integer inspectionQty) {
         return ResponseEntity.ok(new ApiResponse<>("STOCK_RECEIVED_PENDING_QA",
-                partService.addStock(id, qty, batchNumber, location, expiryDate)));
+                partService.addStock(id, qty, batchNumber, location, expiryDate,
+                        grnNumber, challanNumber, supplierName, transportName, inspectionQty)));
     }
     
     // ERP Step: Issue to Production

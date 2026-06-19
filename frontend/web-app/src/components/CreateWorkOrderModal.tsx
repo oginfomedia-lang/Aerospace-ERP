@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, PlusCircle, Trash2, Plane, Wrench, AlertTriangle } from 'lucide-react';
+import { X, PlusCircle, Trash2, Plane, Wrench, AlertTriangle, Package, CheckSquare, Square } from 'lucide-react';
 import workOrderApi from '../api/workOrderAxios';
+import api from '../api/axios';
 import { CreateWorkOrderRequest, MaterialLineItemRequest, Priority, ApiResponse, WorkOrder } from '../types/workOrder';
 import toast from 'react-hot-toast';
 
@@ -42,6 +43,18 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
     remarks: '',
     materialItems: [],
   });
+  const [parts, setParts] = useState<any[]>([]);
+  const [showPartSelector, setShowPartSelector] = useState(false);
+  const [selectedPartIds, setSelectedPartIds] = useState<number[]>([]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      api.get('/inventory').then(res => setParts(res.data.data)).catch(() => {});
+    } else {
+      setShowPartSelector(false);
+      setSelectedPartIds([]);
+    }
+  }, [isOpen]);
 
   const set = (field: keyof CreateWorkOrderRequest, value: any) =>
     setForm(f => ({ ...f, [field]: value }));
@@ -51,6 +64,28 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
 
   const removeLine = (i: number) =>
     setForm(f => ({ ...f, materialItems: f.materialItems?.filter((_, idx) => idx !== i) }));
+
+  const togglePartSelection = (partId: number) => {
+    setSelectedPartIds(prev =>
+      prev.includes(partId) ? prev.filter(id => id !== partId) : [...prev, partId]
+    );
+  };
+
+  const handleAddSelectedParts = () => {
+    const newItems = selectedPartIds.map(id => {
+      const part = parts.find(p => p.id === id);
+      return {
+        partId: part.id,
+        partName: part.name,
+        partNumber: part.serialNumber,
+        quantityRequired: 1,
+        remarks: ''
+      };
+    });
+    setForm(f => ({ ...f, materialItems: [...(f.materialItems ?? []), ...newItems] }));
+    setShowPartSelector(false);
+    setSelectedPartIds([]);
+  };
 
   const updateLine = (i: number, field: keyof MaterialLineItemRequest, value: any) =>
     setForm(f => ({
@@ -275,46 +310,93 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               </label>
               <button
                 type="button"
-                onClick={addLine}
-                className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition"
+                onClick={() => setShowPartSelector(!showPartSelector)}
+                className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition bg-blue-50 px-3 py-1.5 rounded-lg"
               >
-                <PlusCircle size={14} /> Add Part
+                <PlusCircle size={14} /> Add Part from Inventory
               </button>
             </div>
 
+            {showPartSelector && (
+              <div className="bg-white border border-blue-200 rounded-2xl p-4 mb-4 shadow-sm relative overflow-hidden">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                    <Package size={16} className="text-blue-500" /> Select Parts
+                  </h3>
+                  <button type="button" onClick={() => setShowPartSelector(false)} className="text-slate-400 hover:text-slate-600">
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-1 mb-4 pr-2">
+                  {parts.map(part => {
+                    const isSelected = selectedPartIds.includes(part.id);
+                    return (
+                      <div
+                        key={part.id}
+                        onClick={() => togglePartSelection(part.id)}
+                        className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition border ${isSelected ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-transparent hover:bg-slate-100'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {isSelected ? <CheckSquare size={18} className="text-blue-600" /> : <Square size={18} className="text-slate-300" />}
+                          <div>
+                            <div className="text-sm font-bold text-slate-900">{part.name}</div>
+                            <div className="text-xs text-slate-500">SKU: {part.serialNumber} | Stock: {part.quantity} APPROVED</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {parts.length === 0 && <div className="text-center py-4 text-xs font-bold text-slate-400">Loading inventory or no parts found...</div>}
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAddSelectedParts}
+                    disabled={selectedPartIds.length === 0}
+                    className="px-5 py-2 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 transition disabled:opacity-50"
+                  >
+                    Add {selectedPartIds.length} Selected Parts
+                  </button>
+                </div>
+              </div>
+            )}
+
             {(form.materialItems ?? []).length === 0 ? (
               <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-xs font-bold">
-                No parts added yet — click "Add Part" to specify material requirements
+                No parts added yet — click "Add Part from Inventory" to specify material requirements
               </div>
             ) : (
               <div className="space-y-2">
+                <div className="grid grid-cols-12 gap-2 px-3 mb-1">
+                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">PART ID</span>
+                  <span className="col-span-4 text-[10px] text-slate-400 font-bold">NAME</span>
+                  <span className="col-span-3 text-[10px] text-slate-400 font-bold">SKU</span>
+                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">QTY</span>
+                </div>
                 {form.materialItems?.map((line, i) => (
                   <div key={i} className="grid grid-cols-12 gap-2 items-center bg-slate-50 rounded-2xl p-3 border border-slate-100">
                     <div className="col-span-2">
                       <input
                         type="number"
-                        placeholder="Part ID"
+                        disabled
                         value={line.partId || ''}
-                        onChange={e => updateLine(i, 'partId', Number(e.target.value))}
-                        className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono text-slate-500"
                       />
                     </div>
                     <div className="col-span-4">
                       <input
                         type="text"
-                        placeholder="Part name"
+                        disabled
                         value={line.partName}
-                        onChange={e => updateLine(i, 'partName', e.target.value)}
-                        className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500"
                       />
                     </div>
                     <div className="col-span-3">
                       <input
                         type="text"
-                        placeholder="SKU / Part #"
+                        disabled
                         value={line.partNumber}
-                        onChange={e => updateLine(i, 'partNumber', e.target.value)}
-                        className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500"
                       />
                     </div>
                     <div className="col-span-2">
@@ -338,12 +420,6 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                     </div>
                   </div>
                 ))}
-                <div className="grid grid-cols-12 gap-2 px-3">
-                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">PART ID</span>
-                  <span className="col-span-4 text-[10px] text-slate-400 font-bold">NAME</span>
-                  <span className="col-span-3 text-[10px] text-slate-400 font-bold">SKU</span>
-                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">QTY</span>
-                </div>
               </div>
             )}
           </div>

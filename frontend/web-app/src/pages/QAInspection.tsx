@@ -92,9 +92,11 @@ const QAInspection = () => {
       await toast.promise(
         qaApi.post<ApiResponse<InspectionReport>>('/qa/inspect', form),
         {
-          loading: `Processing ${form.decision} decision...`,
+          loading: `Processing ${form.decision} decision for GRN batch...`,
           success: (res) =>
-            `Batch ${res.data.data.batchNumber} ${res.data.data.decision}. Inventory updating via Kafka...`,
+            form.decision === 'APPROVED'
+              ? `✅ GRN Approved — OK Qty transferred to store. Stock updated for batch ${res.data.data.batchNumber}.`
+              : `❌ GRN Rejected — Material blocked. Batch ${res.data.data.batchNumber} remains in PENDING_QA.`,
           error: (err) => err.response?.data?.message || 'Submission failed.',
         }
       );
@@ -129,9 +131,10 @@ const QAInspection = () => {
             <ShieldCheck size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">QA Inspection Console</h1>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">GRN Approval — Concern Department</h1>
             <p className="text-slate-500 text-sm font-medium">
-              Review pending batches and submit compliance decisions. Decisions publish automatically to Inventory via Kafka.
+              Step 3: Concern department reviews inward GRN and approves material.
+              Based on GRN remark, OK Qty will transfer to store and stock will update.
             </p>
           </div>
         </div>
@@ -145,11 +148,11 @@ const QAInspection = () => {
             <div className="flex items-center gap-2">
               <Clock size={16} className="text-amber-500" />
               <h2 className="font-black text-slate-800 uppercase tracking-wider text-sm">
-                Pending Inspection Queue
+                GRN Approval Queue
               </h2>
             </div>
             <span className="bg-amber-100 text-amber-700 text-xs font-black px-3 py-1 rounded-full">
-              {pendingParts.length} PENDING
+              {pendingParts.length} PENDING APPROVAL
             </span>
           </div>
 
@@ -227,7 +230,7 @@ const QAInspection = () => {
             <div className="p-5 border-b border-slate-100 flex items-center gap-2">
               <FileText size={16} className="text-blue-500" />
               <h2 className="font-black text-slate-800 uppercase tracking-wider text-sm">
-                Inspection Decision
+                Department Approval — GRN Review
               </h2>
             </div>
 
@@ -235,7 +238,7 @@ const QAInspection = () => {
               <div className="p-16 text-center text-slate-300">
                 <ShieldCheck size={48} className="mx-auto mb-3 opacity-20" />
                 <p className="font-bold uppercase tracking-widest text-xs">
-                  Select a batch from the queue
+                  Select a GRN batch from the queue to approve
                 </p>
               </div>
             ) : (
@@ -339,18 +342,18 @@ const QAInspection = () => {
                       : 'bg-red-600 hover:bg-red-700 shadow-red-200'
                   } disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
-                  {submitting ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : form.decision === 'APPROVED' ? (
-                    <><CheckCircle2 size={16} /> Submit Approval</>
-                  ) : (
-                    <><XCircle size={16} /> Submit Rejection</>
-                  )}
+                {submitting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : form.decision === 'APPROVED' ? (
+                  <><CheckCircle2 size={16} /> Approve — Transfer OK Qty to Store</>
+                ) : (
+                  <><XCircle size={16} /> Reject — Block Material</>
+                )}
                 </button>
 
-                <p className="text-[10px] text-slate-400 text-center font-medium">
-                  Decision will automatically update inventory status via Kafka
-                </p>
+              <p className="text-[10px] text-slate-400 text-center font-medium">
+                Approval: OK Qty transfers to store and stock updates. Rejection: material remains blocked.
+              </p>
               </form>
             )}
           </div>

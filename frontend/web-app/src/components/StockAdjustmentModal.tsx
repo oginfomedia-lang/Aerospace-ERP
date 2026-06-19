@@ -22,8 +22,20 @@ type Operation = 'INWARD' | 'QA_DECISION' | 'RESERVE' | 'TRANSFER';
 export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
   const [operation, setOperation] = useState<Operation>('INWARD');
 
-  // Inward fields
-  const [inwardData, setInwardData] = useState({ qty: 0, batchNumber: '', location: '' });
+  // Inward fields (F-36 GRN form)
+  const [inwardData, setInwardData] = useState({
+    qty: 0,
+    batchNumber: '',
+    location: '',
+    grnNumber: '',
+    challanNumber: '',
+    supplierName: '',
+    transportName: '',
+    invoiceQty: 0,
+    inspectionQty: 0,
+    inwardRemarks: '',
+    expiryDate: '',
+  });
 
   // QA Decision fields
   const [qaData, setQaData] = useState({ batchNumber: part?.batchNumber || '', status: 'APPROVED', remarks: '' });
@@ -38,32 +50,39 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
 
   const handleClose = () => {
     setOperation('INWARD');
-    setInwardData({ qty: 0, batchNumber: '', location: '' });
+    setInwardData({ qty: 0, batchNumber: '', location: '', grnNumber: '', challanNumber: '',
+      supplierName: '', transportName: '', invoiceQty: 0, inspectionQty: 0, inwardRemarks: '', expiryDate: '' });
     setQaData({ batchNumber: part?.batchNumber || '', status: 'APPROVED', remarks: '' });
     setReserveData({ batchNumber: part?.batchNumber || '', qty: 0 });
     setTransferData({ batchNumber: part?.batchNumber || '', fromBin: part?.location || '', toBin: '', qty: 0 });
     onClose();
   };
 
-  // POST /inventory/{id}/inward-from-grn?qty=&batchNumber=&location=
+  // POST /inventory/{id}/inward-from-grn — Step 1+2: Receive & Prepare GRN
   const handleInward = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inwardData.batchNumber.trim()) { toast.error('Batch number required.'); return; }
-    if (inwardData.qty <= 0) { toast.error('Quantity must be > 0.'); return; }
+    if (inwardData.qty <= 0) { toast.error('Received Quantity must be > 0.'); return; }
 
     const params = new URLSearchParams({
       qty: String(inwardData.qty),
       batchNumber: inwardData.batchNumber,
       location: inwardData.location,
     });
+    if (inwardData.grnNumber)     params.append('grnNumber',     inwardData.grnNumber);
+    if (inwardData.challanNumber) params.append('challanNumber', inwardData.challanNumber);
+    if (inwardData.supplierName)  params.append('supplierName',  inwardData.supplierName);
+    if (inwardData.transportName) params.append('transportName', inwardData.transportName);
+    if (inwardData.inspectionQty > 0) params.append('inspectionQty', String(inwardData.inspectionQty));
+    if (inwardData.expiryDate)    params.append('expiryDate', `${inwardData.expiryDate}T00:00:00`);
 
     try {
       await toast.promise(
         api.post(`/inventory/${part.id}/inward-from-grn?${params}`),
         {
-          loading: 'Receiving stock...',
-          success: `Batch ${inwardData.batchNumber} received into PENDING_QA.`,
-          error: (err) => err.response?.data?.message || 'Inward failed.',
+          loading: 'Submitting GRN...',
+          success: `GRN submitted for batch ${inwardData.batchNumber}. Awaiting concern dept approval (PENDING_QA).`,
+          error: (err) => err.response?.data?.message || 'GRN inward failed.',
         }
       );
       onSuccess();
@@ -192,34 +211,96 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
 
         <div className="p-6">
 
-          {/* INWARD FORM */}
+          {/* INWARD FORM — Step 1 & 2: Receive material & Prepare GRN */}
           {operation === 'INWARD' && (
             <form onSubmit={handleInward} className="space-y-4">
-              <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-700 font-medium">
-                Stock will enter <strong>PENDING_QA</strong> — QA approval required before use.
+              {/* Step indicator */}
+              <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-700 font-medium space-y-0.5">
+                <div className="font-black uppercase tracking-wider text-[10px] text-emerald-600 mb-1">F-36 GRN — Goods Receipt Note</div>
+                <div>Step 1: Receive material &amp; verify actual qty with challan qty.</div>
+                <div>Step 2: GRN is prepared and offered to concern dept for approval. Stock enters <strong>PENDING_QA</strong>.</div>
               </div>
+
+              {/* Row 1: GRN No + Challan/Invoice No */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">GRN Number</label>
+                  <input type="text" placeholder="e.g. GRN-2024-001"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 font-mono text-sm"
+                    onChange={e => setInwardData({ ...inwardData, grnNumber: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Challan / Invoice No.</label>
+                  <input type="text" placeholder="e.g. INV-5678"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 font-mono text-sm"
+                    onChange={e => setInwardData({ ...inwardData, challanNumber: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Row 2: Supplier + Transport */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Supplier Name</label>
+                  <input type="text" placeholder="Supplier / Vendor"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 text-sm"
+                    onChange={e => setInwardData({ ...inwardData, supplierName: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Transport Name</label>
+                  <input type="text" placeholder="Transporter"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 text-sm"
+                    onChange={e => setInwardData({ ...inwardData, transportName: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Row 3: Batch Number (required) */}
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Batch Number *</label>
                 <input type="text" required placeholder="e.g. BATCH-2024-001"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 font-mono"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 font-mono text-sm"
                   onChange={e => setInwardData({ ...inwardData, batchNumber: e.target.value })} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+
+              {/* Row 4: Invoice Qty | Received Qty | Inspection (OK) Qty */}
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Quantity *</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Invoice Qty</label>
+                  <input type="number" min={0} placeholder="As per challan"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 text-sm"
+                    onChange={e => setInwardData({ ...inwardData, invoiceQty: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Received Qty *</label>
                   <input type="number" required min={1}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-emerald-300 rounded-xl outline-none focus:border-emerald-500 text-sm font-bold"
                     onChange={e => setInwardData({ ...inwardData, qty: parseInt(e.target.value) || 0 })} />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Bin Location</label>
-                  <input type="text" placeholder="WH1-BIN-A"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500"
-                    onChange={e => setInwardData({ ...inwardData, location: e.target.value })} />
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Inspection Qty</label>
+                  <input type="number" min={0} placeholder="OK qty"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-sm"
+                    onChange={e => setInwardData({ ...inwardData, inspectionQty: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
+
+              {/* Row 5: Bin Location + Expiry Date */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Store / Bin Location</label>
+                  <input type="text" placeholder="WH1-BIN-A"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 text-sm"
+                    onChange={e => setInwardData({ ...inwardData, location: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Batch Expiry Date</label>
+                  <input type="date"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 text-sm"
+                    onChange={e => setInwardData({ ...inwardData, expiryDate: e.target.value })} />
+                </div>
+              </div>
+
               <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all active:scale-95">
-                Receive Stock
+                Submit GRN &amp; Receive Stock
               </button>
             </form>
           )}

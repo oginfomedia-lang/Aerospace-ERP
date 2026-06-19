@@ -13,11 +13,14 @@ public interface PartService {
     PartResponseDTO createPart(PartRequestDTO dto);
     List<PartResponseDTO> getAllParts();
     PartResponseDTO getById(Long id);
+    PartResponseDTO getBySkuCode(String skuCode);
     PartResponseDTO updatePart(Long id, PartRequestDTO dto);
     void deletePart(Long id);
 
-    // Standard ERP Core Operations
-    PartResponseDTO addStock(Long id, int quantity, String batchNumber, String location, LocalDateTime expiryDate);
+    // Standard ERP Core Operations (Step 1+2: GRN Inward)
+    PartResponseDTO addStock(Long id, int quantity, String batchNumber, String location,
+                             LocalDateTime expiryDate, String grnNumber, String challanNumber,
+                             String supplierName, String transportName, Integer inspectionQty);
     PartResponseDTO issueToProduction(Long id, int quantity, String batchNumber);
     PartResponseDTO processQADecision(Long id, String batchNumber, String newStatus, String remarks);
 

@@ -3,13 +3,11 @@ package com.aerospace.inventory_service.scheduler;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.springframework.cglib.core.Local;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.aerospace.inventory_service.entity.StockBalance;
 import com.aerospace.inventory_service.entity.StockStatus;
-import com.aerospace.inventory_service.event.producer.InventoryProducer;
 import com.aerospace.inventory_service.repository.StockBalanceRepository;
 import com.aerospace.inventory_service.service.TransactionService;
 

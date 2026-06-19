@@ -76,12 +76,23 @@ public class PartServiceImpl implements PartService {
         return mapWithLiveStock(part, StockStatus.APPROVED);
     }
 
+    @Override
+    public PartResponseDTO getBySkuCode(String skuCode) {
+        Part part = partRepository.findBySkuCode(skuCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Part not found with SKU: " + skuCode));
+        return mapWithLiveStock(part, StockStatus.APPROVED);
+    }
+
     // ── ADD STOCK (inward-from-grn) ──────────────────────────────────────────
     // Kafka: STOCK_RECEIVED → notification-service logs "Stock Received"
 
     @Override
     @Transactional
-    public PartResponseDTO addStock(Long id, int quantity, String batch, String loc, LocalDateTime expiryDate) {
+    public PartResponseDTO addStock(Long id, int quantity, String batch, String loc,
+                                    LocalDateTime expiryDate,
+                                    String grnNumber, String challanNumber,
+                                    String supplierName, String transportName,
+                                    Integer inspectionQty) {
         Part part = partRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
 
@@ -96,7 +107,10 @@ public class PartServiceImpl implements PartService {
         balance.setExpiryDate(expiryDate);
         balanceRepository.save(balance);
 
-        transactionService.logTransaction(id, batch, "GRN_RECEIPT", quantity, "Inward to PENDING_QA");
+        // Build GRN traceability remark (Step 1+2 of GRN flow)
+        String grnRemark = buildGrnRemark(grnNumber, challanNumber, supplierName, transportName,
+                quantity, inspectionQty);
+        transactionService.logTransaction(id, batch, "GRN_RECEIPT", quantity, grnRemark);
 
         try {
             inventoryProducer.sendStockReceivedEvent(
@@ -338,7 +352,8 @@ public class PartServiceImpl implements PartService {
             factor = conv.getFactor();
         }
 
-        return addStock(id, (int) (inputQty * factor), batch, loc, null);
+        return addStock(id, (int) (inputQty * factor), batch, loc, null,
+                null, null, null, null, null);
     }
 
     @Override
@@ -368,6 +383,20 @@ public class PartServiceImpl implements PartService {
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────────
+
+    /** Builds a structured GRN remark string for transaction traceability (F-36 GRN Form) */
+    private String buildGrnRemark(String grnNumber, String challanNumber,
+                                   String supplierName, String transportName,
+                                   int receivedQty, Integer inspectionQty) {
+        StringBuilder sb = new StringBuilder("Inward to PENDING_QA");
+        if (grnNumber    != null && !grnNumber.isBlank())    sb.append(" | GRN:").append(grnNumber.trim());
+        if (challanNumber!= null && !challanNumber.isBlank()) sb.append(" | Challan:").append(challanNumber.trim());
+        if (supplierName != null && !supplierName.isBlank())  sb.append(" | Supplier:").append(supplierName.trim());
+        if (transportName!= null && !transportName.isBlank()) sb.append(" | Transport:").append(transportName.trim());
+        sb.append(" | Recd Qty:").append(receivedQty);
+        if (inspectionQty != null)                           sb.append(" | Insp Qty:").append(inspectionQty);
+        return sb.toString();
+    }
 
     private PartResponseDTO mapWithLiveStock(Part part, StockStatus status) {
         PartResponseDTO dto = mapper.toDTO(part);

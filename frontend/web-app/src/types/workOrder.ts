@@ -11,7 +11,7 @@ export type WorkOrderStatus =
 
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
-export type LineItemStatus = 'PENDING' | 'ISSUED' | 'RETURNED' | 'CANCELLED';
+export type LineItemStatus = 'PENDING' | 'PARTIALLY_ISSUED' |  'ISSUED' | 'RETURNED' | 'CANCELLED';
 
 export interface MaterialLineItem {
   id: number;

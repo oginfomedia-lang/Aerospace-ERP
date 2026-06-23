@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
 import qaApi from '../api/qaAxios';
 import {
-  ShieldCheck, ShieldX, Clock, CheckCircle2, XCircle,
+  ShieldCheck, Clock, CheckCircle2, XCircle,
   Loader2, ChevronRight, AlertTriangle, FileText, User
 } from 'lucide-react';
 import { Part, ApiResponse, InspectionRequest, InspectionReport } from '../types/inventory';

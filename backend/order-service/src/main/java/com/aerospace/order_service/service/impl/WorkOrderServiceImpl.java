@@ -184,7 +184,6 @@ public class WorkOrderServiceImpl implements WorkOrderService {
     }
 
     // ── ISSUE MATERIAL ────────────────────────────────────────────────────────
-
     @Override
     @Transactional
     public WorkOrderResponse issueMaterial(Long workOrderId, IssueMaterialRequest req) {
@@ -194,12 +193,23 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Line item not found: " + req.getLineItemId()));
 
-        line.setQuantityIssued(req.getQuantityIssued());
+        // ── Accumulate quantity (don't overwrite) ──────────────────────────────
+        int alreadyIssued = line.getQuantityIssued() != null ? line.getQuantityIssued() : 0;
+        int newTotalIssued = alreadyIssued + req.getQuantityIssued();
+
+        line.setQuantityIssued(newTotalIssued);
         line.setBatchNumber(req.getBatchNumber());
-        line.setStatus(MaterialLineItem.LineItemStatus.ISSUED);
+
+        // ── Set status based on whether fully or partially fulfilled ───────────
+        if (newTotalIssued >= line.getQuantityRequired()) {
+            line.setStatus(MaterialLineItem.LineItemStatus.ISSUED);
+        } else {
+            line.setStatus(MaterialLineItem.LineItemStatus.PARTIALLY_ISSUED);
+        }
+
         lineItemRepository.save(line);
 
-        // Publish material request event so notification-service can log it
+        // ── Publish material request event ─────────────────────────────────────
         try {
             producer.publishMaterialRequest(MaterialRequestEvent.builder()
                     .workOrderId(wo.getId())
@@ -216,11 +226,11 @@ public class WorkOrderServiceImpl implements WorkOrderService {
             log.warn("[KAFKA] Failed to publish MATERIAL_REQUEST: {}", ex.getMessage());
         }
 
-        // Auto-transition to IN_PROGRESS if still OPEN and all items now issued
+        // ── Auto-transition to IN_PROGRESS only when ALL lines are fully issued ─
         if (wo.getStatus() == WorkOrderStatus.OPEN) {
             boolean allIssued = wo.getMaterialLineItems().stream()
                     .allMatch(l -> l.getStatus() == MaterialLineItem.LineItemStatus.ISSUED
-                               || l.getStatus() == MaterialLineItem.LineItemStatus.CANCELLED);
+                                || l.getStatus() == MaterialLineItem.LineItemStatus.CANCELLED);
             if (allIssued) {
                 transitionStatus(workOrderId, StatusTransitionRequest.builder()
                         .newStatus(WorkOrderStatus.IN_PROGRESS)
@@ -230,8 +240,8 @@ public class WorkOrderServiceImpl implements WorkOrderService {
             }
         }
 
-        log.info("[WO] Material issued → WO={} partId={} qty={} batch={}",
-                wo.getWoNumber(), line.getPartId(), req.getQuantityIssued(), req.getBatchNumber());
+        log.info("[WO] Material issued → WO={} partId={} qtyThisTime={} totalIssued={} batch={}",
+                wo.getWoNumber(), line.getPartId(), req.getQuantityIssued(), newTotalIssued, req.getBatchNumber());
         return toResponse(workOrderRepository.findById(workOrderId).orElse(wo));
     }
 

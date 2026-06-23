@@ -41,6 +41,7 @@ public class MaterialLineItem {
 
     public enum LineItemStatus {
         PENDING,    // not yet issued
+        PARTIALLY_ISSUED, //some stock issued, remaining pending
         ISSUED,     // stock issued from inventory
         RETURNED,   // unused material returned
         CANCELLED   // line item cancelled

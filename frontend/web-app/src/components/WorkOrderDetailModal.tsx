@@ -58,6 +58,7 @@ const transitionColor: Record<WorkOrderStatus, string> = {
 
 const lineStatusStyle: Record<string, string> = {
   PENDING:   'bg-amber-50 text-amber-700 border-amber-200',
+  PARTIALLY_ISSUED: 'bg-orange-50 text-orange-700 border-orange-200',
   ISSUED:    'bg-emerald-50 text-emerald-700 border-emerald-200',
   RETURNED:  'bg-blue-50 text-blue-700 border-blue-200',
   CANCELLED: 'bg-red-50 text-red-700 border-red-200',
@@ -370,7 +371,7 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                               )}
                             </div>
                           </div>
-                          {inventoryLevels[line.partId].qty < (line.quantityRequired - line.quantityIssued) && (
+                          {inventoryLevels[line.partId].qty < (line.quantityRequired - line.quantityIssued) && line.status !== 'ISSUED' && (
                             <button
                               onClick={() => {
                                 const shortage = (line.quantityRequired - line.quantityIssued) - inventoryLevels[line.partId].qty;
@@ -388,39 +389,55 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                         <div className="text-xs text-slate-400 italic flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Checking inventory...</div>
                       )}
                     </div>
+                  {/* Partial Issue Banner — shown when some qty is issued but not all */}
+                  {line.status === 'PARTIALLY_ISSUED' && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-xl mb-2">
+                      <AlertTriangle size={13} className="text-orange-500 shrink-0" />
+                      <span className="text-xs font-bold text-orange-700">
+                        Partially Issued: {line.quantityIssued} / {line.quantityRequired}
+                        &nbsp;—&nbsp;Remaining: {line.quantityRequired - line.quantityIssued}
+                      </span>
+                    </div>
+                  )}
 
-                    {/* Issue Material form — show only for PENDING lines */}
-                    {line.status === 'PENDING' && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
-                      <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
-                        <input
-                          type="number"
-                          min={1}
-                          placeholder="Qty to issue"
-                          value={issueForm[line.id]?.qty ?? ''}
-                          onChange={e => setIssueForm(prev => ({
-                            ...prev,
-                            [line.id]: { ...prev[line.id], qty: e.target.value }
-                          }))}
-                          className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Batch number"
-                          value={issueForm[line.id]?.batch ?? ''}
-                          onChange={e => setIssueForm(prev => ({
-                            ...prev,
-                            [line.id]: { ...prev[line.id], batch: e.target.value }
-                          }))}
-                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                        <button
-                          onClick={() => handleIssueMaterial(line.id)}
-                          className="px-4 py-1.5 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-200"
-                        >
-                          Issue
-                        </button>
-                      </div>
-                    )}
+                  {/* Issue / Issue-Remaining form — shown for PENDING or PARTIALLY_ISSUED lines */}
+                  {(line.status === 'PENDING' || line.status === 'PARTIALLY_ISSUED') &&
+                    wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                    <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
+                      <input
+                        type="number"
+                        min={1}
+                        max={line.quantityRequired - line.quantityIssued}
+                        placeholder={
+                          line.status === 'PARTIALLY_ISSUED'
+                            ? `Remaining: ${line.quantityRequired - line.quantityIssued}`
+                            : 'Qty to issue'
+                        }
+                        value={issueForm[line.id]?.qty ?? ''}
+                        onChange={e => setIssueForm(prev => ({
+                          ...prev,
+                          [line.id]: { ...prev[line.id], qty: e.target.value }
+                        }))}
+                        className="w-28 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Batch number"
+                        value={issueForm[line.id]?.batch ?? ''}
+                        onChange={e => setIssueForm(prev => ({
+                          ...prev,
+                          [line.id]: { ...prev[line.id], batch: e.target.value }
+                        }))}
+                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                      <button
+                        onClick={() => handleIssueMaterial(line.id)}
+                        className="px-4 py-1.5 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-200 whitespace-nowrap"
+                      >
+                        {line.status === 'PARTIALLY_ISSUED' ? 'Issue Remaining' : 'Issue'}
+                      </button>
+                    </div>
+                  )}
                   </div>
                 ))
               )}

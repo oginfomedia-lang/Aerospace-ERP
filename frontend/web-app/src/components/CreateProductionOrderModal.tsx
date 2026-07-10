@@ -8,6 +8,9 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  // When set, edits this order's plan instead of creating a new one. The update endpoint
+  // doesn't touch the Bill of Materials, so that section is hidden in edit mode.
+  editingOrder?: ProductionOrder | null;
 }
 
 const PRIORITIES: ProductionPriority[] = [
@@ -30,7 +33,8 @@ interface MaterialInput {
   quantityRequired: number;
 }
 
-export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, editingOrder }) => {
+  const isEditMode = !!editingOrder;
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     productName: '',
@@ -48,6 +52,24 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
 
   const set = (field: string, value: any) =>
     setForm(f => ({ ...f, [field]: value }));
+
+  React.useEffect(() => {
+    if (isOpen && editingOrder) {
+      setForm({
+        productName: editingOrder.productName,
+        productCode: editingOrder.productCode || '',
+        aircraftType: editingOrder.aircraftType || '',
+        plannedQuantity: editingOrder.plannedQuantity,
+        priority: editingOrder.priority,
+        assignedTeam: editingOrder.assignedTeam || '',
+        supervisorName: editingOrder.supervisorName || '',
+        plannedStartDate: editingOrder.plannedStartDate ? new Date(editingOrder.plannedStartDate).toISOString().slice(0, 16) : '',
+        plannedEndDate: editingOrder.plannedEndDate ? new Date(editingOrder.plannedEndDate).toISOString().slice(0, 16) : '',
+        remarks: editingOrder.remarks || '',
+        materials: [],
+      });
+    }
+  }, [isOpen, editingOrder]);
 
   const addMaterial = () =>
     setForm(f => ({ ...f, materials: [...f.materials, { partId: 0, partName: '', quantityRequired: 1 }] }));
@@ -71,19 +93,32 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
     }
     setSubmitting(true);
     try {
-      await toast.promise(
-        productionApi.post<ApiResponse<ProductionOrder>>('/production', {
-          ...form,
-          plannedStartDate: form.plannedStartDate ? new Date(form.plannedStartDate).toISOString() : undefined,
-          plannedEndDate: form.plannedEndDate ? new Date(form.plannedEndDate).toISOString() : undefined,
-          materials: form.materials.filter(m => m.partId > 0)
-        }),
-        {
-          loading: 'Creating production order...',
-          success: (res) => `Order ${res.data.data.poNumber} created successfully`,
-          error: (err) => err.response?.data?.message || 'Failed to create production order',
-        }
-      );
+      const payload = {
+        ...form,
+        plannedStartDate: form.plannedStartDate ? new Date(form.plannedStartDate).toISOString() : undefined,
+        plannedEndDate: form.plannedEndDate ? new Date(form.plannedEndDate).toISOString() : undefined,
+        materials: form.materials.filter(m => m.partId > 0)
+      };
+
+      if (isEditMode && editingOrder) {
+        await toast.promise(
+          productionApi.put<ApiResponse<ProductionOrder>>(`/production/${editingOrder.id}`, payload),
+          {
+            loading: 'Updating production order...',
+            success: (res) => `Order ${res.data.data.poNumber} updated successfully`,
+            error: (err) => err.response?.data?.message || 'Failed to update production order',
+          }
+        );
+      } else {
+        await toast.promise(
+          productionApi.post<ApiResponse<ProductionOrder>>('/production', payload),
+          {
+            loading: 'Creating production order...',
+            success: (res) => `Order ${res.data.data.poNumber} created successfully`,
+            error: (err) => err.response?.data?.message || 'Failed to create production order',
+          }
+        );
+      }
       onSuccess();
       onClose();
       resetForm();
@@ -110,8 +145,12 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
               <Factory size={20} />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">New Production Order</h2>
-              <p className="text-xs text-slate-500 font-medium">Plan manufacturing and material requirements</p>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                {isEditMode ? `Edit Production Order: ${editingOrder!.poNumber}` : 'New Production Order'}
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                {isEditMode ? 'Plan details — Bill of Materials is managed separately' : 'Plan manufacturing and material requirements'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-400">
@@ -265,7 +304,8 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
             />
           </div>
 
-          {/* Materials Section */}
+          {/* Materials Section — create only; the update endpoint doesn't touch the BOM */}
+          {!isEditMode && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
@@ -321,6 +361,7 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
               </div>
             )}
           </div>
+          )}
 
           {form.priority === ProductionPriority.URGENT && (
             <div className="flex items-center gap-2 p-3 bg-red-50 rounded-2xl border border-red-200">
@@ -346,7 +387,7 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
             disabled={submitting}
             className="px-8 py-2.5 bg-indigo-600 text-white text-sm font-black rounded-2xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 disabled:opacity-60"
           >
-            Create Production Order
+            {isEditMode ? 'Save Changes' : 'Create Production Order'}
           </button>
         </div>
       </div>

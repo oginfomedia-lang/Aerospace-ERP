@@ -3,7 +3,7 @@ import api from '../api/axios';
 import { Link } from 'react-router-dom';
 import {
   Edit3, Search, Loader2, Clock, MinusCircle, PlusCircle,
-  Layers, MapPin, SlidersHorizontal, CalendarX2
+  Layers, MapPin, SlidersHorizontal, CalendarX2, Ban, RotateCcw
 } from 'lucide-react';
 import { Part, ApiResponse } from '../types/inventory';
 import { AddPartModal } from '../components/AddPartModal';
@@ -111,6 +111,38 @@ const InventoryList = () => {
   const handleOpenEdit = (part: Part) => { setSelectedPart(part); setIsEditModalOpen(true); };
   const handleOpenAdjust = (part: Part) => { setSelectedPart(part); setIsAdjustModalOpen(true); };
 
+  // Items are never hard-deleted — ledger/transaction history references them by ID, and a
+  // real DELETE would silently orphan that traceability. Deactivating (ITM lifecycle status)
+  // is the safe, reversible equivalent and keeps the item visible with an INACTIVE badge.
+  const handleToggleActive = async (part: Part) => {
+    const nextStatus = part.itemStatus === 'INACTIVE' ? 'ACTIVE' : 'INACTIVE';
+    const confirmed = window.confirm(
+      nextStatus === 'INACTIVE'
+        ? `Deactivate "${part.name}"? It stays visible for traceability but won't be usable in new transactions.`
+        : `Reactivate "${part.name}"?`
+    );
+    if (!confirmed) return;
+
+    try {
+      await toast.promise(
+        api.put(`/inventory/${part.id}`, {
+          name: part.name,
+          serialNumber: part.serialNumber,
+          partType: part.partType,
+          criticality: part.criticality,
+          reorderLevel: part.reorderLevel,
+          itemStatus: nextStatus,
+        }),
+        {
+          loading: `${nextStatus === 'INACTIVE' ? 'Deactivating' : 'Reactivating'} ${part.name}...`,
+          success: `${part.name} is now ${nextStatus}.`,
+          error: (err) => err.response?.data?.message || 'Update failed.',
+        }
+      );
+      fetchParts(searchTerm);
+    } catch {}
+  };
+
   return (
     <div className="space-y-6">
       <AddPartModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={() => fetchParts(searchTerm)} />
@@ -194,6 +226,17 @@ const InventoryList = () => {
                           {part.criticality}
                         </span>
                       )}
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {part.qcRequired && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-50 text-purple-600 border border-purple-100">QC</span>
+                        )}
+                        {part.serialRequired && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-sky-50 text-sky-600 border border-sky-100">SERIAL</span>
+                        )}
+                        {part.itemStatus && part.itemStatus !== 'ACTIVE' && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-500 border border-slate-200">{part.itemStatus}</span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Stock Status */}
@@ -263,6 +306,13 @@ const InventoryList = () => {
                           title="Edit Material Master"
                         >
                           <Edit3 size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleActive(part)}
+                          className={`p-2 rounded-xl transition ${part.itemStatus === 'INACTIVE' ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                          title={part.itemStatus === 'INACTIVE' ? 'Reactivate Item' : 'Deactivate Item'}
+                        >
+                          {part.itemStatus === 'INACTIVE' ? <RotateCcw size={18} /> : <Ban size={18} />}
                         </button>
                       </div>
                     </td>

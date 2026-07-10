@@ -18,6 +18,19 @@ public class SupplierMapper {
                 .phone(dto.getPhone())
                 .address(dto.getAddress())
                 .certificationStatus(dto.getCertificationStatus())
+                .rating(dto.getRating())
                 .build();
+    }
+
+    // Applies request fields onto an existing entity in place (used by update)
+    public void updateEntity(Supplier supplier, SupplierRequest dto) {
+        supplier.setName(dto.getName());
+        supplier.setVendorCode(dto.getVendorCode());
+        supplier.setContactPerson(dto.getContactPerson());
+        supplier.setEmail(dto.getEmail());
+        supplier.setPhone(dto.getPhone());
+        supplier.setAddress(dto.getAddress());
+        supplier.setCertificationStatus(dto.getCertificationStatus());
+        supplier.setRating(dto.getRating());
     }
 }

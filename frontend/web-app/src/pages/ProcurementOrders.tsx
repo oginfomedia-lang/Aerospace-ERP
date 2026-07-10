@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ShoppingCart, Plus, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { ShoppingCart, Plus, Loader2, RefreshCw, Trash2, Edit3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import procurementApi from '../api/procurementAxios';
+import api from '../api/axios';
 import { Supplier, PurchaseOrderResponse, PurchaseOrderRequest, POLineItemDTO } from '../types/procurement';
+import { Part } from '../types/inventory';
 import { GRNFromPOModal } from '../components/GRNFromPOModal';
+import { POApprovalModal } from '../components/POApprovalModal';
 
 const ProcurementOrders = () => {
   const [orders, setOrders] = useState<PurchaseOrderResponse[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedPOForGRN, setSelectedPOForGRN] = useState<PurchaseOrderResponse | null>(null);
+  const [selectedPOForApproval, setSelectedPOForApproval] = useState<PurchaseOrderResponse | null>(null);
+  const [editingPO, setEditingPO] = useState<PurchaseOrderResponse | null>(null);
 
   const location = useLocation();
   const state = location.state as { prefillItems?: any[], woNumber?: string } | null;
@@ -30,13 +36,17 @@ const ProcurementOrders = () => {
     try {
       // Assuming a GET /purchase-orders endpoint exists, otherwise we just handle creation for now
       // Since we didn't explicitly implement GET /purchase-orders in backend, we'll gracefully handle 404s
-      const [suppRes, orderRes] = await Promise.allSettled([
+      const [suppRes, orderRes, partsRes] = await Promise.allSettled([
         procurementApi.get('/suppliers'),
-        procurementApi.get('/purchase-orders')
+        procurementApi.get('/purchase-orders'),
+        api.get('/inventory'),
       ]);
 
       if (suppRes.status === 'fulfilled') setSuppliers(suppRes.value.data);
       if (orderRes.status === 'fulfilled') setOrders(orderRes.value.data);
+      // PO line items must reference a real inventory SKU, otherwise GRN part-ID
+      // resolution fails later — this list is what the item picker is built from.
+      if (partsRes.status === 'fulfilled') setParts(partsRes.value.data.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -59,6 +69,43 @@ const ProcurementOrders = () => {
       window.history.replaceState({}, document.title);
     }
   }, [state]);
+
+  const resetForm = () => {
+    setSupplierId('');
+    setDeliveryDate('');
+    setCurrency('USD');
+    setRemarks('');
+    setItems([{ skuCode: '', quantity: 1, unitPrice: 0, uom: 'PCS' }]);
+  };
+
+  const handleOpenCreate = () => {
+    setEditingPO(null);
+    resetForm();
+    setShowModal(true);
+  };
+
+  // Only DRAFT POs can be edited (enforced server-side too) — this is what fixes a PO
+  // that was created with a bad SKU per the GRN "could not resolve" error.
+  const handleOpenEdit = (po: PurchaseOrderResponse) => {
+    setEditingPO(po);
+    setSupplierId(po.supplierId);
+    setDeliveryDate(po.deliveryDate ? new Date(po.deliveryDate).toISOString().slice(0, 16) : '');
+    setCurrency(po.currency || 'USD');
+    setRemarks(po.remarks || '');
+    setItems(po.items.map(i => ({ ...i })));
+    setShowModal(true);
+  };
+
+  const handleDelete = async (po: PurchaseOrderResponse) => {
+    if (!window.confirm(`Delete draft PO ${po.poNumber}? This cannot be undone.`)) return;
+    try {
+      await procurementApi.delete(`/purchase-orders/${po.id}`);
+      toast.success(`${po.poNumber} deleted.`);
+      setOrders(orders.filter(o => o.id !== po.id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleAddItem = () => {
     setItems([...items, { skuCode: '', quantity: 1, unitPrice: 0, uom: 'PCS' }]);
@@ -94,14 +141,21 @@ const ProcurementOrders = () => {
     };
 
     try {
-      const res = await procurementApi.post('/purchase-orders', payload);
-      toast.success('Purchase Order created successfully!');
-      setOrders([res.data, ...orders]);
+      if (editingPO) {
+        const res = await procurementApi.put<PurchaseOrderResponse>(`/purchase-orders/${editingPO.id}`, payload);
+        toast.success(`${res.data.poNumber} updated.`);
+        setOrders(orders.map(o => o.id === editingPO.id ? res.data : o));
+      } else {
+        const res = await procurementApi.post<PurchaseOrderResponse>('/purchase-orders', payload);
+        toast.success('Purchase Order created successfully!');
+        if (res.data.duplicateWarning) {
+          toast(res.data.duplicateWarning, { icon: '⚠️', duration: 6000 });
+        }
+        setOrders([res.data, ...orders]);
+      }
       setShowModal(false);
-      // Reset form
-      setSupplierId('');
-      setRemarks('');
-      setItems([{ skuCode: '', quantity: 1, unitPrice: 0, uom: 'PCS' }]);
+      setEditingPO(null);
+      resetForm();
     } catch (err) {
       console.error(err);
     }
@@ -113,6 +167,21 @@ const ProcurementOrders = () => {
         params: { status }
       });
       toast.success(`PO status updated to ${status}!`);
+      setOrders(orders.map(o => o.id === id ? res.data : o));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // PUR-BR-001: evaluates the approval matrix; either starts the chain or auto-approves
+  const handleSubmitForApproval = async (id: number) => {
+    try {
+      const res = await procurementApi.post<PurchaseOrderResponse>(`/purchase-orders/${id}/submit`);
+      toast.success(
+        res.data.status === 'APPROVED'
+          ? 'No approval required for this amount — PO approved automatically.'
+          : `Submitted — awaiting Level ${res.data.currentApprovalLevel} approval.`
+      );
       setOrders(orders.map(o => o.id === id ? res.data : o));
     } catch (err) {
       console.error(err);
@@ -134,7 +203,7 @@ const ProcurementOrders = () => {
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={handleOpenCreate}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
           >
             <Plus size={18} />
@@ -167,11 +236,14 @@ const ProcurementOrders = () => {
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full ${
                     order.status === 'SENT_TO_VENDOR' ? 'bg-indigo-100 text-indigo-700' :
-                    order.status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-700' :
-                    order.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
+                    order.status === 'RECEIVED' || order.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+                    order.status === 'CANCELLED' || order.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                    order.status === 'PENDING_APPROVAL' ? 'bg-amber-100 text-amber-700 animate-pulse' :
+                    order.status === 'CLOSED' ? 'bg-slate-200 text-slate-600' :
                     'bg-amber-100 text-amber-700'
                   }`}>
                     {order.status || 'DRAFT'}
+                    {order.status === 'PENDING_APPROVAL' && order.currentApprovalLevel != null && ` · L${order.currentApprovalLevel}`}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-slate-600">
@@ -182,6 +254,38 @@ const ProcurementOrders = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   {order.status === 'DRAFT' && (
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => handleOpenEdit(order)}
+                        title="Edit PO"
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(order)}
+                        title="Delete PO"
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleSubmitForApproval(order.id)}
+                        className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                      >
+                        Submit for Approval
+                      </button>
+                    </div>
+                  )}
+                  {order.status === 'PENDING_APPROVAL' && (
+                    <button
+                      onClick={() => setSelectedPOForApproval(order)}
+                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                    >
+                      Review · Level {order.currentApprovalLevel}
+                    </button>
+                  )}
+                  {order.status === 'APPROVED' && (
                     <button
                       onClick={() => handleUpdateStatus(order.id, 'SENT_TO_VENDOR')}
                       className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
@@ -234,7 +338,9 @@ const ProcurementOrders = () => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-slate-100 shrink-0">
-              <h2 className="text-xl font-bold text-slate-900">Draft Purchase Order</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                {editingPO ? `Edit Purchase Order: ${editingPO.poNumber}` : 'Draft Purchase Order'}
+              </h2>
             </div>
             
             <div className="p-6 overflow-y-auto flex-1">
@@ -275,12 +381,27 @@ const ProcurementOrders = () => {
                   </div>
 
                   <div className="space-y-3">
-                    {items.map((item, idx) => (
+                    {items.map((item, idx) => {
+                      const knownPart = parts.find(p => p.serialNumber === item.skuCode);
+                      const unresolvedSku = item.skuCode && !knownPart;
+                      return (
                       <div key={idx} className="flex gap-3 items-start p-3 bg-slate-50 rounded-xl border border-slate-200">
                         <div className="flex-1">
-                          <input required type="text" placeholder="SKU Code (e.g. TB-9912)" value={item.skuCode}
+                          <select required value={item.skuCode}
                             onChange={e => handleItemChange(idx, 'skuCode', e.target.value)}
-                            className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 font-mono" />
+                            className={`w-full px-3 py-2 text-sm bg-white border rounded-lg focus:outline-none focus:border-blue-500 ${unresolvedSku ? 'border-red-300' : 'border-slate-200'}`}>
+                            <option value="" disabled>Select an item...</option>
+                            {parts.map(p => (
+                              <option key={p.id} value={p.serialNumber}>{p.name} ({p.serialNumber})</option>
+                            ))}
+                            {/* Keep a prefilled/legacy SKU visible even if it's not a known part, so it's obvious it needs fixing */}
+                            {unresolvedSku && <option value={item.skuCode}>⚠ Unknown SKU: {item.skuCode}</option>}
+                          </select>
+                          {unresolvedSku && (
+                            <p className="text-[10px] text-red-500 font-bold mt-1">
+                              This SKU doesn't match any item in Inventory — GRN receipt will fail. Pick a real item.
+                            </p>
+                          )}
                         </div>
                         <div className="w-24">
                           <input required type="number" min="1" placeholder="Qty" value={item.quantity}
@@ -305,7 +426,8 @@ const ProcurementOrders = () => {
                           <Trash2 size={18} />
                         </button>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </form>
@@ -316,13 +438,13 @@ const ProcurementOrders = () => {
                 Total: <span className="text-slate-900 font-bold text-lg">${items.reduce((acc, item) => acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setShowModal(false)}
+                <button type="button" onClick={() => { setShowModal(false); setEditingPO(null); }}
                   className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all">
                   Cancel
                 </button>
                 <button type="submit" form="po-form"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20">
-                  Submit PO
+                  {editingPO ? 'Save Changes' : 'Submit PO'}
                 </button>
               </div>
             </div>
@@ -337,6 +459,17 @@ const ProcurementOrders = () => {
           onClose={() => setSelectedPOForGRN(null)}
           onSuccess={() => {
             setSelectedPOForGRN(null);
+            fetchData();
+          }}
+        />
+      )}
+
+      {selectedPOForApproval && (
+        <POApprovalModal
+          po={selectedPOForApproval}
+          onClose={() => setSelectedPOForApproval(null)}
+          onSuccess={() => {
+            setSelectedPOForApproval(null);
             fetchData();
           }}
         />

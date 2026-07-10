@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "po_line_items")
 @Data
@@ -27,9 +29,9 @@ public class POLineItem {
     private Integer quantity;
 
     @Column(nullable = false)
-    private Double unitPrice;
+    private BigDecimal unitPrice;
 
-    private Double totalPrice;
+    private BigDecimal totalPrice;
 
     private String uom; // Unit of Measure
 
@@ -37,7 +39,7 @@ public class POLineItem {
     @PreUpdate
     public void calculateTotal() {
         if (unitPrice != null && quantity != null) {
-            this.totalPrice = unitPrice * quantity;
+            this.totalPrice = unitPrice.multiply(BigDecimal.valueOf(quantity));
         }
     }
 }

@@ -22,32 +22,35 @@ export const GRNFromPOModal: React.FC<Props> = ({ po, onClose, onSuccess }) => {
     setSubmitting(true);
     
     try {
-      // 1. Resolve Part IDs for each SKU
-      const resolvedItems = await Promise.all(
+      // 1. Resolve Part IDs for each SKU — this only works if the PO's line items reference
+      //    real inventory SKUs (the PO form now enforces this via a picker, but older/manually
+      //    created POs may still have stale SKUs, so report exactly which ones fail).
+      const resolved = await Promise.all(
         po.items.map(async (item) => {
           try {
             const res = await api.get(`/inventory/sku/${item.skuCode}`);
-            return { partId: res.data.data.id, qty: item.quantity };
+            return { skuCode: item.skuCode, partId: res.data.data.id, qty: item.quantity, ok: true as const };
           } catch {
-            return null;
+            return { skuCode: item.skuCode, qty: item.quantity, ok: false as const };
           }
         })
       );
-      
-      const validItems = resolvedItems.filter(i => i !== null) as { partId: number, qty: number }[];
-      
+
+      const validItems = resolved.filter((i): i is { skuCode: string; partId: number; qty: number; ok: true } => i.ok);
+      const unresolvedSkus = resolved.filter(i => !i.ok).map(i => i.skuCode);
+
       if (validItems.length === 0) {
-        toast.error("Could not resolve any part IDs from inventory.");
+        toast.error(`Could not resolve any of these SKUs in Inventory: ${unresolvedSkus.join(', ')}. Edit the PO and pick real items first.`);
         setSubmitting(false);
         return;
       }
-      
-      if (validItems.length < po.items.length) {
-        toast.error("Some items could not be resolved and will be skipped.");
+
+      if (unresolvedSkus.length > 0) {
+        toast.error(`Skipping unresolved SKU(s): ${unresolvedSkus.join(', ')} — not found in Inventory.`);
       }
-      
+
       // 2. Post to GRN endpoint for each valid item
-      await Promise.all(
+      const results = await Promise.all(
         validItems.map(item => {
           const params = new URLSearchParams({
             qty: item.qty.toString(),
@@ -62,8 +65,18 @@ export const GRNFromPOModal: React.FC<Props> = ({ po, onClose, onSuccess }) => {
           return api.post(`/inventory/${item.partId}/inward-from-grn?${params.toString()}`);
         })
       );
-      
-      toast.success("GRN submitted. Material moved to PENDING_QA.");
+
+      // Reflect the ACTUAL resulting bucket — items on QC-exempt parts post straight to
+      // APPROVED (GRN-FR-003), not PENDING_QA, so don't hard-code the old message.
+      const anyPendingQA = results.some(r => r.data?.data?.status === 'PENDING_QA');
+      const anyApproved = results.some(r => r.data?.data?.status === 'APPROVED');
+      toast.success(
+        anyPendingQA && anyApproved
+          ? 'GRN submitted — some items await QA, others are available immediately.'
+          : anyPendingQA
+            ? 'GRN submitted. Material moved to PENDING_QA — awaiting QA inspection.'
+            : 'GRN submitted. Material posted straight to APPROVED (no QC required for these items).'
+      );
       onSuccess();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to process GRN");

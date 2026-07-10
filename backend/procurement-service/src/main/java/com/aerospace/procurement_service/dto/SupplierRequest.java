@@ -14,12 +14,14 @@ public class SupplierRequest {
     private String contactPerson;
 
     @Email(message="Invalid email format")
-    private String Email;
+    private String email;
 
     private String phone;
     private String address;
 
     @NotBlank(message = "Certification status is required")
     private String certificationStatus;
+
+    private String rating;
 
 }

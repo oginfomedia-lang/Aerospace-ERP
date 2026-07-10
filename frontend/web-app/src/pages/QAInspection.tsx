@@ -5,11 +5,11 @@ import {
   ShieldCheck, Clock, CheckCircle2, XCircle,
   Loader2, ChevronRight, AlertTriangle, FileText, User
 } from 'lucide-react';
-import { Part, ApiResponse, InspectionRequest, InspectionReport } from '../types/inventory';
+import { Part, StockBalance, ApiResponse, InspectionRequest, InspectionReport } from '../types/inventory';
 import toast from 'react-hot-toast';
 
 // This page talks to TWO services:
-// api      → inventory-service (localhost:8081) — fetch PENDING_QA parts
+// api      → inventory-service (localhost:8081) — fetch PENDING_QA batches
 // qaApi    → qa-service        (localhost:8082) — submit decisions, fetch history
 
 const statusStyle: Record<string, string> = {
@@ -18,10 +18,19 @@ const statusStyle: Record<string, string> = {
   REJECTED:   'bg-red-50 text-red-700 border-red-200',
 };
 
+// One PENDING_QA batch for a part. A part's top-level status/batchNumber only ever
+// summarizes its APPROVED stock, so the queue must be built from `part.balances` —
+// a part can have several pending batches (or a pending one alongside approved
+// stock from an earlier GRN) at the same time.
+interface PendingBatch {
+  part: Part;
+  balance: StockBalance;
+}
+
 const QAInspection = () => {
-  const [pendingParts, setPendingParts] = useState<Part[]>([]);
+  const [pendingBatches, setPendingBatches] = useState<PendingBatch[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPart, setSelectedPart] = useState<Part | null>(null);
+  const [selected, setSelected] = useState<PendingBatch | null>(null);
   const [history, setHistory] = useState<InspectionReport[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -36,15 +45,20 @@ const QAInspection = () => {
     location: '',
   });
 
-  // Fetch all parts and filter PENDING_QA on frontend
+  // Fetch all parts and flatten every PENDING_QA batch across all of them
   const fetchPending = async () => {
     setLoading(true);
     try {
       const res = await api.get<ApiResponse<Part[]>>('/inventory');
-      const pending = res.data.data.filter(p => p.status === 'PENDING_QA');
-      setPendingParts(pending);
+      const pending: PendingBatch[] = [];
+      res.data.data.forEach(part => {
+        (part.balances || [])
+          .filter(b => b.status === 'PENDING_QA')
+          .forEach(balance => pending.push({ part, balance }));
+      });
+      setPendingBatches(pending);
     } catch {
-      toast.error('Failed to fetch pending parts.');
+      toast.error('Failed to fetch pending batches.');
     } finally {
       setLoading(false);
     }
@@ -52,24 +66,24 @@ const QAInspection = () => {
 
   useEffect(() => { fetchPending(); }, []);
 
-  // When user clicks a part — populate form and fetch its QA history
-  const handleSelectPart = async (part: Part) => {
-    setSelectedPart(part);
+  // When user clicks a pending batch — populate form and fetch this part's QA history
+  const handleSelectBatch = async (entry: PendingBatch) => {
+    setSelected(entry);
     setForm({
-      partId: part.id,
-      batchNumber: part.batchNumber || '',
+      partId: entry.part.id,
+      batchNumber: entry.balance.batchNumber,
       decision: 'APPROVED',
       remarks: '',
       certificateNumber: '',
       inspectorName: '',
-      location: part.location || '',
+      location: entry.balance.location || '',
     });
 
     // Fetch inspection history for this part from qa-service
     setHistoryLoading(true);
     try {
       const res = await qaApi.get<ApiResponse<InspectionReport[]>>(
-        `/qa/part/${part.id}/history`
+        `/qa/part/${entry.part.id}/history`
       );
       setHistory(res.data.data);
     } catch {
@@ -103,13 +117,16 @@ const QAInspection = () => {
 
       // Refresh pending list and history after decision
       await fetchPending();
-      if (selectedPart) await handleSelectPart(selectedPart);
 
-      // If the part we selected is no longer pending, clear the selection
-      const stillPending = pendingParts.find(p => p.id === selectedPart?.id);
+      // If the batch we had selected is no longer pending, clear the selection
+      const stillPending = pendingBatches.find(
+        p => p.part.id === selected?.part.id && p.balance.batchNumber === selected?.balance.batchNumber
+      );
       if (!stillPending) {
-        setSelectedPart(null);
+        setSelected(null);
         setHistory([]);
+      } else {
+        await handleSelectBatch(stillPending);
       }
     } catch {
       // toast.promise handles display
@@ -152,7 +169,7 @@ const QAInspection = () => {
               </h2>
             </div>
             <span className="bg-amber-100 text-amber-700 text-xs font-black px-3 py-1 rounded-full">
-              {pendingParts.length} PENDING APPROVAL
+              {pendingBatches.length} PENDING APPROVAL
             </span>
           </div>
 
@@ -160,19 +177,22 @@ const QAInspection = () => {
             <div className="p-16 text-center">
               <Loader2 className="animate-spin text-blue-500 mx-auto" size={28} />
             </div>
-          ) : pendingParts.length === 0 ? (
+          ) : pendingBatches.length === 0 ? (
             <div className="p-16 text-center text-slate-300">
               <CheckCircle2 size={48} className="mx-auto mb-3 opacity-30" />
               <p className="font-bold uppercase tracking-widest text-xs">All batches inspected</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-50">
-              {pendingParts.map(part => (
+              {pendingBatches.map(entry => {
+                const { part, balance } = entry;
+                return (
                 <button
-                  key={part.id}
-                  onClick={() => handleSelectPart(part)}
+                  key={`${part.id}-${balance.batchNumber}`}
+                  onClick={() => handleSelectBatch(entry)}
                   className={`w-full text-left p-5 hover:bg-slate-50 transition-all group ${
-                    selectedPart?.id === part.id ? 'bg-blue-50 border-l-4 border-blue-600' : ''
+                    selected?.part.id === part.id && selected?.balance.batchNumber === balance.batchNumber
+                      ? 'bg-blue-50 border-l-4 border-blue-600' : ''
                   }`}
                 >
                   <div className="flex justify-between items-start">
@@ -184,17 +204,17 @@ const QAInspection = () => {
                         SKU: {part.serialNumber}
                       </div>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        {part.batchNumber && (
+                        {balance.batchNumber && (
                           <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-blue-100">
-                            {part.batchNumber}
+                            {balance.batchNumber}
                           </span>
                         )}
-                        {part.location && (
+                        {balance.location && (
                           <span className="text-[10px] text-slate-400 font-bold">
-                            📍 {part.location}
+                            📍 {balance.location}
                           </span>
                         )}
-                        {isExpired(part.expiryDate) && (
+                        {isExpired(balance.expiryDate) && (
                           <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded text-[10px] font-black border border-red-100 flex items-center gap-1">
                             <AlertTriangle size={8} /> EXPIRED
                           </span>
@@ -214,10 +234,11 @@ const QAInspection = () => {
                   </div>
 
                   <div className="mt-2 text-[10px] text-slate-400 font-bold">
-                    QTY: {part.quantity} units · {part.partType || 'No type'}
+                    QTY: {balance.quantity} units · {part.partType || 'No type'}
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -234,7 +255,7 @@ const QAInspection = () => {
               </h2>
             </div>
 
-            {!selectedPart ? (
+            {!selected ? (
               <div className="p-16 text-center text-slate-300">
                 <ShieldCheck size={48} className="mx-auto mb-3 opacity-20" />
                 <p className="font-bold uppercase tracking-widest text-xs">
@@ -244,18 +265,18 @@ const QAInspection = () => {
             ) : (
               <form onSubmit={handleSubmit} className="p-5 space-y-4">
 
-                {/* Selected part info */}
+                {/* Selected batch info */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className="font-black text-slate-900">{selectedPart.name}</div>
+                  <div className="font-black text-slate-900">{selected.part.name}</div>
                   <div className="text-xs text-slate-500 font-medium mt-0.5">
-                    Batch: <span className="font-mono font-bold text-blue-600">{selectedPart.batchNumber}</span>
-                    {' · '} Qty: <span className="font-bold">{selectedPart.quantity}</span>
-                    {' · '} Location: <span className="font-bold">{selectedPart.location || 'N/A'}</span>
+                    Batch: <span className="font-mono font-bold text-blue-600">{selected.balance.batchNumber}</span>
+                    {' · '} Qty: <span className="font-bold">{selected.balance.quantity}</span>
+                    {' · '} Location: <span className="font-bold">{selected.balance.location || 'N/A'}</span>
                   </div>
-                  {isExpired(selectedPart.expiryDate) && (
+                  {isExpired(selected.balance.expiryDate) && (
                     <div className="mt-2 p-2 bg-red-50 rounded-xl border border-red-100 text-xs text-red-600 font-bold flex items-center gap-2">
                       <AlertTriangle size={12} />
-                      Batch expired on {new Date(selectedPart.expiryDate!).toLocaleDateString()} — consider REJECTED
+                      Batch expired on {new Date(selected.balance.expiryDate!).toLocaleDateString()} — consider REJECTED
                     </div>
                   )}
                 </div>
@@ -359,12 +380,12 @@ const QAInspection = () => {
           </div>
 
           {/* Inspection History for selected part */}
-          {selectedPart && (
+          {selected && (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="p-5 border-b border-slate-100 flex items-center gap-2">
                 <Clock size={16} className="text-slate-400" />
                 <h2 className="font-black text-slate-800 uppercase tracking-wider text-sm">
-                  Inspection History — {selectedPart.batchNumber}
+                  Inspection History — {selected.balance.batchNumber}
                 </h2>
               </div>
 

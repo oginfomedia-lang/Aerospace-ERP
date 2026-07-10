@@ -1,13 +1,23 @@
 package com.aerospace.procurement_service.service.impl;
 
+import com.aerospace.procurement_service.dto.POApprovalActionRequest;
+import com.aerospace.procurement_service.dto.POApprovalHistoryDTO;
+import com.aerospace.procurement_service.dto.POLineItemDTO;
 import com.aerospace.procurement_service.dto.PurchaseOrderRequest;
 import com.aerospace.procurement_service.dto.PurchaseOrderResponse;
+import com.aerospace.procurement_service.entity.ApprovalActionStatus;
+import com.aerospace.procurement_service.entity.ApprovalMatrix;
+import com.aerospace.procurement_service.entity.POApprovalHistory;
 import com.aerospace.procurement_service.entity.POLineItem;
 import com.aerospace.procurement_service.entity.POStatus;
 import com.aerospace.procurement_service.entity.PurchaseOrder;
 import com.aerospace.procurement_service.entity.Supplier;
+import com.aerospace.procurement_service.exception.ResourceNotFoundException;
 import com.aerospace.procurement_service.mapper.PurchaseOrderMapper;
+import com.aerospace.procurement_service.repository.POApprovalHistoryRepository;
 import com.aerospace.procurement_service.repository.PurchaseOrderRepository;
+import com.aerospace.procurement_service.service.ApprovalMatrixService;
+import com.aerospace.procurement_service.service.DocumentSequenceService;
 import com.aerospace.procurement_service.service.PurchaseOrderService;
 import com.aerospace.procurement_service.service.SupplierService;
 
@@ -16,17 +26,30 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
+    private static final String MODULE = "PURCHASE_ORDER";
+    // PUR-BR-005: same supplier + at least one shared item, still open, within this window
+    private static final int DUPLICATE_WINDOW_DAYS = 3;
+
     private final PurchaseOrderRepository poRepository;
     private final SupplierService supplierService;
     private final PurchaseOrderMapper poMapper;
+    private final ApprovalMatrixService approvalMatrixService;
+    private final POApprovalHistoryRepository approvalHistoryRepository;
+    private final DocumentSequenceService documentSequenceService;
     private final com.aerospace.procurement_service.event.producer.ProcurementEventPublisher eventPublisher;
 
     @Transactional
@@ -38,6 +61,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         if (!"CERTIFIED".equalsIgnoreCase(supplier.getCertificationStatus())) {
             throw new IllegalStateException("Cannot create PO for an uncertified supplier!");
         }
+        if (!supplier.isActive()) {
+            throw new IllegalStateException("Cannot create PO for a deactivated supplier!");
+        }
 
         // 2. Map the request to an Entity
         PurchaseOrder po = poMapper.toEntity(request);
@@ -46,26 +72,50 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         po.setSupplier(supplier);
         po.setOrderDate(LocalDateTime.now());
         po.setStatus(POStatus.DRAFT);
-        po.setPoNumber("PO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        // ARC-BR-006: PO numbers are always system-generated via the document sequence, never ad hoc
+        po.setPoNumber(documentSequenceService.generate("PO"));
 
         // 4. Calculate total amount by looping through line items
-        double totalAmount = 0.0;
+        BigDecimal totalAmount = BigDecimal.ZERO;
         if (po.getItems() != null) {
             for (POLineItem item : po.getItems()) {
                 // The POLineItem entity has a @PrePersist method to calculate its own total,
                 // but we need the sum of all items for the main PO document.
-                double lineTotal = item.getQuantity() * item.getUnitPrice();
+                BigDecimal lineTotal = item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
                 item.setTotalPrice(lineTotal); // Ensure it's set
-                totalAmount += lineTotal;
+                totalAmount = totalAmount.add(lineTotal);
             }
         }
         po.setTotalAmount(totalAmount);
+
+        // PUR-BR-005: non-blocking duplicate-PO warning
+        String duplicateWarning = findDuplicateWarning(supplier.getId(), po);
 
         // 5. Save to database
         PurchaseOrder savedPo = poRepository.save(po);
 
         // 6. Convert back to a response DTO for the frontend
-        return poMapper.toDTO(savedPo);
+        PurchaseOrderResponse response = poMapper.toDTO(savedPo);
+        response.setDuplicateWarning(duplicateWarning);
+        return response;
+    }
+
+    private String findDuplicateWarning(Long supplierId, PurchaseOrder newPo) {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(DUPLICATE_WINDOW_DAYS);
+        List<String> newSkus = newPo.getItems() == null ? List.of() :
+                newPo.getItems().stream().map(POLineItem::getSkuCode).toList();
+
+        boolean duplicateExists = poRepository.findAll().stream()
+                .filter(existing -> existing.getSupplier() != null && existing.getSupplier().getId().equals(supplierId))
+                .filter(existing -> existing.getStatus() != POStatus.CANCELLED && existing.getStatus() != POStatus.CLOSED)
+                .filter(existing -> existing.getOrderDate() != null && existing.getOrderDate().isAfter(cutoff))
+                .anyMatch(existing -> existing.getItems() != null && existing.getItems().stream()
+                        .anyMatch(line -> newSkus.contains(line.getSkuCode())));
+
+        return duplicateExists
+                ? "PUR-BR-005: Warning: an open PO already exists for this supplier with an overlapping item within the last "
+                        + DUPLICATE_WINDOW_DAYS + " days."
+                : null;
     }
 
     @Override
@@ -77,18 +127,31 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     @Transactional
     @Override
-    public PurchaseOrderResponse updatePOStatus(Long id, com.aerospace.procurement_service.entity.POStatus status) {
+    public PurchaseOrderResponse updatePOStatus(Long id, POStatus status) {
         PurchaseOrder po = poRepository.findById(id)
-                .orElseThrow(() -> new com.aerospace.procurement_service.exception.ResourceNotFoundException("PO not found with id " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
+
+        // The approval chain has its own dedicated endpoints — this generic endpoint must not
+        // be used to bypass PUR-BR-001/PUR-BR-002.
+        if (status == POStatus.DRAFT || status == POStatus.PENDING_APPROVAL
+                || status == POStatus.APPROVED || status == POStatus.REJECTED) {
+            throw new IllegalArgumentException(
+                    "Use /submit, /approve or /reject to move a PO into " + status + " — not this endpoint.");
+        }
+        if (status == POStatus.SENT_TO_VENDOR && po.getStatus() != POStatus.APPROVED) {
+            throw new IllegalArgumentException(
+                    "PO must be APPROVED before it can be sent to the vendor (current: " + po.getStatus() + ").");
+        }
+
         po.setStatus(status);
         PurchaseOrder saved = poRepository.save(po);
 
-        if (status == com.aerospace.procurement_service.entity.POStatus.SENT_TO_VENDOR) {
+        if (status == POStatus.SENT_TO_VENDOR) {
             com.aerospace.procurement_service.event.PurchaseOrderCreatedEvent event = com.aerospace.procurement_service.event.PurchaseOrderCreatedEvent.builder()
                     .purchaseOrderId(saved.getId())
                     .poNumber(saved.getPoNumber())
                     .supplierName(saved.getSupplier().getName())
-                    .totalAmount(saved.getTotalAmount())
+                    .totalAmount(saved.getTotalAmount() != null ? saved.getTotalAmount().doubleValue() : 0.0)
                     .currency(saved.getCurrency())
                     .expectedDeliveryDate(saved.getDeliveryDate())
                     .build();
@@ -96,6 +159,216 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         }
 
         return poMapper.toDTO(saved);
+    }
+
+    @Transactional
+    @Override
+    public PurchaseOrderResponse submitForApproval(Long id) {
+        PurchaseOrder po = poRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
+
+        if (po.getStatus() != POStatus.DRAFT) {
+            throw new IllegalArgumentException("Only a DRAFT PO can be submitted for approval (current: " + po.getStatus() + ").");
+        }
+
+        // Only bump the version on a RESUBMISSION (i.e. a prior chain already exists for this PO —
+        // it was rejected). The very first submission keeps the PO's initial documentVersion (1).
+        boolean hasPriorSubmission = !approvalHistoryRepository
+                .findByPurchaseOrder_IdOrderByDocumentVersionDescApprovalLevelAsc(id).isEmpty();
+        if (hasPriorSubmission) {
+            po.setDocumentVersion(po.getDocumentVersion() + 1);
+        }
+        int version = po.getDocumentVersion();
+
+        List<ApprovalMatrix> bands = approvalMatrixService.evaluateChain(MODULE, po.getTotalAmount());
+
+        if (bands.isEmpty()) {
+            // Doc step 2: no qualifying band → auto-approve, no chain needed
+            po.setStatus(POStatus.APPROVED);
+            po.setCurrentApprovalLevel(null);
+            return poMapper.toDTO(poRepository.save(po));
+        }
+
+        for (ApprovalMatrix band : bands) {
+            approvalHistoryRepository.save(POApprovalHistory.builder()
+                    .purchaseOrder(po)
+                    .approvalLevel(band.getLevelSequence())
+                    .approverRole(band.getApproverRole())
+                    .status(band.getLevelSequence() == bands.get(0).getLevelSequence()
+                            ? ApprovalActionStatus.PENDING : ApprovalActionStatus.WAITING)
+                    .documentVersion(version)
+                    .build());
+        }
+
+        po.setStatus(POStatus.PENDING_APPROVAL);
+        po.setCurrentApprovalLevel(bands.get(0).getLevelSequence());
+
+        return poMapper.toDTO(poRepository.save(po));
+    }
+
+    @Transactional
+    @Override
+    public PurchaseOrderResponse approve(Long id, POApprovalActionRequest request, String approverUsername, List<String> approverRoles) {
+        PurchaseOrder po = poRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
+
+        if (po.getStatus() != POStatus.PENDING_APPROVAL || po.getCurrentApprovalLevel() == null) {
+            throw new IllegalArgumentException("PO is not awaiting approval (current: " + po.getStatus() + ").");
+        }
+
+        POApprovalHistory pending = approvalHistoryRepository
+                .findByPurchaseOrder_IdAndDocumentVersionAndApprovalLevel(id, po.getDocumentVersion(), po.getCurrentApprovalLevel())
+                .orElseThrow(() -> new IllegalStateException("No pending approval row found for level " + po.getCurrentApprovalLevel()));
+
+        if (!approverRoles.contains(pending.getApproverRole())) {
+            throw new IllegalArgumentException(
+                    "PUR-BR-001: This PO requires role " + pending.getApproverRole() + " to approve at level " + pending.getApprovalLevel() + ".");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        pending.setStatus(ApprovalActionStatus.APPROVED);
+        pending.setApproverUsername(approverUsername);
+        pending.setApprovedAt(now);
+        pending.setRemarks(request.getRemarks());
+        pending.setDigitalSignatureHash(computeSignatureHash(approverUsername, now, id, po.getDocumentVersion(), request.getRemarks()));
+        approvalHistoryRepository.save(pending);
+
+        List<POApprovalHistory> chain = approvalHistoryRepository
+                .findByPurchaseOrder_IdAndDocumentVersion(id, po.getDocumentVersion());
+        int maxLevel = chain.stream().mapToInt(POApprovalHistory::getApprovalLevel).max().orElse(pending.getApprovalLevel());
+
+        if (pending.getApprovalLevel() >= maxLevel) {
+            // Last qualifying level cleared → fully approved
+            po.setStatus(POStatus.APPROVED);
+            po.setCurrentApprovalLevel(null);
+        } else {
+            int nextLevel = chain.stream()
+                    .mapToInt(POApprovalHistory::getApprovalLevel)
+                    .filter(lvl -> lvl > pending.getApprovalLevel())
+                    .min().orElseThrow();
+            POApprovalHistory nextRow = chain.stream()
+                    .filter(h -> h.getApprovalLevel() == nextLevel)
+                    .findFirst().orElseThrow();
+            nextRow.setStatus(ApprovalActionStatus.PENDING);
+            approvalHistoryRepository.save(nextRow);
+            po.setCurrentApprovalLevel(nextLevel);
+        }
+
+        return poMapper.toDTO(poRepository.save(po));
+    }
+
+    @Transactional
+    @Override
+    public PurchaseOrderResponse reject(Long id, POApprovalActionRequest request, String approverUsername, List<String> approverRoles) {
+        PurchaseOrder po = poRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
+
+        if (po.getStatus() != POStatus.PENDING_APPROVAL || po.getCurrentApprovalLevel() == null) {
+            throw new IllegalArgumentException("PO is not awaiting approval (current: " + po.getStatus() + ").");
+        }
+        if (request.getRemarks() == null || request.getRemarks().isBlank()) {
+            throw new IllegalArgumentException("PUR-BR-002: Rejection remarks are mandatory.");
+        }
+
+        POApprovalHistory pending = approvalHistoryRepository
+                .findByPurchaseOrder_IdAndDocumentVersionAndApprovalLevel(id, po.getDocumentVersion(), po.getCurrentApprovalLevel())
+                .orElseThrow(() -> new IllegalStateException("No pending approval row found for level " + po.getCurrentApprovalLevel()));
+
+        if (!approverRoles.contains(pending.getApproverRole())) {
+            throw new IllegalArgumentException(
+                    "PUR-BR-001: This PO requires role " + pending.getApproverRole() + " to reject at level " + pending.getApprovalLevel() + ".");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        pending.setStatus(ApprovalActionStatus.REJECTED);
+        pending.setApproverUsername(approverUsername);
+        pending.setApprovedAt(now);
+        pending.setRemarks(request.getRemarks());
+        pending.setDigitalSignatureHash(computeSignatureHash(approverUsername, now, id, po.getDocumentVersion(), request.getRemarks()));
+        approvalHistoryRepository.save(pending);
+
+        // PUR-BR-002/PUR-BR-003: rejection resets the PO to Draft; a full resubmission is required
+        po.setStatus(POStatus.DRAFT);
+        po.setCurrentApprovalLevel(null);
+
+        return poMapper.toDTO(poRepository.save(po));
+    }
+
+    @Transactional
+    @Override
+    public PurchaseOrderResponse updatePurchaseOrder(Long id, PurchaseOrderRequest request) {
+        PurchaseOrder po = poRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
+
+        if (po.getStatus() != POStatus.DRAFT) {
+            throw new IllegalArgumentException("Only a DRAFT PO can be edited (current: " + po.getStatus() + "). Reject it back to Draft first if needed.");
+        }
+
+        Supplier supplier = supplierService.getSupplierById(request.getSupplierId());
+        if (!"CERTIFIED".equalsIgnoreCase(supplier.getCertificationStatus())) {
+            throw new IllegalStateException("Cannot assign an uncertified supplier to this PO!");
+        }
+        if (!supplier.isActive()) {
+            throw new IllegalStateException("Cannot assign a deactivated supplier to this PO!");
+        }
+
+        po.setSupplier(supplier);
+        po.setDeliveryDate(request.getDeliveryDate());
+        po.setCurrency(request.getCurrency());
+        po.setRemarks(request.getRemarks());
+
+        // Replace line items wholesale — orphanRemoval on PurchaseOrder.items deletes the old rows
+        po.getItems().clear();
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        if (request.getItems() != null) {
+            for (POLineItemDTO dto : request.getItems()) {
+                POLineItem item = poMapper.toLineItemEntity(dto, po);
+                BigDecimal lineTotal = item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+                item.setTotalPrice(lineTotal);
+                po.getItems().add(item);
+                totalAmount = totalAmount.add(lineTotal);
+            }
+        }
+        po.setTotalAmount(totalAmount);
+
+        return poMapper.toDTO(poRepository.save(po));
+    }
+
+    @Transactional
+    @Override
+    public void deletePurchaseOrder(Long id) {
+        PurchaseOrder po = poRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
+
+        if (po.getStatus() != POStatus.DRAFT) {
+            throw new IllegalArgumentException("Only a DRAFT PO can be deleted (current: " + po.getStatus() + ").");
+        }
+        boolean everSubmitted = !approvalHistoryRepository
+                .findByPurchaseOrder_IdOrderByDocumentVersionDescApprovalLevelAsc(id).isEmpty();
+        if (everSubmitted) {
+            throw new IllegalArgumentException(
+                    "This PO has approval history and can't be deleted outright — it's preserved for audit. Leave it in Draft or edit it instead.");
+        }
+        poRepository.delete(po);
+    }
+
+    @Override
+    public List<POApprovalHistoryDTO> getApprovalHistory(Long id) {
+        return approvalHistoryRepository.findByPurchaseOrder_IdOrderByDocumentVersionDescApprovalLevelAsc(id).stream()
+                .map(poMapper::toApprovalHistoryDTO)
+                .collect(Collectors.toList());
+    }
+
+    private String computeSignatureHash(String approverUsername, LocalDateTime timestamp, Long poId, int documentVersion, String remarks) {
+        String payload = approverUsername + "|" + timestamp + "|" + poId + "|" + documentVersion + "|" + (remarks != null ? remarks : "");
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(payload.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 is guaranteed available on every standard JVM
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 
     @Transactional
@@ -117,7 +390,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         po.setOrderDate(LocalDateTime.now());
         po.setDeliveryDate(LocalDateTime.now().plusDays(7));
         po.setStatus(POStatus.DRAFT);
-        po.setPoNumber("PO-AUTO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        po.setPoNumber(documentSequenceService.generate("PO"));
         po.setCurrency("USD");
         po.setRemarks("Auto-drafted due to low stock alert for Part: " + event.getPartName());
 
@@ -125,8 +398,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         item.setPurchaseOrder(po);
         item.setSkuCode(event.getPartName());
         item.setQuantity(event.getReorderLevel() * 2);
-        item.setUnitPrice(15.00);
-        item.setTotalPrice(item.getQuantity() * item.getUnitPrice());
+        item.setUnitPrice(new BigDecimal("15.00"));
+        item.setTotalPrice(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
         item.setUom("PCS");
 
         po.setItems(java.util.List.of(item));

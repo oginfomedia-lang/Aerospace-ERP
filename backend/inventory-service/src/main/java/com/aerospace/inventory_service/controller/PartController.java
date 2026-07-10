@@ -61,7 +61,10 @@ public class PartController {
         return ResponseEntity.ok(new ApiResponse<>("DELETED", "Part removed successfully"));
     }
 
-    // ERP Step 1+2: Receive Stock & Prepare GRN (F-36 GRN Form)
+    // ERP Step 1+2: Receive Stock & Auto-Generate GRN (F-36 GRN Form)
+    // GRN-FR-001: the GRN number is always system-generated; any `grnNumber` passed here
+    // is accepted for backward compatibility but ignored — see PartResponseDTO.grnNumber
+    // in the response for the authoritative, system-assigned number.
     @PostMapping("/{id}/inward-from-grn")
     public ResponseEntity<ApiResponse<PartResponseDTO>> inwardStock(
             @PathVariable Long id,
@@ -77,9 +80,10 @@ public class PartController {
             @RequestParam(required = false) String supplierName,
             @RequestParam(required = false) String transportName,
             @RequestParam(required = false) Integer inspectionQty) {
-        return ResponseEntity.ok(new ApiResponse<>("STOCK_RECEIVED_PENDING_QA",
-                partService.addStock(id, qty, batchNumber, location, expiryDate,
-                        grnNumber, challanNumber, supplierName, transportName, inspectionQty)));
+        PartResponseDTO result = partService.addStock(id, qty, batchNumber, location, expiryDate,
+                grnNumber, challanNumber, supplierName, transportName, inspectionQty);
+        return ResponseEntity.ok(new ApiResponse<>(
+                "STOCK_RECEIVED_" + result.getStatus(), result));
     }
     
     // ERP Step: Issue to Production

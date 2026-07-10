@@ -41,4 +41,25 @@ public class SupplierServiceImpl implements SupplierService {
     public List<Supplier> getAllSuppliers() {
         return supplierRepository.findAll();
     }
+
+    @Override
+    public Supplier updateSupplier(Long id, SupplierRequest request) {
+        Supplier supplier = getSupplierById(id);
+
+        // Vendor code must stay unique, but changing it to itself is fine
+        if (!supplier.getVendorCode().equals(request.getVendorCode())
+                && supplierRepository.existsByVendorCode(request.getVendorCode())) {
+            throw new DuplicateResourceException("Supplier with code " + request.getVendorCode() + " already exists!");
+        }
+
+        supplierMapper.updateEntity(supplier, request);
+        return supplierRepository.save(supplier);
+    }
+
+    @Override
+    public Supplier setActive(Long id, boolean active) {
+        Supplier supplier = getSupplierById(id);
+        supplier.setActive(active);
+        return supplierRepository.save(supplier);
+    }
 }

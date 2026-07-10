@@ -1,7 +1,7 @@
 import React from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, X, ShoppingCart } from 'lucide-react';
 import { Part } from '../types/inventory';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
 interface Props {
@@ -13,6 +13,20 @@ interface Props {
 
 export const LowStockAlert = ({ parts }: Props) => {
   const [dismissed, setDismissed] = useState(false);
+  const navigate = useNavigate();
+
+  // Suggested reorder qty: cover the current shortfall plus one more reorder cycle's worth
+  const suggestedQty = (p: Part) => Math.max((p.reorderLevel ?? 0) - (p.quantity ?? 0), 1) * 2;
+
+  const handleReorder = (p: Part, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate('/purchase-orders', {
+      state: {
+        prefillItems: [{ skuCode: p.serialNumber, quantity: suggestedQty(p) }],
+      },
+    });
+  };
 
   const lowStockParts = parts.filter(p =>
     p.reorderLevel !== null &&
@@ -39,16 +53,24 @@ export const LowStockAlert = ({ parts }: Props) => {
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
               {lowStockParts.map(p => (
-                <Link
+                <div
                   key={p.id}
-                  to={`/inventory/${p.id}/transactions`}
-                  className="flex items-center gap-2 bg-white border border-amber-200 px-3 py-1.5 rounded-xl hover:bg-amber-100 transition-colors group"
+                  className="flex items-center gap-2 bg-white border border-amber-200 pl-3 pr-1.5 py-1.5 rounded-xl group"
                 >
-                  <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">{p.name}</span>
-                  <span className="text-[10px] font-mono text-red-500 font-black">
-                    {p.quantity} / {p.reorderLevel}
-                  </span>
-                </Link>
+                  <Link to={`/inventory/${p.id}/transactions`} className="flex items-center gap-2 hover:opacity-70 transition-opacity">
+                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">{p.name}</span>
+                    <span className="text-[10px] font-mono text-red-500 font-black">
+                      {p.quantity} / {p.reorderLevel}
+                    </span>
+                  </Link>
+                  <button
+                    onClick={(e) => handleReorder(p, e)}
+                    title={`Raise a PO for ${suggestedQty(p)} units`}
+                    className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black uppercase px-2 py-1 rounded-lg transition-colors"
+                  >
+                    <ShoppingCart size={10} /> Reorder
+                  </button>
+                </div>
               ))}
             </div>
           </div>

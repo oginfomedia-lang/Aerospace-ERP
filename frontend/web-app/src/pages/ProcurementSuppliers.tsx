@@ -1,20 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Loader2, RefreshCw } from 'lucide-react';
+import { Users, Plus, Loader2, RefreshCw, Edit3, Ban, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import procurementApi from '../api/procurementAxios';
 import { Supplier, SupplierRequest } from '../types/procurement';
+
+const emptyForm = {
+  name: '',
+  vendorCode: '',
+  contactPerson: '',
+  email: '',
+  phone: '',
+  address: '',
+  certStatus: 'CERTIFIED',
+  rating: '',
+};
 
 const ProcurementSuppliers = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
 
   // Form State
-  const [name, setName] = useState('');
-  const [vendorCode, setVendorCode] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [certStatus, setCertStatus] = useState('CERTIFIED');
+  const [form, setForm] = useState(emptyForm);
 
   const fetchSuppliers = async () => {
     setLoading(true);
@@ -32,28 +40,73 @@ const ProcurementSuppliers = () => {
     fetchSuppliers();
   }, []);
 
+  const handleOpenCreate = () => {
+    setEditingSupplier(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = (supplier: Supplier) => {
+    setEditingSupplier(supplier);
+    setForm({
+      name: supplier.name,
+      vendorCode: supplier.vendorCode,
+      contactPerson: supplier.contactPerson || '',
+      email: supplier.email || '',
+      phone: supplier.phone || '',
+      address: supplier.address || '',
+      certStatus: supplier.certificationStatus,
+      rating: supplier.rating || '',
+    });
+    setShowModal(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload: SupplierRequest = {
-      name,
-      vendorCode,
-      contactEmail,
-      contactPhone,
-      certificationStatus: certStatus,
-      rating: 5.0
+      name: form.name,
+      vendorCode: form.vendorCode,
+      contactPerson: form.contactPerson,
+      email: form.email,
+      phone: form.phone,
+      address: form.address,
+      certificationStatus: form.certStatus,
+      rating: form.rating || undefined,
     };
 
     try {
-      const res = await procurementApi.post('/suppliers', payload);
-      toast.success('Supplier registered successfully!');
-      setSuppliers([...suppliers, res.data]);
+      if (editingSupplier) {
+        const res = await procurementApi.put(`/suppliers/${editingSupplier.id}`, payload);
+        toast.success('Supplier updated successfully!');
+        setSuppliers(suppliers.map(s => s.id === editingSupplier.id ? res.data : s));
+      } else {
+        const res = await procurementApi.post('/suppliers', payload);
+        toast.success('Supplier registered successfully!');
+        setSuppliers([...suppliers, res.data]);
+      }
       setShowModal(false);
-      // Reset form
-      setName('');
-      setVendorCode('');
-      setContactEmail('');
-      setContactPhone('');
-      setCertStatus('CERTIFIED');
+      setEditingSupplier(null);
+      setForm(emptyForm);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleToggleActive = async (supplier: Supplier) => {
+    const action = supplier.active ? 'deactivate' : 'reactivate';
+    const confirmed = window.confirm(
+      supplier.active
+        ? `Deactivate ${supplier.name}? Existing POs are unaffected, but no new POs can be created for them until reactivated.`
+        : `Reactivate ${supplier.name}?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = supplier.active
+        ? await procurementApi.delete(`/suppliers/${supplier.id}`)
+        : await procurementApi.patch(`/suppliers/${supplier.id}/reactivate`);
+      toast.success(`Supplier ${action}d.`);
+      setSuppliers(suppliers.map(s => s.id === supplier.id ? res.data : s));
     } catch (err) {
       console.error(err);
     }
@@ -74,7 +127,7 @@ const ProcurementSuppliers = () => {
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={handleOpenCreate}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
           >
             <Plus size={18} />
@@ -97,11 +150,12 @@ const ProcurementSuppliers = () => {
                 <th className="px-6 py-4">Contact</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-right">Rating</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {suppliers.map(supplier => (
-                <tr key={supplier.id} className="hover:bg-slate-50/50 transition-colors">
+                <tr key={supplier.id} className={`hover:bg-slate-50/50 transition-colors ${!supplier.active ? 'opacity-60' : ''}`}>
                   <td className="px-6 py-4">
                     <div className="font-bold text-slate-900">{supplier.name}</div>
                   </td>
@@ -111,30 +165,51 @@ const ProcurementSuppliers = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-slate-900">{supplier.contactEmail}</div>
-                    <div className="text-slate-500 text-xs mt-0.5">{supplier.contactPhone}</div>
+                    <div className="text-slate-900">{supplier.email}</div>
+                    <div className="text-slate-500 text-xs mt-0.5">{supplier.phone}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full ${
-                      supplier.certificationStatus === 'CERTIFIED' ? 'bg-emerald-100 text-emerald-700' :
-                      supplier.certificationStatus === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {supplier.certificationStatus}
-                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className={`px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full ${
+                        supplier.certificationStatus === 'CERTIFIED' ? 'bg-emerald-100 text-emerald-700' :
+                        supplier.certificationStatus === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {supplier.certificationStatus}
+                      </span>
+                      {!supplier.active && (
+                        <span className="px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full bg-slate-200 text-slate-600">
+                          INACTIVE
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right font-medium text-slate-900">
-                    {supplier.rating !== null && supplier.rating !== undefined ? (
-                      typeof supplier.rating === 'number' ? 
-                        (supplier.rating as number).toFixed(1) : 
-                        (!isNaN(Number(supplier.rating)) ? Number(supplier.rating).toFixed(1) : supplier.rating)
-                    ) : '5.0'} / 5.0
+                    {supplier.rating || '—'}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        onClick={() => handleOpenEdit(supplier)}
+                        title="Edit supplier"
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleToggleActive(supplier)}
+                        title={supplier.active ? 'Deactivate supplier' : 'Reactivate supplier'}
+                        className={`p-2 rounded-xl transition ${supplier.active ? 'text-slate-400 hover:text-red-600 hover:bg-red-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                      >
+                        {supplier.active ? <Ban size={16} /> : <RotateCcw size={16} />}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {suppliers.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                     <Users className="w-12 h-12 mx-auto text-slate-300 mb-3" />
                     <p className="font-medium">No suppliers found</p>
                     <p className="text-sm mt-1">Register a new vendor to get started.</p>
@@ -151,54 +226,80 @@ const ProcurementSuppliers = () => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100">
-              <h2 className="text-xl font-bold text-slate-900">Register New Supplier</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                {editingSupplier ? `Edit Supplier: ${editingSupplier.name}` : 'Register New Supplier'}
+              </h2>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Company Name</label>
-                <input required type="text" value={name} onChange={e => setName(e.target.value)} 
+                <input required type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                   placeholder="Boeing Aerospace" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Vendor Code</label>
-                <input required type="text" value={vendorCode} onChange={e => setVendorCode(e.target.value)} 
+                <input required type="text" value={form.vendorCode} onChange={e => setForm({ ...form, vendorCode: e.target.value })}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
                   placeholder="BOE-9901" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Contact Person</label>
+                <input type="text" value={form.contactPerson} onChange={e => setForm({ ...form, contactPerson: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  placeholder="Jane Doe" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email</label>
-                  <input required type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} 
+                  <input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                     placeholder="sales@boeing.com" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Phone</label>
-                  <input required type="text" value={contactPhone} onChange={e => setContactPhone(e.target.value)} 
+                  <input required type="text" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                     placeholder="+1 800 555 0199" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Certification Status</label>
-                <select value={certStatus} onChange={e => setCertStatus(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
-                  <option value="CERTIFIED">CERTIFIED</option>
-                  <option value="PENDING">PENDING</option>
-                  <option value="REVOKED">REVOKED</option>
-                </select>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Address</label>
+                <input type="text" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  placeholder="123 Aerospace Way, Seattle, WA" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Certification Status</label>
+                  <select value={form.certStatus} onChange={e => setForm({ ...form, certStatus: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                    <option value="CERTIFIED">CERTIFIED</option>
+                    <option value="PENDING">PENDING</option>
+                    <option value="REVOKED">REVOKED</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Rating</label>
+                  <select value={form.rating} onChange={e => setForm({ ...form, rating: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                    <option value="">Unrated</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowModal(false)}
+                <button type="button" onClick={() => { setShowModal(false); setEditingSupplier(null); }}
                   className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all">
                   Cancel
                 </button>
                 <button type="submit"
                   className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20">
-                  Save Supplier
+                  {editingSupplier ? 'Save Changes' : 'Save Supplier'}
                 </button>
               </div>
             </form>

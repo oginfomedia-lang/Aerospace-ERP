@@ -3,6 +3,8 @@ package com.aerospace.procurement_service.dto;
 import lombok.*;
 import jakarta.validation.constraints.*;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -16,9 +18,9 @@ public class POLineItemDTO {
     private Integer quantity;
 
     @NotNull(message="Unit price is required")
-    private Double unitPrice;
+    private BigDecimal unitPrice;
 
-    private Double totalPrice;
+    private BigDecimal totalPrice;
 
     private String uom;
 

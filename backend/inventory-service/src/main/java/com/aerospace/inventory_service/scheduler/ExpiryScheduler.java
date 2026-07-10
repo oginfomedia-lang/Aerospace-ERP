@@ -38,6 +38,7 @@ public class ExpiryScheduler {
                 balance.getBatchNumber(),
                 "EXPIRY_REJECTION",
                 0,
+                null,
                 "Auto-rejected by scheduler - batch expired on " + balance.getExpiryDate()
                 );
         }

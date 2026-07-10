@@ -5,9 +5,11 @@ import java.util.List;
 
 public interface TransactionService {
 
-    // Used internally by PartServiceImpl to record every stock movement
+    // Used internally by PartServiceImpl to record every stock movement.
+    // referenceDoc carries the source document number (GRN#, WO#, transfer ref, etc.)
+    // per the generic reference pattern (FUT-BR-003) — pass null when not applicable.
     void logTransaction(Long partId, String batchNumber, String transactionType,
-                        int quantity, String remarks);
+                        int quantity, String referenceDoc, String remarks);
 
     // Used by PartController for audit trail by part
     List<InventoryTransaction> getByPartId(Long partId);

@@ -2,13 +2,17 @@ import React, { useState } from 'react';
 import { X, PlusCircle, Trash2, Plane, Wrench, AlertTriangle, Package, CheckSquare, Square } from 'lucide-react';
 import workOrderApi from '../api/workOrderAxios';
 import api from '../api/axios';
-import { CreateWorkOrderRequest, MaterialLineItemRequest, Priority, ApiResponse, WorkOrder } from '../types/workOrder';
+import { CreateWorkOrderRequest, MaterialLineItemRequest, Priority, ApiResponse, WorkOrder, UpdateWorkOrderRequest } from '../types/workOrder';
 import toast from 'react-hot-toast';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  // When set, the modal edits this WO's header fields instead of creating a new one.
+  // Material line items aren't editable here — the backend's update endpoint only
+  // touches header fields; lines are managed via Issue Material / raise PO elsewhere.
+  editingWorkOrder?: WorkOrder | null;
 }
 
 const PRIORITIES: Priority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
@@ -28,7 +32,8 @@ const emptyLine = (): MaterialLineItemRequest => ({
   remarks: '',
 });
 
-export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, editingWorkOrder }) => {
+  const isEditMode = !!editingWorkOrder;
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<CreateWorkOrderRequest>({
     aircraftId: '',
@@ -55,6 +60,24 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
       setSelectedPartIds([]);
     }
   }, [isOpen]);
+
+  React.useEffect(() => {
+    if (isOpen && editingWorkOrder) {
+      setForm({
+        aircraftId: editingWorkOrder.aircraftId,
+        aircraftType: editingWorkOrder.aircraftType || '',
+        taskDescription: editingWorkOrder.taskDescription,
+        taskCode: editingWorkOrder.taskCode || '',
+        priority: editingWorkOrder.priority,
+        assignedTo: editingWorkOrder.assignedTo || '',
+        createdBy: editingWorkOrder.createdBy || '',
+        location: editingWorkOrder.location || '',
+        dueDate: editingWorkOrder.dueDate ? new Date(editingWorkOrder.dueDate).toISOString().slice(0, 16) : '',
+        remarks: editingWorkOrder.remarks || '',
+        materialItems: [],
+      });
+    }
+  }, [isOpen, editingWorkOrder]);
 
   const set = (field: keyof CreateWorkOrderRequest, value: any) =>
     setForm(f => ({ ...f, [field]: value }));
@@ -103,18 +126,38 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
     }
     setSubmitting(true);
     try {
-      await toast.promise(
-        workOrderApi.post<ApiResponse<WorkOrder>>('/work-orders', {
-          ...form,
+      if (isEditMode && editingWorkOrder) {
+        const updateReq: UpdateWorkOrderRequest = {
+          taskDescription: form.taskDescription,
+          taskCode: form.taskCode || undefined,
+          priority: form.priority,
+          assignedTo: form.assignedTo || undefined,
+          location: form.location || undefined,
           dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
-          materialItems: form.materialItems?.filter(l => l.partId > 0),
-        }),
-        {
-          loading: 'Creating work order...',
-          success: (res) => `${res.data.data.woNumber} created successfully`,
-          error: (err) => err.response?.data?.message || 'Failed to create work order',
-        }
-      );
+          remarks: form.remarks || undefined,
+        };
+        await toast.promise(
+          workOrderApi.put<ApiResponse<WorkOrder>>(`/work-orders/${editingWorkOrder.id}`, updateReq),
+          {
+            loading: 'Updating work order...',
+            success: (res) => `${res.data.data.woNumber} updated successfully`,
+            error: (err) => err.response?.data?.message || 'Failed to update work order',
+          }
+        );
+      } else {
+        await toast.promise(
+          workOrderApi.post<ApiResponse<WorkOrder>>('/work-orders', {
+            ...form,
+            dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+            materialItems: form.materialItems?.filter(l => l.partId > 0),
+          }),
+          {
+            loading: 'Creating work order...',
+            success: (res) => `${res.data.data.woNumber} created successfully`,
+            error: (err) => err.response?.data?.message || 'Failed to create work order',
+          }
+        );
+      }
       onSuccess();
       onClose();
       resetForm();
@@ -141,8 +184,12 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               <Wrench size={20} />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">New Work Order</h2>
-              <p className="text-xs text-slate-500 font-medium">Fill in task and material requirements</p>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                {isEditMode ? `Edit Work Order: ${editingWorkOrder!.woNumber}` : 'New Work Order'}
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                {isEditMode ? 'Task and scheduling details — material lines are managed separately' : 'Fill in task and material requirements'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-400">
@@ -163,24 +210,27 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                 <Plane size={14} className="absolute left-3 top-3 text-slate-400" />
                 <input
                   required
+                  disabled={isEditMode}
                   type="text"
                   placeholder="e.g. VT-AXB"
                   value={form.aircraftId}
                   onChange={e => set('aircraftId', e.target.value)}
-                  className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:opacity-60"
                 />
               </div>
+              {isEditMode && <p className="text-[10px] text-slate-400 mt-1">Aircraft can't be changed after creation.</p>}
             </div>
             <div>
               <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1.5">
                 Aircraft Type
               </label>
               <input
+                disabled={isEditMode}
                 type="text"
                 placeholder="e.g. Boeing 737-800"
                 value={form.aircraftType}
                 onChange={e => set('aircraftType', e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-60"
               />
             </div>
           </div>
@@ -302,7 +352,8 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
             />
           </div>
 
-          {/* Material Line Items */}
+          {/* Material Line Items — create only; the update endpoint doesn't touch these */}
+          {!isEditMode && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
@@ -423,6 +474,7 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               </div>
             )}
           </div>
+          )}
 
           {/* AOG Warning */}
           {form.priority === 'CRITICAL' && (
@@ -449,7 +501,7 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
             disabled={submitting}
             className="px-8 py-2.5 bg-blue-600 text-white text-sm font-black rounded-2xl hover:bg-blue-700 transition shadow-lg shadow-blue-200 disabled:opacity-60"
           >
-            Create Work Order
+            {isEditMode ? 'Save Changes' : 'Create Work Order'}
           </button>
         </div>
       </div>

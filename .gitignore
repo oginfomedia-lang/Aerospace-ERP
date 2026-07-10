@@ -1,0 +1,18 @@
+# Added by code-review-graph
+.code-review-graph/
+# AI and Tool Directories
+.claude/
+.gemini/
+.kiro/
+.qoder/
+
+# Editor Settings
+.vscode/
+# Local AI Markdown logs/reports
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+QODER.md
+
+.cursorrules
+.windsurfrules

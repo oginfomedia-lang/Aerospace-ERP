@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   X, Clock, Package, CheckCircle2, XCircle, PlayCircle,
   PauseCircle, Plane, MapPin, User, Calendar, ChevronRight,
-  Loader2, History, AlertTriangle, ShieldCheck
+  Loader2, History, AlertTriangle, ShieldCheck, Edit3, Trash2
 } from 'lucide-react';
 import workOrderApi from '../api/workOrderAxios';
 import {
@@ -18,6 +18,8 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onEdit: (wo: WorkOrder) => void;
+  onDelete: (wo: WorkOrder) => void;
 }
 
 const statusStyle: Record<WorkOrderStatus, string> = {
@@ -64,14 +66,15 @@ const lineStatusStyle: Record<string, string> = {
   CANCELLED: 'bg-red-50 text-red-700 border-red-200',
 };
 
-export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClose, onSuccess }) => {
+export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClose, onSuccess, onEdit, onDelete }) => {
   const navigate = useNavigate();
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'details' | 'material' | 'history'>('details');
   const [transitioning, setTransitioning] = useState(false);
   const [transitionRemarks, setTransitionRemarks] = useState('');
   const [issueForm, setIssueForm] = useState<{ [lineId: number]: { qty: string; batch: string } }>({});
-  const [inventoryLevels, setInventoryLevels] = useState<{ [partId: number]: { qty: number; batch: string } }>({});
+  const [inventoryLevels, setInventoryLevels] = useState<{ [partId: number]: { qty: number; batch: string; skuCode: string } }>({});
+  const [issuing, setIssuing] = useState<number | null>(null);
 
   useEffect(() => {
     if (workOrder && isOpen) {
@@ -89,7 +92,7 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
             const data = res.data.data;
             setInventoryLevels(prev => ({
               ...prev,
-              [line.partId]: { qty: data.quantity, batch: data.batchNumber }
+              [line.partId]: { qty: data.quantity, batch: data.batchNumber, skuCode: data.serialNumber }
             }));
             // Auto-fill issue form batch if available
             if (data.batchNumber && (!issueForm[line.id] || !issueForm[line.id].batch)) {
@@ -136,23 +139,41 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
       toast.error('Enter a valid quantity.');
       return;
     }
+    const line = wo.materialLineItems.find(l => l.id === lineItemId);
+    if (!line?.partId) {
+      toast.error('This line has no linked inventory part.');
+      return;
+    }
+    const batch = f.batch || inventoryLevels[line.partId]?.batch;
+    if (!batch) {
+      toast.error('No approved batch available to issue from for this part.');
+      return;
+    }
+
+    setIssuing(lineItemId);
     try {
-      await toast.promise(
-        workOrderApi.post<ApiResponse<WorkOrder>>(`/work-orders/${wo.id}/issue-material`, {
-          lineItemId,
-          quantityIssued: Number(f.qty),
-          batchNumber: f.batch || undefined,
-          issuedBy: 'Store Keeper',
-        } as IssueMaterialRequest),
-        {
-          loading: 'Issuing material...',
-          success: 'Material issued successfully',
-          error: (e) => e.response?.data?.message || 'Issue failed',
-        }
-      );
+      // 1. Deduct from inventory FIRST — this is the source of truth for stock (INV-BR-001/002).
+      //    If there isn't enough APPROVED stock, this throws and nothing else happens.
+      await api.post(`/inventory/${line.partId}/issue-to-production`, null, {
+        params: { qty: Number(f.qty), batchNumber: batch },
+      });
+
+      // 2. Only record against the work order line once inventory actually moved.
+      await workOrderApi.post<ApiResponse<WorkOrder>>(`/work-orders/${wo.id}/issue-material`, {
+        lineItemId,
+        quantityIssued: Number(f.qty),
+        batchNumber: batch,
+        issuedBy: 'Store Keeper',
+      } as IssueMaterialRequest);
+
+      toast.success(`Issued ${f.qty} units — deducted from inventory and recorded on the work order.`);
       setIssueForm(prev => ({ ...prev, [lineItemId]: { qty: '', batch: '' } }));
       onSuccess();
-    } catch {}
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Issue failed — stock was not deducted.');
+    } finally {
+      setIssuing(null);
+    }
   };
 
   const isOverdue = wo.dueDate && new Date(wo.dueDate) < new Date()
@@ -198,9 +219,23 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
               )}
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition text-slate-400">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-1">
+            {wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+              <button onClick={() => onEdit(wo)} title="Edit work order"
+                className="p-2 hover:bg-white/10 rounded-xl transition text-slate-400 hover:text-white">
+                <Edit3 size={18} />
+              </button>
+            )}
+            {wo.status === 'DRAFT' && (
+              <button onClick={() => onDelete(wo)} title="Delete work order"
+                className="p-2 hover:bg-white/10 rounded-xl transition text-slate-400 hover:text-red-400">
+                <Trash2 size={18} />
+              </button>
+            )}
+            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition text-slate-400">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Status Transition Bar */}
@@ -375,8 +410,12 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                             <button
                               onClick={() => {
                                 const shortage = (line.quantityRequired - line.quantityIssued) - inventoryLevels[line.partId].qty;
-                                navigate('/purchase-orders', { 
-                                  state: { prefillItems: [{ skuCode: line.partNumber || String(line.partId), quantity: shortage }], woNumber: wo.woNumber } 
+                                // Use the real inventory SKU (serialNumber), not the WO line's cached
+                                // partNumber — that can drift from the item master and breaks GRN
+                                // part-ID resolution later.
+                                const skuCode = inventoryLevels[line.partId].skuCode || line.partNumber || String(line.partId);
+                                navigate('/purchase-orders', {
+                                  state: { prefillItems: [{ skuCode, quantity: shortage }], woNumber: wo.woNumber }
                                 });
                               }}
                               className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 whitespace-nowrap"
@@ -432,8 +471,10 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                       />
                       <button
                         onClick={() => handleIssueMaterial(line.id)}
-                        className="px-4 py-1.5 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-200 whitespace-nowrap"
+                        disabled={issuing === line.id}
+                        className="px-4 py-1.5 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-200 whitespace-nowrap disabled:opacity-50 flex items-center gap-1.5"
                       >
+                        {issuing === line.id && <Loader2 size={12} className="animate-spin" />}
                         {line.status === 'PARTIALLY_ISSUED' ? 'Issue Remaining' : 'Issue'}
                       </button>
                     </div>

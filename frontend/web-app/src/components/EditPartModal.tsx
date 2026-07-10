@@ -21,6 +21,16 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
     partType: '',
     criticality: 'MEDIUM',
     reorderLevel: 0,
+    minStock: 0,
+    maxStock: 0,
+    safetyStock: 0,
+    leadTimeDays: 0,
+    itemStatus: 'ACTIVE',
+    batchRequired: true,
+    serialRequired: false,
+    expiryTracking: false,
+    qcRequired: true,
+    shelfLifeDays: 0,
   });
 
   useEffect(() => {
@@ -30,6 +40,16 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
         partType: part.partType || '',
         criticality: part.criticality || 'MEDIUM',
         reorderLevel: part.reorderLevel || 0,
+        minStock: part.minStock || 0,
+        maxStock: part.maxStock || 0,
+        safetyStock: part.safetyStock || 0,
+        leadTimeDays: part.leadTimeDays || 0,
+        itemStatus: part.itemStatus || 'ACTIVE',
+        batchRequired: part.batchRequired,
+        serialRequired: part.serialRequired,
+        expiryTracking: part.expiryTracking,
+        qcRequired: part.qcRequired,
+        shelfLifeDays: part.shelfLifeDays || 0,
       });
     }
   }, [part]);
@@ -39,6 +59,23 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (formData.batchRequired && formData.serialRequired) {
+      toast.error('ITM-BR-002: Batch and Serial tracking cannot both be enabled.');
+      return;
+    }
+    if (formData.expiryTracking && !formData.shelfLifeDays) {
+      toast.error('ITM-BR-003: Shelf life (days) is required when expiry tracking is enabled.');
+      return;
+    }
+    if (formData.minStock > 0 && formData.minStock > formData.reorderLevel) {
+      toast.error('ITM-BR-006: Min Stock must be <= Reorder Level.');
+      return;
+    }
+    if (formData.maxStock > 0 && formData.reorderLevel > formData.maxStock) {
+      toast.error('ITM-BR-006: Reorder Level must be <= Max Stock.');
+      return;
+    }
+
     // Only master fields — serialNumber sent to maintain SKU identity
     // Backend: part.setSkuCode(dto.getSerialNumber()) — must not be changed here
     const payload = {
@@ -47,6 +84,16 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
       criticality: formData.criticality,
       reorderLevel: formData.reorderLevel,
       serialNumber: part.serialNumber, // preserve existing SKU — never let user change SKU
+      minStock: formData.minStock || undefined,
+      maxStock: formData.maxStock || undefined,
+      safetyStock: formData.safetyStock || undefined,
+      leadTimeDays: formData.leadTimeDays || undefined,
+      itemStatus: formData.itemStatus,
+      batchRequired: formData.batchRequired,
+      serialRequired: formData.serialRequired,
+      expiryTracking: formData.expiryTracking,
+      qcRequired: formData.qcRequired,
+      shelfLifeDays: formData.shelfLifeDays || undefined,
     };
 
     try {
@@ -132,6 +179,72 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
                 onChange={e => setFormData({ ...formData, reorderLevel: parseInt(e.target.value) || 0 })}
               />
             </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Min Stock</label>
+              <input type="number" value={formData.minStock || ''} min={0} placeholder="0"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+                onChange={e => setFormData({ ...formData, minStock: parseInt(e.target.value) || 0 })} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Max Stock</label>
+              <input type="number" value={formData.maxStock || ''} min={0} placeholder="0"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+                onChange={e => setFormData({ ...formData, maxStock: parseInt(e.target.value) || 0 })} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Safety Stock</label>
+              <input type="number" value={formData.safetyStock || ''} min={0} placeholder="0"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+                onChange={e => setFormData({ ...formData, safetyStock: parseInt(e.target.value) || 0 })} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Lead Time (days)</label>
+              <input type="number" value={formData.leadTimeDays || ''} min={0} placeholder="0"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+                onChange={e => setFormData({ ...formData, leadTimeDays: parseInt(e.target.value) || 0 })} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Item Status</label>
+              <select value={formData.itemStatus}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+                onChange={e => setFormData({ ...formData, itemStatus: e.target.value })}>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="INACTIVE">INACTIVE</option>
+                <option value="DISCONTINUED">DISCONTINUED</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tracking Flags — ITM-BR-002 (batch/serial mutually exclusive), ITM-BR-003, GRN-FR-003 */}
+          <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={formData.batchRequired}
+                onChange={e => setFormData({ ...formData, batchRequired: e.target.checked, serialRequired: e.target.checked ? false : formData.serialRequired })} />
+              Batch Required
+            </label>
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={formData.serialRequired}
+                onChange={e => setFormData({ ...formData, serialRequired: e.target.checked, batchRequired: e.target.checked ? false : formData.batchRequired })} />
+              Serial Required
+            </label>
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={formData.qcRequired}
+                onChange={e => setFormData({ ...formData, qcRequired: e.target.checked })} />
+              QC Required
+            </label>
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={formData.expiryTracking}
+                onChange={e => setFormData({ ...formData, expiryTracking: e.target.checked })} />
+              Expiry Tracking
+            </label>
+            {formData.expiryTracking && (
+              <div className="col-span-2">
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Shelf Life (days) *</label>
+                <input type="number" value={formData.shelfLifeDays || ''} min={1} required
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+                  onChange={e => setFormData({ ...formData, shelfLifeDays: parseInt(e.target.value) || 0 })} />
+              </div>
+            )}
           </div>
 
           {/* ERP notice — explain why stock fields are not here */}

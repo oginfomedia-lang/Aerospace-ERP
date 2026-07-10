@@ -16,12 +16,13 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public void logTransaction(Long partId, String batchNumber, String transactionType,
-                               int quantity, String remarks) {
+                               int quantity, String referenceDoc, String remarks) {
         transactionRepository.save(InventoryTransaction.builder()
                 .partId(partId)
                 .batchNumber(batchNumber)
                 .transactionType(transactionType)
                 .quantity(quantity)
+                .referenceDoc(referenceDoc)
                 .remarks(remarks)
                 .build());
     }

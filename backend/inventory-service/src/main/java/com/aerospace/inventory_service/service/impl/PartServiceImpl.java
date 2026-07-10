@@ -7,6 +7,7 @@ import com.aerospace.inventory_service.event.producer.InventoryProducer;
 import com.aerospace.inventory_service.exception.ResourceNotFoundException;
 import com.aerospace.inventory_service.mapper.PartMapper;
 import com.aerospace.inventory_service.repository.*;
+import com.aerospace.inventory_service.service.DocumentSequenceService;
 import com.aerospace.inventory_service.service.PartService;
 import com.aerospace.inventory_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class PartServiceImpl implements PartService {
     private final PartMapper mapper;
     private final UomConversionRepository uomRepository;
     private final InventoryProducer inventoryProducer;
+    private final DocumentSequenceService documentSequenceService;
 
     // ── CREATE PART ──────────────────────────────────────────────────────────
     // Kafka: PART_CREATED → notification-service logs "New Part Registered"
@@ -42,6 +44,13 @@ public class PartServiceImpl implements PartService {
         if (partRepository.findBySkuCode(dto.getSerialNumber()).isPresent()) {
             throw new RuntimeException("Part with this SKU/Serial already exists");
         }
+        // New parts fall back to the entity defaults (batchRequired=true, others false) when unset
+        validateItemMasterRules(
+                dto.getBatchRequired() != null ? dto.getBatchRequired() : true,
+                dto.getSerialRequired() != null ? dto.getSerialRequired() : false,
+                dto.getExpiryTracking() != null ? dto.getExpiryTracking() : false,
+                dto.getShelfLifeDays(),
+                dto.getMinStock(), dto.getReorderLevel(), dto.getMaxStock());
         Part part = mapper.toEntity(dto);
         Part saved = partRepository.save(part);
 
@@ -90,17 +99,34 @@ public class PartServiceImpl implements PartService {
     @Transactional
     public PartResponseDTO addStock(Long id, int quantity, String batch, String loc,
                                     LocalDateTime expiryDate,
-                                    String grnNumber, String challanNumber,
+                                    String ignoredManualGrnNumber, String challanNumber,
                                     String supplierName, String transportName,
                                     Integer inspectionQty) {
         Part part = partRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
 
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Received quantity must be greater than zero.");
+        }
+        if (part.isBatchRequired() && (batch == null || batch.isBlank())) {
+            throw new IllegalArgumentException("INV-BR-004: Batch number is required for this item.");
+        }
+        if (part.isExpiryTracking() && expiryDate == null) {
+            throw new IllegalArgumentException("ITM-BR-003: Expiry date is required for this item (expiry tracking enabled).");
+        }
+
+        // GRN-FR-001: the GRN number is always system-generated — manual/free-text numbers are ignored.
+        String systemGrnNumber = documentSequenceService.generate("GRN");
+
+        // GRN-FR-003: route to the QC bucket only when the item actually requires inspection;
+        // otherwise the received stock is available immediately.
+        StockStatus targetStatus = part.isQcRequired() ? StockStatus.PENDING_QA : StockStatus.APPROVED;
+
         StockBalance balance = balanceRepository
-                .findByPartIdAndBatchNumberAndStatus(id, batch, StockStatus.PENDING_QA)
+                .findByPartIdAndBatchNumberAndStatus(id, batch, targetStatus)
                 .orElse(StockBalance.builder()
                         .partId(id).batchNumber(batch)
-                        .status(StockStatus.PENDING_QA).quantity(0).build());
+                        .status(targetStatus).quantity(0).build());
 
         balance.setQuantity(balance.getQuantity() + quantity);
         balance.setLocation(loc);
@@ -108,9 +134,9 @@ public class PartServiceImpl implements PartService {
         balanceRepository.save(balance);
 
         // Build GRN traceability remark (Step 1+2 of GRN flow)
-        String grnRemark = buildGrnRemark(grnNumber, challanNumber, supplierName, transportName,
-                quantity, inspectionQty);
-        transactionService.logTransaction(id, batch, "GRN_RECEIPT", quantity, grnRemark);
+        String grnRemark = buildGrnRemark(systemGrnNumber, challanNumber, supplierName, transportName,
+                quantity, inspectionQty, targetStatus);
+        transactionService.logTransaction(id, batch, "GRN_RECEIPT", quantity, systemGrnNumber, grnRemark);
 
         try {
             inventoryProducer.sendStockReceivedEvent(
@@ -133,7 +159,8 @@ public class PartServiceImpl implements PartService {
         response.setBatchNumber(batch);
         response.setLocation(loc);
         response.setExpiryDate(expiryDate);
-        response.setStatus(StockStatus.PENDING_QA.name());
+        response.setStatus(targetStatus.name());
+        response.setGrnNumber(systemGrnNumber);
         return response;
     }
 
@@ -155,7 +182,7 @@ public class PartServiceImpl implements PartService {
         balance.setQuantity(balance.getQuantity() - quantity);
         balanceRepository.save(balance);
 
-        transactionService.logTransaction(id, batch, "PRODUCTION_ISSUE", -quantity, "Material Issued");
+        transactionService.logTransaction(id, batch, "PRODUCTION_ISSUE", -quantity, null, "Material Issued");
 
         int remaining = balance.getQuantity();
 
@@ -230,7 +257,7 @@ public class PartServiceImpl implements PartService {
         target.setExpiryDate(expiry);
         balanceRepository.save(target);
 
-        transactionService.logTransaction(id, batch, "QA_DECISION", 0,
+        transactionService.logTransaction(id, batch, "QA_DECISION", 0, null,
                 "Moved to " + newStatus + ": " + remarks);
 
         try {
@@ -301,11 +328,33 @@ public class PartServiceImpl implements PartService {
         Part part = partRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Not found"));
 
+        // Validate against the EFFECTIVE state (existing values merged with incoming overrides),
+        // since this is a partial update and either side of a rule may be omitted from the DTO.
+        boolean effBatchRequired = dto.getBatchRequired() != null ? dto.getBatchRequired() : part.isBatchRequired();
+        boolean effSerialRequired = dto.getSerialRequired() != null ? dto.getSerialRequired() : part.isSerialRequired();
+        boolean effExpiryTracking = dto.getExpiryTracking() != null ? dto.getExpiryTracking() : part.isExpiryTracking();
+        Integer effShelfLifeDays = dto.getShelfLifeDays() != null ? dto.getShelfLifeDays() : part.getShelfLifeDays();
+        Integer effMinStock = dto.getMinStock() != null ? dto.getMinStock() : part.getMinStock();
+        Integer effReorderLevel = dto.getReorderLevel() != null ? dto.getReorderLevel() : part.getReorderLevel();
+        Integer effMaxStock = dto.getMaxStock() != null ? dto.getMaxStock() : part.getMaxStock();
+        validateItemMasterRules(effBatchRequired, effSerialRequired, effExpiryTracking,
+                effShelfLifeDays, effMinStock, effReorderLevel, effMaxStock);
+
         part.setName(dto.getName());
         part.setPartType(dto.getPartType());
         part.setCriticality(dto.getCriticality());
         part.setReorderLevel(dto.getReorderLevel());
         part.setSkuCode(dto.getSerialNumber());
+        if (dto.getMinStock() != null) part.setMinStock(dto.getMinStock());
+        if (dto.getMaxStock() != null) part.setMaxStock(dto.getMaxStock());
+        if (dto.getSafetyStock() != null) part.setSafetyStock(dto.getSafetyStock());
+        if (dto.getLeadTimeDays() != null) part.setLeadTimeDays(dto.getLeadTimeDays());
+        if (dto.getShelfLifeDays() != null) part.setShelfLifeDays(dto.getShelfLifeDays());
+        if (dto.getItemStatus() != null) part.setStatus(dto.getItemStatus());
+        if (dto.getBatchRequired() != null) part.setBatchRequired(dto.getBatchRequired());
+        if (dto.getSerialRequired() != null) part.setSerialRequired(dto.getSerialRequired());
+        if (dto.getExpiryTracking() != null) part.setExpiryTracking(dto.getExpiryTracking());
+        if (dto.getQcRequired() != null) part.setQcRequired(dto.getQcRequired());
 
         return mapWithLiveStock(partRepository.save(part), null);
     }
@@ -334,7 +383,7 @@ public class PartServiceImpl implements PartService {
         balanceRepository.save(reservedStock);
 
         transactionService.logTransaction(partId, batch, "STOCK_RESERVATION",
-                quantity, "Reserved for Work Order");
+                quantity, null, "Reserved for Work Order");
     }
 
     @Override
@@ -379,7 +428,7 @@ public class PartServiceImpl implements PartService {
         balanceRepository.save(target);
 
         transactionService.logTransaction(id, batch, "LOCATION_TRANSFER",
-                qty, "Moved from " + fromBin + " to " + toBin);
+                qty, null, "Moved from " + fromBin + " to " + toBin);
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────────
@@ -387,8 +436,8 @@ public class PartServiceImpl implements PartService {
     /** Builds a structured GRN remark string for transaction traceability (F-36 GRN Form) */
     private String buildGrnRemark(String grnNumber, String challanNumber,
                                    String supplierName, String transportName,
-                                   int receivedQty, Integer inspectionQty) {
-        StringBuilder sb = new StringBuilder("Inward to PENDING_QA");
+                                   int receivedQty, Integer inspectionQty, StockStatus targetStatus) {
+        StringBuilder sb = new StringBuilder("Inward to ").append(targetStatus.name());
         if (grnNumber    != null && !grnNumber.isBlank())    sb.append(" | GRN:").append(grnNumber.trim());
         if (challanNumber!= null && !challanNumber.isBlank()) sb.append(" | Challan:").append(challanNumber.trim());
         if (supplierName != null && !supplierName.isBlank())  sb.append(" | Supplier:").append(supplierName.trim());
@@ -398,31 +447,106 @@ public class PartServiceImpl implements PartService {
         return sb.toString();
     }
 
+    /**
+     * ITM-BR-002: batch and serial tracking are mutually exclusive.
+     * ITM-BR-003: expiry tracking requires a shelf life.
+     * ITM-BR-006: minStock <= reorderLevel <= maxStock when all three are set.
+     */
+    private void validateItemMasterRules(boolean batchRequired, boolean serialRequired,
+                                          boolean expiryTracking, Integer shelfLifeDays,
+                                          Integer minStock, Integer reorderLevel, Integer maxStock) {
+        if (batchRequired && serialRequired) {
+            throw new IllegalArgumentException(
+                    "ITM-BR-002: Batch and Serial tracking are mutually exclusive.");
+        }
+        if (expiryTracking && shelfLifeDays == null) {
+            throw new IllegalArgumentException(
+                    "ITM-BR-003: Expiry tracking requires a shelf life (days) to be set.");
+        }
+        if (minStock != null && reorderLevel != null && minStock > reorderLevel) {
+            throw new IllegalArgumentException(
+                    "ITM-BR-006: Invalid limits — Min Stock must be <= Reorder Level.");
+        }
+        if (reorderLevel != null && maxStock != null && reorderLevel > maxStock) {
+            throw new IllegalArgumentException(
+                    "ITM-BR-006: Invalid limits — Reorder Level must be <= Max Stock.");
+        }
+    }
+
     private PartResponseDTO mapWithLiveStock(Part part, StockStatus status) {
         PartResponseDTO dto = mapper.toDTO(part);
 
         List<StockBalance> balances = balanceRepository.findAllBalancesByPart(part.getId());
 
-        long totalQty = balances.stream()
-                .filter(b -> status == null || b.getStatus() == status)
+        // Authoritative per-batch breakdown — a part can be APPROVED and PENDING_QA
+        // (and RESERVED, and REJECTED) at once, across different batches. Consumers
+        // that care about a specific bucket (e.g. the QA queue) must read this list;
+        // the top-level fields below are only ever an APPROVED-stock summary and
+        // cannot represent more than one status at a time.
+        dto.setBalances(balances.stream()
+                .map(b -> StockBalanceDTO.builder()
+                        .batchNumber(b.getBatchNumber())
+                        .status(b.getStatus().name())
+                        .quantity(b.getQuantity())
+                        .location(b.getLocation())
+                        .expiryDate(b.getExpiryDate())
+                        .build())
+                .toList());
+
+        if (status != null) {
+            // Caller asked for a specific bucket (e.g. getById(..., APPROVED)) — keep
+            // that exact, pre-existing behavior.
+            long qty = balances.stream()
+                    .filter(b -> b.getStatus() == status)
+                    .mapToLong(b -> b.getQuantity() != null ? b.getQuantity() : 0L)
+                    .sum();
+            dto.setQuantity((int) qty);
+            balances.stream()
+                    .filter(b -> b.getStatus() == status)
+                    .findFirst()
+                    .ifPresentOrElse(b -> {
+                        dto.setBatchNumber(b.getBatchNumber());
+                        dto.setStatus(b.getStatus().name());
+                        dto.setLocation(b.getLocation());
+                        dto.setExpiryDate(b.getExpiryDate());
+                    }, () -> dto.setStatus("EMPTY"));
+            return dto;
+        }
+
+        // General list/search/get: the top-level fields summarize USABLE (APPROVED)
+        // stock only — pending/rejected/reserved batches must never be counted as
+        // available or silently mask each other out here.
+        long approvedQty = balances.stream()
+                .filter(b -> b.getStatus() == StockStatus.APPROVED)
                 .mapToLong(b -> b.getQuantity() != null ? b.getQuantity() : 0L)
                 .sum();
-        dto.setQuantity((int) totalQty);
+        dto.setQuantity((int) approvedQty);
 
-        if (!balances.isEmpty()) {
-            StockBalance primaryBalance = balances.stream()
+        StockBalance approvedBalance = balances.stream()
+                .filter(b -> b.getStatus() == StockStatus.APPROVED)
+                .findFirst()
+                .orElse(null);
+
+        if (approvedBalance != null) {
+            dto.setBatchNumber(approvedBalance.getBatchNumber());
+            dto.setStatus(StockStatus.APPROVED.name());
+            dto.setLocation(approvedBalance.getLocation());
+            dto.setExpiryDate(approvedBalance.getExpiryDate());
+        } else if (!balances.isEmpty()) {
+            // No usable stock, but something exists (pending/reserved/rejected) —
+            // surface the most attention-worthy one instead of claiming EMPTY.
+            StockBalance attentionBalance = balances.stream()
                     .min(java.util.Comparator.comparingInt(b -> switch (b.getStatus()) {
-                        case APPROVED   -> 0;
-                        case PENDING_QA -> 1;
+                        case PENDING_QA -> 0;
+                        case REJECTED   -> 1;
                         case RESERVED   -> 2;
-                        case REJECTED   -> 3;
+                        case APPROVED   -> 3; // unreachable here, kept for exhaustiveness
                     }))
                     .orElse(balances.get(0));
-
-            dto.setBatchNumber(primaryBalance.getBatchNumber());
-            dto.setStatus(primaryBalance.getStatus().name());
-            dto.setLocation(primaryBalance.getLocation());
-            dto.setExpiryDate(primaryBalance.getExpiryDate());
+            dto.setBatchNumber(attentionBalance.getBatchNumber());
+            dto.setStatus(attentionBalance.getStatus().name());
+            dto.setLocation(attentionBalance.getLocation());
+            dto.setExpiryDate(attentionBalance.getExpiryDate());
         } else {
             dto.setStatus("EMPTY");
         }

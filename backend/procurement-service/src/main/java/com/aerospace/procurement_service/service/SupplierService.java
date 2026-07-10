@@ -9,4 +9,6 @@ public interface SupplierService {
     Supplier createSupplier(SupplierRequest request);
     Supplier getSupplierById(Long id);
     List<Supplier> getAllSuppliers();
+    Supplier updateSupplier(Long id, SupplierRequest request);
+    Supplier setActive(Long id, boolean active);
 }

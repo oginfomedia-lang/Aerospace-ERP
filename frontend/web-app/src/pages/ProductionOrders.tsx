@@ -156,6 +156,7 @@ const ProductionOrders: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<ProductionOrderStatus | 'ALL'>('ALL');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ProductionOrder | null>(null);
+  const [editingOrder, setEditingOrder] = useState<ProductionOrder | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -212,6 +213,41 @@ const ProductionOrders: React.FC = () => {
     fetchByStatus(s);
   };
 
+  const handleOpenEdit = (order: ProductionOrder) => {
+    setSelectedOrder(null);
+    setEditingOrder(order);
+    setIsCreateOpen(true);
+  };
+
+  // Server-side guards mirror this: COMPLETED/CANCELLED can't be edited, IN_PRODUCTION can't be deleted.
+  const handleDelete = async (order: ProductionOrder) => {
+    if (!window.confirm(`Delete production order ${order.poNumber}? This cannot be undone.`)) return;
+    try {
+      await productionApi.delete(`/production/${order.id}`);
+      toast.success(`${order.poNumber} deleted.`);
+      setSelectedOrder(null);
+      fetchAll();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Delete failed.');
+    }
+  };
+
+  const handleCancel = async (order: ProductionOrder) => {
+    const reason = window.prompt(`Reason for cancelling ${order.poNumber}?`);
+    if (reason === null) return;
+    try {
+      await productionApi.post(`/production/${order.id}/cancel`, null, { params: { reason } });
+      toast.success(`${order.poNumber} cancelled.`);
+      fetchAll();
+      if (selectedOrder?.id === order.id) {
+        productionApi.get<ApiResponse<ProductionOrder>>(`/production/${order.id}`)
+          .then(r => setSelectedOrder(r.data.data)).catch(() => {});
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Cancel failed.');
+    }
+  };
+
   const statCards = stats ? [
     { title: 'Total Orders',  value: stats.totalOrders,        icon: <Factory size={20} />,      color: 'from-indigo-600 to-indigo-700' },
     { title: 'In Production', value: stats.inProductionOrders, icon: <Activity size={20} />,     color: 'from-amber-500 to-amber-600' },
@@ -226,8 +262,9 @@ const ProductionOrders: React.FC = () => {
       
       <CreateProductionOrderModal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => { setIsCreateOpen(false); setEditingOrder(null); }}
         onSuccess={fetchAll}
+        editingOrder={editingOrder}
       />
       <ProductionOrderDetailModal
         order={selectedOrder}
@@ -241,6 +278,9 @@ const ProductionOrders: React.FC = () => {
               .catch(() => {});
           }
         }}
+        onEdit={handleOpenEdit}
+        onDelete={handleDelete}
+        onCancel={handleCancel}
       />
 
       {/* Header */}

@@ -1,8 +1,10 @@
 package com.aerospace.procurement_service.mapper;
 
+import com.aerospace.procurement_service.dto.POApprovalHistoryDTO;
 import com.aerospace.procurement_service.dto.POLineItemDTO;
 import com.aerospace.procurement_service.dto.PurchaseOrderRequest;
 import com.aerospace.procurement_service.dto.PurchaseOrderResponse;
+import com.aerospace.procurement_service.entity.POApprovalHistory;
 import com.aerospace.procurement_service.entity.POLineItem;
 import com.aerospace.procurement_service.entity.PurchaseOrder;
 import org.springframework.stereotype.Component;
@@ -49,6 +51,7 @@ public class PurchaseOrderMapper {
         return PurchaseOrderResponse.builder()
                 .id(po.getId())
                 .poNumber(po.getPoNumber())
+                .supplierId(po.getSupplier() != null ? po.getSupplier().getId() : null)
                 .supplierName(po.getSupplier() != null ? po.getSupplier().getName() : null)
                 .status(po.getStatus() != null ? po.getStatus().name() : null)
                 .orderDate(po.getOrderDate())
@@ -57,6 +60,23 @@ public class PurchaseOrderMapper {
                 .currency(po.getCurrency())
                 .items(po.getItems() != null ? po.getItems().stream().map(this::toLineItemDTO).collect(Collectors.toList()) : null)
                 .remarks(po.getRemarks())
+                .currentApprovalLevel(po.getCurrentApprovalLevel())
+                .documentVersion(po.getDocumentVersion())
+                .build();
+    }
+
+    public POApprovalHistoryDTO toApprovalHistoryDTO(POApprovalHistory h) {
+        if (h == null) return null;
+
+        return POApprovalHistoryDTO.builder()
+                .approvalLevel(h.getApprovalLevel())
+                .approverRole(h.getApproverRole())
+                .status(h.getStatus() != null ? h.getStatus().name() : null)
+                .approverUsername(h.getApproverUsername())
+                .approvedAt(h.getApprovedAt())
+                .remarks(h.getRemarks())
+                .digitalSignatureHash(h.getDigitalSignatureHash())
+                .documentVersion(h.getDocumentVersion())
                 .build();
     }
 

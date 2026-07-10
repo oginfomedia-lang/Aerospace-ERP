@@ -352,6 +352,14 @@ public class WorkOrderServiceImpl implements WorkOrderService {
     @Override
     @Transactional
     public void deleteWorkOrder(Long id) {
+        WorkOrder wo = findById(id);
+        // Anything past DRAFT may already have material issued against it or be tracked in
+        // downstream reports — deleting it would silently orphan that history, so only a
+        // never-opened draft is safe to remove outright.
+        if (wo.getStatus() != WorkOrderStatus.DRAFT) {
+            throw new InvalidStatusTransitionException(
+                    "Only a DRAFT work order can be deleted (current: " + wo.getStatus() + "). Cancel it instead.");
+        }
         workOrderRepository.deleteById(id);
     }
 

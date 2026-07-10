@@ -22,6 +22,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(409).body(error);
     }
 
+    // Business-rule / validation failures (PUR-BR-*, ARC-BR-*) → 400, not 500
+    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    public ResponseEntity<Map<String, String>> handleValidation(RuntimeException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", "Validation Error");
+        error.put("message", ex.getMessage());
+        return ResponseEntity.status(400).body(error);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleGeneric(Exception ex) {
         Map<String, String> error = new HashMap<>();

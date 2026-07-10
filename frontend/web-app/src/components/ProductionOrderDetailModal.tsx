@@ -3,7 +3,7 @@ import {
   X, Factory, Settings, Activity, ClipboardCheck,
   CheckCircle2, PauseCircle, XCircle, PlayCircle,
   Users, User, Calendar, History, Package, Trash2,
-  PlusCircle, AlertTriangle, ChevronRight, Loader2
+  PlusCircle, AlertTriangle, ChevronRight, Loader2, Edit3, Ban
 } from 'lucide-react';
 import productionApi from '../api/productionAxios';
 import {
@@ -17,6 +17,9 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onEdit: (order: ProductionOrder) => void;
+  onDelete: (order: ProductionOrder) => void;
+  onCancel: (order: ProductionOrder) => void;
 }
 
 const statusStyle: Record<ProductionOrderStatus, string> = {
@@ -29,7 +32,7 @@ const statusStyle: Record<ProductionOrderStatus, string> = {
   CANCELLED:    'bg-red-50     text-red-700    border-red-200',
 };
 
-export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onClose, onSuccess }) => {
+export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onClose, onSuccess, onEdit, onDelete, onCancel }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'materials' | 'stages'>('details');
   const [loading, setLoading] = useState(false);
   const [actionRemarks, setActionRemarks] = useState('');
@@ -137,9 +140,29 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
               </span>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition text-slate-400">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-1">
+            {order.status !== ProductionOrderStatus.COMPLETED && order.status !== ProductionOrderStatus.CANCELLED && (
+              <button onClick={() => onEdit(order)} title="Edit production order"
+                className="p-2 hover:bg-white/10 rounded-xl transition text-slate-400 hover:text-white">
+                <Edit3 size={18} />
+              </button>
+            )}
+            {order.status !== ProductionOrderStatus.COMPLETED && order.status !== ProductionOrderStatus.CANCELLED && (
+              <button onClick={() => onCancel(order)} title="Cancel production order"
+                className="p-2 hover:bg-white/10 rounded-xl transition text-slate-400 hover:text-orange-400">
+                <Ban size={18} />
+              </button>
+            )}
+            {order.status !== ProductionOrderStatus.IN_PRODUCTION && (
+              <button onClick={() => onDelete(order)} title="Delete production order"
+                className="p-2 hover:bg-white/10 rounded-xl transition text-slate-400 hover:text-red-400">
+                <Trash2 size={18} />
+              </button>
+            )}
+            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition text-slate-400">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Action Bar */}

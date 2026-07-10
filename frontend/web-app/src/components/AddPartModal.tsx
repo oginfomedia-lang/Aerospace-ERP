@@ -22,6 +22,15 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
     partType: '',
     criticality: 'MEDIUM',
     reorderLevel: 5,
+    minStock: 0,
+    maxStock: 0,
+    safetyStock: 0,
+    leadTimeDays: 0,
+    batchRequired: true,
+    serialRequired: false,
+    expiryTracking: false,
+    qcRequired: true,
+    shelfLifeDays: 0,
   });
 
   // FIX 1: expiryDate moved here to Step 2 state — it is a batch/stock property,
@@ -38,7 +47,12 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
   const handleReset = () => {
     setStep('master');
     setCreatedPart(null);
-    setMasterData({ name: '', serialNumber: '', partType: '', criticality: 'MEDIUM', reorderLevel: 5 });
+    setMasterData({
+      name: '', serialNumber: '', partType: '', criticality: 'MEDIUM', reorderLevel: 5,
+      minStock: 0, maxStock: 0, safetyStock: 0, leadTimeDays: 0,
+      batchRequired: true, serialRequired: false, expiryTracking: false, qcRequired: true,
+      shelfLifeDays: 0,
+    });
     setStockData({ batchNumber: '', quantity: 0, location: '', expiryDate: '' });
   };
 
@@ -50,9 +64,39 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
   // Step 1: POST /inventory — only master fields, no stock data
   const handleCreateMaster = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (masterData.batchRequired && masterData.serialRequired) {
+      toast.error('ITM-BR-002: Batch and Serial tracking cannot both be enabled.');
+      return;
+    }
+    if (masterData.expiryTracking && !masterData.shelfLifeDays) {
+      toast.error('ITM-BR-003: Shelf life (days) is required when expiry tracking is enabled.');
+      return;
+    }
+    // Min/Max of 0 means "not set" — only enforce ITM-BR-006 once the user has set a real limit
+    if (masterData.minStock > 0 && masterData.minStock > masterData.reorderLevel) {
+      toast.error('ITM-BR-006: Min Stock must be <= Reorder Level.');
+      return;
+    }
+    if (masterData.maxStock > 0 && masterData.reorderLevel > masterData.maxStock) {
+      toast.error('ITM-BR-006: Reorder Level must be <= Max Stock.');
+      return;
+    }
+
+    // Optional planning fields default to 0 in the form but should be omitted (not sent as 0)
+    // so the backend treats them as "not set" rather than a literal zero limit.
+    const payload = {
+      ...masterData,
+      minStock: masterData.minStock || undefined,
+      maxStock: masterData.maxStock || undefined,
+      safetyStock: masterData.safetyStock || undefined,
+      leadTimeDays: masterData.leadTimeDays || undefined,
+      shelfLifeDays: masterData.shelfLifeDays || undefined,
+    };
+
     try {
       const res = await toast.promise(
-        api.post<ApiResponse<Part>>('/inventory', masterData),
+        api.post<ApiResponse<Part>>('/inventory', payload),
         {
           loading: 'Registering material master...',
           success: (r) => `Part "${r.data.data.name}" created. Now add initial stock.`,
@@ -96,11 +140,16 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
     }
 
     try {
-      await toast.promise(
-        api.post(`/inventory/${createdPart.id}/inward-from-grn?${params}`),
+      const res = await toast.promise(
+        api.post<ApiResponse<Part>>(`/inventory/${createdPart.id}/inward-from-grn?${params}`),
         {
-          loading: 'Receiving stock into PENDING_QA...',
-          success: `Batch ${stockData.batchNumber} received. Awaiting QA approval.`,
+          loading: 'Receiving stock and generating GRN...',
+          success: (r) => {
+            const grn = r.data.data.grnNumber ? ` GRN ${r.data.data.grnNumber} generated.` : '';
+            return createdPart.qcRequired
+              ? `Batch ${stockData.batchNumber} received.${grn} Awaiting QA approval.`
+              : `Batch ${stockData.batchNumber} received.${grn} Available immediately (no QC required).`;
+          },
           error: (err) => err.response?.data?.message || 'Stock inward failed.',
         }
       );
@@ -192,6 +241,69 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
                   onChange={e => setMasterData({ ...masterData, reorderLevel: Number(e.target.value) })} />
               </div>
               {/* No expiry date in Step 1 — expiry belongs to the batch received in Step 2 */}
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Min Stock (ITM-BR-006)</label>
+                <input type="number" value={masterData.minStock || ''} min={0} placeholder="0"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setMasterData({ ...masterData, minStock: Number(e.target.value) || 0 })} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Max Stock (ITM-BR-006)</label>
+                <input type="number" value={masterData.maxStock || ''} min={0} placeholder="0"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setMasterData({ ...masterData, maxStock: Number(e.target.value) || 0 })} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Safety Stock</label>
+                <input type="number" value={masterData.safetyStock || ''} min={0} placeholder="0"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setMasterData({ ...masterData, safetyStock: Number(e.target.value) || 0 })} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Lead Time (days)</label>
+                <input type="number" value={masterData.leadTimeDays || ''} min={0} placeholder="0"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setMasterData({ ...masterData, leadTimeDays: Number(e.target.value) || 0 })} />
+              </div>
+            </div>
+
+            {/* Tracking Flags — ITM-BR-002 (batch/serial mutually exclusive), ITM-BR-003, GRN-FR-003 */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={masterData.batchRequired}
+                  onChange={e => setMasterData({ ...masterData, batchRequired: e.target.checked, serialRequired: e.target.checked ? false : masterData.serialRequired })} />
+                Batch Required
+              </label>
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={masterData.serialRequired}
+                  onChange={e => setMasterData({ ...masterData, serialRequired: e.target.checked, batchRequired: e.target.checked ? false : masterData.batchRequired })} />
+                Serial Required
+              </label>
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={masterData.qcRequired}
+                  onChange={e => setMasterData({ ...masterData, qcRequired: e.target.checked })} />
+                QC Required
+              </label>
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={masterData.expiryTracking}
+                  onChange={e => setMasterData({ ...masterData, expiryTracking: e.target.checked })} />
+                Expiry Tracking
+              </label>
+              {masterData.expiryTracking && (
+                <div className="col-span-2 md:col-span-4">
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Shelf Life (days) *</label>
+                  <input type="number" value={masterData.shelfLifeDays || ''} min={1} required
+                    placeholder="Required when Expiry Tracking is on"
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    onChange={e => setMasterData({ ...masterData, shelfLifeDays: Number(e.target.value) || 0 })} />
+                </div>
+              )}
+              {!masterData.qcRequired && (
+                <p className="col-span-2 md:col-span-4 text-[10px] text-emerald-600 font-medium">
+                  QC not required — received stock will post directly to Available (skips PENDING_QA).
+                </p>
+              )}
             </div>
             <div className="flex gap-4 pt-4 border-t border-slate-100">
               <button type="button" onClick={handleClose}
@@ -210,7 +322,9 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
         {step === 'stock' && (
           <form onSubmit={handleAddStock} className="p-6 space-y-5">
             <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700 font-medium">
-              Stock enters <strong>PENDING_QA</strong>. QA must approve before it becomes available for production.
+              {createdPart?.qcRequired
+                ? <>Stock enters <strong>PENDING_QA</strong>. QA must approve before it becomes available for production.</>
+                : <>This item does not require QC — stock will post directly to <strong>APPROVED</strong> and is immediately available.</>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

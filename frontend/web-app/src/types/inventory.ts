@@ -14,6 +14,43 @@ export interface Part {
   status: string | null;
   qaRemarks: string | null;
   expiryDate: string | null;
+
+  // Planning levels (ITM-BR-006: minStock <= reorderLevel <= maxStock)
+  minStock: number | null;
+  maxStock: number | null;
+  safetyStock: number | null;
+  leadTimeDays: number | null;
+
+  // Item lifecycle: ACTIVE, INACTIVE, DISCONTINUED
+  itemStatus: string | null;
+
+  // Tracking flags (ITM-BR-002, ITM-BR-003, GRN-FR-003)
+  batchRequired: boolean;
+  serialRequired: boolean;
+  expiryTracking: boolean;
+  shelfLifeDays: number | null;
+  qcRequired: boolean;
+
+  // Set only on GRN receipt responses (system-generated, GRN-FR-001)
+  grnNumber?: string | null;
+
+  // Authoritative per-batch/status breakdown — a part can have APPROVED, PENDING_QA,
+  // RESERVED and REJECTED stock at the same time, across different batches. The
+  // fields above (batchNumber/quantity/status/location/expiryDate) are only ever an
+  // APPROVED-stock summary; anything needing to see non-APPROVED stock (e.g. the QA
+  // queue) must read this list instead.
+  balances: StockBalance[];
+}
+
+// ============================================================
+// Matches: StockBalanceDTO.java
+// ============================================================
+export interface StockBalance {
+  batchNumber: string;
+  status: string;
+  quantity: number;
+  location: string | null;
+  expiryDate: string | null;
 }
 
 // ============================================================
@@ -30,6 +67,17 @@ export interface PartRequest {
   reorderLevel?: number;
   status?: string;
   qaRemarks?: string;
+
+  minStock?: number;
+  maxStock?: number;
+  safetyStock?: number;
+  leadTimeDays?: number;
+  itemStatus?: string;
+  batchRequired?: boolean;
+  serialRequired?: boolean;
+  expiryTracking?: boolean;
+  shelfLifeDays?: number;
+  qcRequired?: boolean;
 }
 
 // ============================================================

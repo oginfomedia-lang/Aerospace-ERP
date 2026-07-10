@@ -34,4 +34,20 @@ public class SupplierController {
     public ResponseEntity<List<Supplier>> getAllSuppliers() {
         return ResponseEntity.ok(supplierService.getAllSuppliers());
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Supplier> updateSupplier(@PathVariable Long id, @Valid @RequestBody SupplierRequest request) {
+        return ResponseEntity.ok(supplierService.updateSupplier(id, request));
+    }
+
+    // Soft delete — deactivates rather than removing, so PO/history references stay intact
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Supplier> deactivateSupplier(@PathVariable Long id) {
+        return ResponseEntity.ok(supplierService.setActive(id, false));
+    }
+
+    @PatchMapping("/{id}/reactivate")
+    public ResponseEntity<Supplier> reactivateSupplier(@PathVariable Long id) {
+        return ResponseEntity.ok(supplierService.setActive(id, true));
+    }
 }

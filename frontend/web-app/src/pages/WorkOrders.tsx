@@ -161,9 +161,12 @@ const WorkOrders: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | 'ALL'>('ALL');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedWO, setSelectedWO] = useState<WorkOrder | null>(null);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [editingWO, setEditingWO] = useState<WorkOrder | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setOverdueOnly(false);
     try {
       const [woRes, statsRes] = await Promise.all([
         workOrderApi.get<ApiResponse<WorkOrder[]>>('/work-orders'),
@@ -192,6 +195,7 @@ const WorkOrders: React.FC = () => {
 
   const fetchBySearch = useCallback(async (q: string) => {
     if (!q.trim()) { fetchByStatus(statusFilter); return; }
+    setOverdueOnly(false);
     setLoading(true);
     try {
       const res = await workOrderApi.get<ApiResponse<WorkOrder[]>>(
@@ -212,9 +216,28 @@ const WorkOrders: React.FC = () => {
   }, [searchTerm, fetchBySearch]);
 
   const handleStatusFilter = (s: WorkOrderStatus | 'ALL') => {
+    setOverdueOnly(false);
     setStatusFilter(s);
     setSearchTerm('');
     fetchByStatus(s);
+  };
+
+  // The banner's overdueCount comes from /dashboard/stats, which correctly excludes
+  // COMPLETED/CANCELLED — but "View Active" used to just filter to IN_PROGRESS, missing
+  // OPEN/ON_HOLD/DRAFT work orders that are also overdue. Hit the dedicated endpoint instead
+  // so this always shows exactly the work orders the banner is warning about.
+  const handleViewOverdue = async () => {
+    setLoading(true);
+    setSearchTerm('');
+    setStatusFilter('ALL');
+    try {
+      const res = await workOrderApi.get<ApiResponse<WorkOrder[]>>('/work-orders/overdue');
+      setWorkOrders(res.data.data);
+      setOverdueOnly(true);
+    } catch {
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSuccess = () => {
@@ -224,6 +247,26 @@ const WorkOrders: React.FC = () => {
       workOrderApi.get<ApiResponse<WorkOrder>>(`/work-orders/${selectedWO.id}`)
         .then(r => setSelectedWO(r.data.data))
         .catch(() => {});
+    }
+  };
+
+  const handleOpenEditWO = (wo: WorkOrder) => {
+    setSelectedWO(null);
+    setEditingWO(wo);
+    setIsCreateOpen(true);
+  };
+
+  // Only a DRAFT work order can be deleted (enforced server-side too) — anything past
+  // DRAFT may already have material issued against it, which must stay in the ledger.
+  const handleDeleteWO = async (wo: WorkOrder) => {
+    if (!window.confirm(`Delete draft work order ${wo.woNumber}? This cannot be undone.`)) return;
+    try {
+      await workOrderApi.delete(`/work-orders/${wo.id}`);
+      toast.success(`${wo.woNumber} deleted.`);
+      setSelectedWO(null);
+      fetchAll();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Delete failed.');
     }
   };
 
@@ -241,14 +284,17 @@ const WorkOrders: React.FC = () => {
 
       <CreateWorkOrderModal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => { setIsCreateOpen(false); setEditingWO(null); }}
         onSuccess={handleSuccess}
+        editingWorkOrder={editingWO}
       />
       <WorkOrderDetailModal
         workOrder={selectedWO}
         isOpen={!!selectedWO}
         onClose={() => setSelectedWO(null)}
         onSuccess={handleSuccess}
+        onEdit={handleOpenEditWO}
+        onDelete={handleDeleteWO}
       />
 
       {/* ── Header ── */}
@@ -309,10 +355,24 @@ const WorkOrders: React.FC = () => {
             {stats.overdueCount} work order{stats.overdueCount > 1 ? 's are' : ' is'} past due date and still active.
           </p>
           <button
-            onClick={() => handleStatusFilter('IN_PROGRESS')}
+            onClick={handleViewOverdue}
             className="ml-auto text-xs font-black text-red-600 hover:text-red-800 transition underline"
           >
-            View Active
+            View Overdue
+          </button>
+        </div>
+      )}
+
+      {overdueOnly && (
+        <div className="bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+          <span className="text-xs font-bold text-slate-600">
+            Showing only overdue, active work orders ({workOrders.length}).
+          </span>
+          <button
+            onClick={() => handleStatusFilter('ALL')}
+            className="ml-auto text-xs font-black text-slate-500 hover:text-slate-800 transition underline"
+          >
+            Clear
           </button>
         </div>
       )}

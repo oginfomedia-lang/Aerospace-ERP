@@ -374,12 +374,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     @Transactional
     @Override
     public void createDraftPOFromStockLow(com.aerospace.procurement_service.event.StockLowEvent event) {
-        java.util.List<Supplier> suppliers = supplierService.getAllSuppliers();
-        Supplier defaultSupplier = suppliers.stream()
-                .filter(s -> "CERTIFIED".equalsIgnoreCase(s.getCertificationStatus()))
-                .findFirst()
-                .orElse(null);
-
+        Supplier defaultSupplier = firstCertifiedSupplier();
         if (defaultSupplier == null) {
             log.warn("Cannot create draft PO automatically because no certified suppliers exist!");
             return;
@@ -392,14 +387,16 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         po.setStatus(POStatus.DRAFT);
         po.setPoNumber(documentSequenceService.generate("PO"));
         po.setCurrency("USD");
-        po.setRemarks("Auto-drafted due to low stock alert for Part: " + event.getPartName());
+        po.setRemarks("AUTO-RAISED: low stock alert for " + event.getPartName()
+                + " — verify price before submitting.");
 
         POLineItem item = new POLineItem();
         item.setPurchaseOrder(po);
-        item.setSkuCode(event.getPartName());
+        // The real SKU, not the display name — a wrong code here fails GRN receipt later.
+        item.setSkuCode(event.getSkuCode() != null ? event.getSkuCode() : event.getPartName());
         item.setQuantity(event.getReorderLevel() * 2);
-        item.setUnitPrice(new BigDecimal("15.00"));
-        item.setTotalPrice(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+        item.setUnitPrice(BigDecimal.ZERO); // unknown at auto-raise time — officer fills the real price
+        item.setTotalPrice(BigDecimal.ZERO);
         item.setUom("PCS");
 
         po.setItems(java.util.List.of(item));
@@ -407,5 +404,71 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         poRepository.save(po);
         log.info("📢 [PROCUREMENT AUTO] Successfully created draft PO: {} for Part: {}", po.getPoNumber(), event.getPartName());
+    }
+
+    // ── AUTO-RAISE PO FOR WORK-ORDER SHORTAGE ────────────────────────────────
+    // Kafka-driven, like createDraftPOFromStockLow above — this repo has no
+    // cross-service REST calls anywhere, so the "which supplier" decision either
+    // comes from the part's preferredSupplierId (carried on the event) or falls
+    // back to the same first-certified-supplier heuristic already used for
+    // low-stock auto-drafting.
+    @Transactional
+    @Override
+    public void createDraftPOFromShortage(com.aerospace.procurement_service.event.MaterialShortageEvent event) {
+        Supplier supplier = null;
+        if (event.getPreferredSupplierId() != null) {
+            try {
+                Supplier preferred = supplierService.getSupplierById(event.getPreferredSupplierId());
+                if ("CERTIFIED".equalsIgnoreCase(preferred.getCertificationStatus()) && preferred.isActive()) {
+                    supplier = preferred;
+                } else {
+                    log.warn("Preferred supplier {} for part {} is not CERTIFIED/active — falling back",
+                            event.getPreferredSupplierId(), event.getSkuCode());
+                }
+            } catch (Exception ex) {
+                log.warn("Preferred supplier {} not found for part {} — falling back: {}",
+                        event.getPreferredSupplierId(), event.getSkuCode(), ex.getMessage());
+            }
+        }
+        if (supplier == null) {
+            supplier = firstCertifiedSupplier();
+        }
+        if (supplier == null) {
+            log.warn("Cannot auto-raise PO for WO {} shortage — no certified supplier available for part {}",
+                    event.getWoNumber(), event.getSkuCode());
+            return;
+        }
+
+        PurchaseOrder po = new PurchaseOrder();
+        po.setSupplier(supplier);
+        po.setOrderDate(LocalDateTime.now());
+        po.setDeliveryDate(LocalDateTime.now().plusDays(7));
+        po.setStatus(POStatus.DRAFT);
+        po.setPoNumber(documentSequenceService.generate("PO"));
+        po.setCurrency("USD");
+        po.setRemarks("AUTO-RAISED: shortage for WO " + event.getWoNumber()
+                + " — verify price before submitting.");
+
+        POLineItem item = new POLineItem();
+        item.setPurchaseOrder(po);
+        item.setSkuCode(event.getSkuCode());
+        item.setQuantity(event.getShortfallQty());
+        item.setUnitPrice(BigDecimal.ZERO);
+        item.setTotalPrice(BigDecimal.ZERO);
+        item.setUom("PCS");
+
+        po.setItems(java.util.List.of(item));
+        po.setTotalAmount(item.getTotalPrice());
+
+        poRepository.save(po);
+        log.info("📢 [PROCUREMENT AUTO] Created draft PO {} for WO {} shortage on part {} (qty {})",
+                po.getPoNumber(), event.getWoNumber(), event.getSkuCode(), event.getShortfallQty());
+    }
+
+    private Supplier firstCertifiedSupplier() {
+        return supplierService.getAllSuppliers().stream()
+                .filter(s -> "CERTIFIED".equalsIgnoreCase(s.getCertificationStatus()) && s.isActive())
+                .findFirst()
+                .orElse(null);
     }
 }

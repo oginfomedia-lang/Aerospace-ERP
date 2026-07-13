@@ -13,6 +13,7 @@ public interface PurchaseOrderService {
     java.util.List<PurchaseOrderResponse> getAllPurchaseOrders();
     PurchaseOrderResponse updatePOStatus(Long id, com.aerospace.procurement_service.entity.POStatus status);
     void createDraftPOFromStockLow(com.aerospace.procurement_service.event.StockLowEvent event);
+    void createDraftPOFromShortage(com.aerospace.procurement_service.event.MaterialShortageEvent event);
 
     // Only permitted while status == DRAFT — this is what lets a mistaken SKU/supplier be fixed
     PurchaseOrderResponse updatePurchaseOrder(Long id, PurchaseOrderRequest request);

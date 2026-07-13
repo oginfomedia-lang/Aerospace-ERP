@@ -11,4 +11,9 @@ public class KafkaTopics {
     public static final String MATERIAL_ISSUED       = "material-issued-events";
     public static final String STOCK_LOW             = "stock-low-events";
     public static final String QA_STATUS_CHANGED     = "qa-status-changed-events";
+
+    // Consumed from order-service — must match order-service's own KafkaTopics constant.
+    public static final String WORK_ORDER_CREATED    = "work-order-created-events";
+    // Published by inventory-service, consumed by procurement-service.
+    public static final String MATERIAL_SHORTAGE     = "material-shortage-events";
 }

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
+import procurementApi from '../api/procurementAxios';
 import { X, Package, MapPin, Hash, ChevronRight, CheckCircle, CalendarClock } from 'lucide-react';
 import { ApiResponse, Part } from '../types/inventory';
+import { Supplier } from '../types/procurement';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -31,7 +33,14 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
     expiryTracking: false,
     qcRequired: true,
     shelfLifeDays: 0,
+    preferredSupplierId: '' as number | '',
   });
+
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
+  useEffect(() => {
+    procurementApi.get('/suppliers').then(res => setSuppliers(res.data)).catch(() => {});
+  }, []);
 
   // FIX 1: expiryDate moved here to Step 2 state — it is a batch/stock property,
   // NOT a part master property. Part master has no expiry, a specific received batch does.
@@ -51,7 +60,7 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
       name: '', serialNumber: '', partType: '', criticality: 'MEDIUM', reorderLevel: 5,
       minStock: 0, maxStock: 0, safetyStock: 0, leadTimeDays: 0,
       batchRequired: true, serialRequired: false, expiryTracking: false, qcRequired: true,
-      shelfLifeDays: 0,
+      shelfLifeDays: 0, preferredSupplierId: '',
     });
     setStockData({ batchNumber: '', quantity: 0, location: '', expiryDate: '' });
   };
@@ -92,6 +101,7 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
       safetyStock: masterData.safetyStock || undefined,
       leadTimeDays: masterData.leadTimeDays || undefined,
       shelfLifeDays: masterData.shelfLifeDays || undefined,
+      preferredSupplierId: masterData.preferredSupplierId || undefined,
     };
 
     try {
@@ -265,6 +275,20 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
                 <input type="number" value={masterData.leadTimeDays || ''} min={0} placeholder="0"
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
                   onChange={e => setMasterData({ ...masterData, leadTimeDays: Number(e.target.value) || 0 })} />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Preferred Supplier</label>
+                <select value={masterData.preferredSupplierId}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none font-semibold"
+                  onChange={e => setMasterData({ ...masterData, preferredSupplierId: e.target.value ? Number(e.target.value) : '' })}>
+                  <option value="">None — auto-shortage PO uses the first certified supplier</option>
+                  {suppliers.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.vendorCode})</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                  If a Work Order needs more than what's APPROVED in stock, a shortage PO is auto-raised to this supplier.
+                </p>
               </div>
             </div>
 

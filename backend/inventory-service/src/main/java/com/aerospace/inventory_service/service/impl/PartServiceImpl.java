@@ -33,6 +33,7 @@ public class PartServiceImpl implements PartService {
     private final UomConversionRepository uomRepository;
     private final InventoryProducer inventoryProducer;
     private final DocumentSequenceService documentSequenceService;
+    private final NcrRepository ncrRepository;
 
     // ── CREATE PART ──────────────────────────────────────────────────────────
     // Kafka: PART_CREATED → notification-service logs "New Part Registered"
@@ -173,47 +174,96 @@ public class PartServiceImpl implements PartService {
         Part part = partRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
 
-        StockBalance balance = balanceRepository
-                .findByPartIdAndBatchNumberAndStatus(id, batch, StockStatus.APPROVED)
-                .orElseThrow(() -> new RuntimeException("No APPROVED stock for batch: " + batch));
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Issue quantity must be greater than zero.");
+        }
 
-        if (balance.getQuantity() < quantity) throw new RuntimeException("Insufficient approved stock");
+        List<StockBalance> candidates;
+        if (batch != null && !batch.isBlank()) {
+            // Explicit batch requested — issue only from that one batch, no FIFO
+            // spillover (e.g. a traceability requirement pinned to a specific batch).
+            candidates = List.of(balanceRepository
+                    .findByPartIdAndBatchNumberAndStatus(id, batch, StockStatus.APPROVED)
+                    .orElseThrow(() -> new RuntimeException("No APPROVED stock for batch: " + batch)));
+        } else {
+            // FIFO: consume the oldest APPROVED batches first. A StockBalance row is
+            // only ever created once, on a batch's first receipt (later receipts of
+            // the same batch just increment its quantity) — so ordering by id gives
+            // us oldest-batch-first without needing a separate received-date column.
+            candidates = balanceRepository.findAllBalancesByPart(id).stream()
+                    .filter(b -> b.getStatus() == StockStatus.APPROVED
+                            && b.getQuantity() != null && b.getQuantity() > 0)
+                    .sorted(java.util.Comparator.comparing(StockBalance::getId))
+                    .toList();
+        }
 
-        balance.setQuantity(balance.getQuantity() - quantity);
-        balanceRepository.save(balance);
+        int totalAvailable = candidates.stream()
+                .mapToInt(b -> b.getQuantity() != null ? b.getQuantity() : 0)
+                .sum();
+        if (totalAvailable < quantity) {
+            throw new RuntimeException("Insufficient approved stock: requested " + quantity
+                    + ", available " + totalAvailable
+                    + (batch != null && !batch.isBlank() ? " in batch " + batch : " across all APPROVED batches"));
+        }
 
-        transactionService.logTransaction(id, batch, "PRODUCTION_ISSUE", -quantity, null, "Material Issued");
+        int remainingToIssue = quantity;
+        StringBuilder batchSummary = new StringBuilder();
+        String lastLocation = null;
 
-        int remaining = balance.getQuantity();
+        for (StockBalance b : candidates) {
+            if (remainingToIssue <= 0) break;
+            int take = Math.min(remainingToIssue, b.getQuantity());
+            b.setQuantity(b.getQuantity() - take);
+            balanceRepository.save(b);
+            remainingToIssue -= take;
+            lastLocation = b.getLocation();
+
+            transactionService.logTransaction(id, b.getBatchNumber(), "PRODUCTION_ISSUE", -take, null,
+                    candidates.size() > 1
+                            ? "Material Issued (FIFO — part of a " + quantity + "-unit issue)"
+                            : "Material Issued");
+
+            if (batchSummary.length() > 0) batchSummary.append(", ");
+            batchSummary.append(b.getBatchNumber()).append(":").append(take);
+        }
+
+        // Total remaining APPROVED stock across ALL batches for this part — low-stock
+        // and the reported "on hand" quantity must reflect the whole part, not just
+        // whichever single batch happened to be touched last.
+        int totalRemainingApproved = balanceRepository.findAllBalancesByPart(id).stream()
+                .filter(b -> b.getStatus() == StockStatus.APPROVED)
+                .mapToInt(b -> b.getQuantity() != null ? b.getQuantity() : 0)
+                .sum();
 
         try {
             inventoryProducer.sendMaterialIssuedEvent(
                 MaterialIssuedEvent.builder()
                     .partId(id)
                     .partName(part.getName())
-                    .batchNumber(batch)
+                    .batchNumber(batchSummary.toString())
                     .quantityIssued(quantity)
-                    .remainingQuantity(remaining)
+                    .remainingQuantity(totalRemainingApproved)
                     .issuedTo("Production")
                     .issuedBy("System")
-                    .location(balance.getLocation() != null ? balance.getLocation() : "")
+                    .location(lastLocation != null ? lastLocation : "")
                     .build()
             );
         } catch (Exception ex) {
             log.warn("[KAFKA] MATERIAL_ISSUED publish failed for partId={}: {}", id, ex.getMessage());
         }
 
-        // Trigger LOW_STOCK alert if remaining drops at or below reorder level
-        if (part.getReorderLevel() != null && remaining <= part.getReorderLevel()) {
+        // Trigger LOW_STOCK alert if total remaining APPROVED stock drops at or below reorder level
+        if (part.getReorderLevel() != null && totalRemainingApproved <= part.getReorderLevel()) {
             try {
                 inventoryProducer.sendLowStockEvent(
                     StockLowEvent.builder()
                         .partId(id)
                         .partName(part.getName())
-                        .batchNumber(batch)
-                        .currentQuantity(remaining)
+                        .skuCode(part.getSkuCode())
+                        .batchNumber(batchSummary.toString())
+                        .currentQuantity(totalRemainingApproved)
                         .reorderLevel(part.getReorderLevel())
-                        .location(balance.getLocation() != null ? balance.getLocation() : "")
+                        .location(lastLocation != null ? lastLocation : "")
                         .build()
                 );
             } catch (Exception ex) {
@@ -222,8 +272,8 @@ public class PartServiceImpl implements PartService {
         }
 
         PartResponseDTO response = mapper.toDTO(part);
-        response.setQuantity(remaining);
-        response.setBatchNumber(batch);
+        response.setQuantity(totalRemainingApproved);
+        response.setBatchNumber(batchSummary.toString());
         response.setStatus(StockStatus.APPROVED.name());
         return response;
     }
@@ -259,6 +309,24 @@ public class PartServiceImpl implements PartService {
 
         transactionService.logTransaction(id, batch, "QA_DECISION", 0, null,
                 "Moved to " + newStatus + ": " + remarks);
+
+        // GRN-FR / aerospace QC convention: a rejected batch doesn't just sit blocked —
+        // it needs a Non-Conformance Report so it gets dispositioned (return to vendor,
+        // scrap, or use-as-is under special approval) instead of staying REJECTED forever.
+        if (StockStatus.REJECTED.name().equalsIgnoreCase(newStatus)) {
+            String ncrNumber = documentSequenceService.generate("NCR");
+            ncrRepository.save(NonConformanceReport.builder()
+                    .ncrNumber(ncrNumber)
+                    .partId(id)
+                    .partName(part.getName())
+                    .batchNumber(batch)
+                    .quantity(qty)
+                    .reason(remarks)
+                    .status(NcrStatus.OPEN)
+                    .build());
+            log.info("[NCR] {} auto-created for rejected batch {} (partId={}, qty={})",
+                    ncrNumber, batch, id, qty);
+        }
 
         try {
             boolean expired = expiry != null && expiry.isBefore(LocalDateTime.now());
@@ -355,6 +423,7 @@ public class PartServiceImpl implements PartService {
         if (dto.getSerialRequired() != null) part.setSerialRequired(dto.getSerialRequired());
         if (dto.getExpiryTracking() != null) part.setExpiryTracking(dto.getExpiryTracking());
         if (dto.getQcRequired() != null) part.setQcRequired(dto.getQcRequired());
+        if (dto.getPreferredSupplierId() != null) part.setPreferredSupplierId(dto.getPreferredSupplierId());
 
         return mapWithLiveStock(partRepository.save(part), null);
     }
@@ -382,8 +451,11 @@ public class PartServiceImpl implements PartService {
         reservedStock.setQuantity(reservedStock.getQuantity() + quantity);
         balanceRepository.save(reservedStock);
 
+        // Net quantity for this batch is unchanged — it's moving between buckets
+        // (APPROVED -> RESERVED), not entering or leaving stock. Log 0, same as
+        // QA_DECISION, so the ledger's running balance stays accurate.
         transactionService.logTransaction(partId, batch, "STOCK_RESERVATION",
-                quantity, null, "Reserved for Work Order");
+                0, null, "Reserved for Work Order (" + quantity + " units)");
     }
 
     @Override
@@ -427,8 +499,10 @@ public class PartServiceImpl implements PartService {
         target.setExpiryDate(source.getExpiryDate());
         balanceRepository.save(target);
 
+        // Net quantity for this batch is unchanged — same bin-to-bin caveat as
+        // STOCK_RESERVATION above. Log 0 so the ledger's running balance stays accurate.
         transactionService.logTransaction(id, batch, "LOCATION_TRANSFER",
-                qty, null, "Moved from " + fromBin + " to " + toBin);
+                0, null, "Moved " + qty + " units from " + fromBin + " to " + toBin);
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────────

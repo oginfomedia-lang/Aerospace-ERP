@@ -32,10 +32,12 @@ public class DashboardServiceImpl implements DashboardService { // FIX 2: was mi
         long rejected           = rejectedRaw  != null ? rejectedRaw  : 0L;
 
         // Convert List<Object[]> -> Map<partType, count> for frontend chart
+        // row[0] (partType) can be null for parts with no type set — Jackson can't
+        // serialize a null map key, so fall back to a label instead of dropping/crashing.
         Map<String, Long> typeMap = partRepository.countPartsByType().stream()
                 .collect(Collectors.toMap(
-                        row -> (String) row[0],  // row[0] = partType string
-                        row -> (Long)   row[1]   // row[1] = count
+                        row -> row[0] != null ? (String) row[0] : "UNSPECIFIED",
+                        row -> (Long) row[1]
                 ));
 
         return DashboardResponseDTO.builder()

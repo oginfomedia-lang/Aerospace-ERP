@@ -71,36 +71,37 @@ const InventoryList = () => {
   }, [searchTerm]);
 
   const handleIssue = async (part: Part) => {
-    if (!part.batchNumber) {
-      toast.error('No batch assigned. Add stock first via Stock Adjustment.');
-      return;
-    }
-    if (part.status !== 'APPROVED') {
-      toast.error(`Cannot issue — stock is ${part.status}. QA approval required.`);
+    if (!part.quantity || part.quantity <= 0) {
+      toast.error('No approved stock available to issue for this part.');
       return;
     }
 
-    // Warn if issuing from an expired batch
-    if (part.expiryDate && new Date(part.expiryDate) < new Date()) {
+    // Warn if any APPROVED batch is expired — FIFO may draw from it
+    const expiredBatch = (part.balances || []).find(
+      b => b.status === 'APPROVED' && b.expiryDate && new Date(b.expiryDate) < new Date()
+    );
+    if (expiredBatch) {
       const proceed = window.confirm(
-        `⚠️ WARNING: Batch ${part.batchNumber} is EXPIRED.\nAre you sure you want to issue this stock to production?`
+        `⚠️ WARNING: Approved batch ${expiredBatch.batchNumber} is EXPIRED.\nAre you sure you want to issue this stock to production?`
       );
       if (!proceed) return;
     }
 
     const qtyStr = window.prompt(
-      `Issue material based on user requirement.\nStep 5: Material will issue and stock will update.\n\nBatch: ${part.batchNumber}\nAvailable (Approved): ${part.quantity} units\n\nEnter quantity to issue:`
+      `Issue material based on user requirement.\nStep 5: Material will issue and stock will update (oldest batch first — FIFO).\n\nAvailable (Approved, all batches): ${part.quantity} units\n\nEnter quantity to issue:`
     );
     if (!qtyStr || isNaN(Number(qtyStr)) || Number(qtyStr) <= 0) return;
 
-    const params = new URLSearchParams({ qty: qtyStr, batchNumber: part.batchNumber });
+    // No batchNumber passed — backend auto-consumes the oldest APPROVED batch(es)
+    // first (FIFO), splitting across as many as needed to cover the quantity.
+    const params = new URLSearchParams({ qty: qtyStr });
 
     try {
       await toast.promise(
         api.post(`/inventory/${part.id}/issue-to-production?${params}`),
         {
-          loading: `Issuing ${qtyStr} units from batch ${part.batchNumber}...`,
-          success: `Material issued. Stock updated — ${qtyStr} units deducted from store.`,
+          loading: `Issuing ${qtyStr} units (FIFO — oldest batch first)...`,
+          success: (res) => `Material issued from batch(es) ${res.data.data.batchNumber}. Stock updated.`,
           error: (err) => err.response?.data?.message || 'Issue failed — check batch approval status.',
         }
       );

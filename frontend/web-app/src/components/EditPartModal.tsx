@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
+import procurementApi from '../api/procurementAxios';
 import { X, Edit3, ShieldAlert } from 'lucide-react';
 import { Part } from '../types/inventory';
+import { Supplier } from '../types/procurement';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -31,7 +33,14 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
     expiryTracking: false,
     qcRequired: true,
     shelfLifeDays: 0,
+    preferredSupplierId: '' as number | '',
   });
+
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
+  useEffect(() => {
+    procurementApi.get('/suppliers').then(res => setSuppliers(res.data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (part) {
@@ -50,6 +59,7 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
         expiryTracking: part.expiryTracking,
         qcRequired: part.qcRequired,
         shelfLifeDays: part.shelfLifeDays || 0,
+        preferredSupplierId: part.preferredSupplierId || '',
       });
     }
   }, [part]);
@@ -94,6 +104,7 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
       expiryTracking: formData.expiryTracking,
       qcRequired: formData.qcRequired,
       shelfLifeDays: formData.shelfLifeDays || undefined,
+      preferredSupplierId: formData.preferredSupplierId || undefined,
     };
 
     try {
@@ -245,6 +256,21 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
                   onChange={e => setFormData({ ...formData, shelfLifeDays: parseInt(e.target.value) || 0 })} />
               </div>
             )}
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Preferred Supplier</label>
+            <select value={formData.preferredSupplierId}
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+              onChange={e => setFormData({ ...formData, preferredSupplierId: e.target.value ? Number(e.target.value) : '' })}>
+              <option value="">None — auto-shortage PO uses the first certified supplier</option>
+              {suppliers.map(s => (
+                <option key={s.id} value={s.id}>{s.name} ({s.vendorCode})</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-slate-400 mt-1 font-medium">
+              If a Work Order needs more than what's APPROVED in stock, a shortage PO is auto-raised to this supplier.
+            </p>
           </div>
 
           {/* ERP notice — explain why stock fields are not here */}

@@ -31,6 +31,10 @@ export interface Part {
   shelfLifeDays: number | null;
   qcRequired: boolean;
 
+  // Soft reference to procurement-service's Supplier — used to auto-raise a DRAFT PO
+  // when a Work Order needs more of this part than is currently APPROVED in stock.
+  preferredSupplierId: number | null;
+
   // Set only on GRN receipt responses (system-generated, GRN-FR-001)
   grnNumber?: string | null;
 
@@ -78,6 +82,7 @@ export interface PartRequest {
   expiryTracking?: boolean;
   shelfLifeDays?: number;
   qcRequired?: boolean;
+  preferredSupplierId?: number;
 }
 
 // ============================================================
@@ -134,6 +139,88 @@ export interface InspectionReport {
   inspectorName: string | null;
   inspectedAt: string;
   publishedToInventory: boolean;
+}
+
+// ============================================================
+// Matches: MaterialReceiptItemRequest / MaterialReceiptItemResponse (inventory-service)
+// ============================================================
+export interface MaterialReceiptItemRequest {
+  skuCode: string;
+  quantity: number;
+  uom: string;
+}
+
+export interface MaterialReceiptItem {
+  id: number;
+  skuCode: string;
+  quantity: number;
+  uom: string;
+  grnNumber: string | null;
+}
+
+// ============================================================
+// Matches: MaterialReceiptRequest.java (inventory-service)
+// ============================================================
+export interface MaterialReceiptRequest {
+  poNumber: string;
+  supplierName: string;
+  challanNumber: string;
+  transportName: string;
+  receivedBy: string;
+  items: MaterialReceiptItemRequest[];
+}
+
+// ============================================================
+// Matches: MaterialReceiptResponse.java (inventory-service)
+// ============================================================
+export interface MaterialReceipt {
+  id: number;
+  mrNumber: string;
+  poNumber: string | null;
+  supplierName: string | null;
+  challanNumber: string | null;
+  transportName: string | null;
+  receivedBy: string | null;
+  receivedAt: string;
+  status: 'RECEIVED_AT_GATE' | 'GRN_FORMED';
+  items: MaterialReceiptItem[];
+}
+
+// ============================================================
+// Matches: FormGrnRequest.java (inventory-service)
+// ============================================================
+export interface FormGrnRequest {
+  location: string;
+  expiryDate?: string;
+  inspectionQty?: number;
+}
+
+// ============================================================
+// Matches: NcrResponse.java (inventory-service) — auto-created on QA rejection
+// ============================================================
+export interface NonConformanceReport {
+  id: number;
+  ncrNumber: string;
+  partId: number;
+  partName: string;
+  batchNumber: string;
+  quantity: number;
+  reason: string | null;
+  status: 'OPEN' | 'DISPOSITIONED';
+  dispositionType: 'RETURN_TO_VENDOR' | 'SCRAP' | 'USE_AS_IS' | null;
+  dispositionRemarks: string | null;
+  dispositionedBy: string | null;
+  createdAt: string;
+  dispositionedAt: string | null;
+}
+
+// ============================================================
+// Matches: DispositionRequest.java (inventory-service)
+// ============================================================
+export interface DispositionRequest {
+  dispositionType: 'RETURN_TO_VENDOR' | 'SCRAP' | 'USE_AS_IS';
+  remarks: string;
+  dispositionedBy: string;
 }
 
 // ============================================================

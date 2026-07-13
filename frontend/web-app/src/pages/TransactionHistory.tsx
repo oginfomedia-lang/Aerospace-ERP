@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../api/axios';
 import {
@@ -47,6 +47,37 @@ const TransactionHistory = () => {
       });
   }, [id]);
 
+  // Sorted by batch number, then chronologically within each batch — this is what
+  // makes a running balance meaningful: a "Balance After" is a per-batch passbook
+  // total (GRN receipts in, production issues out, QA/reservation/transfer moves
+  // net to 0), not a single number spanning unrelated batches.
+  const ledgerRows = useMemo(() => {
+    const byBatch = new Map<string, InventoryTransaction[]>();
+    transactions.forEach(t => {
+      const key = t.batchNumber || 'NO_BATCH';
+      const group = byBatch.get(key) ?? [];
+      group.push(t);
+      byBatch.set(key, group);
+    });
+
+    const batchKeys = Array.from(byBatch.keys()).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    const rows: Array<InventoryTransaction & { balanceAfter: number }> = [];
+    batchKeys.forEach(key => {
+      const chronological = [...byBatch.get(key)!].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      let running = 0;
+      chronological.forEach(t => {
+        running += t.quantity;
+        rows.push({ ...t, balanceAfter: running });
+      });
+    });
+    return rows;
+  }, [transactions]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="max-w-5xl mx-auto">
@@ -89,6 +120,7 @@ const TransactionHistory = () => {
                     <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Event Type</th>
                     <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Qty</th>
                     <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Batch</th>
+                    <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Balance After</th>
                     {/* referenceDoc — populated once GRN/WO integration is live */}
                     <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Reference Doc</th>
                     <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Remarks</th>
@@ -96,10 +128,11 @@ const TransactionHistory = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {transactions.length > 0 ? transactions.map(t => {
+                  {ledgerRows.length > 0 ? ledgerRows.map((t, idx) => {
                     const style = getTransactionStyle(t.transactionType);
+                    const newBatchGroup = idx === 0 || ledgerRows[idx - 1].batchNumber !== t.batchNumber;
                     return (
-                      <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={t.id} className={`hover:bg-slate-50/50 transition-colors ${newBatchGroup && idx > 0 ? 'border-t-2 border-t-slate-200' : ''}`}>
                         <td className="p-5">
                           <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold text-xs ${style.bg} ${style.color}`}>
                             {style.icon}
@@ -114,6 +147,11 @@ const TransactionHistory = () => {
                         <td className="p-5">
                           <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black tracking-wider uppercase border border-slate-200">
                             {t.batchNumber || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="p-5 text-center">
+                          <span className="font-mono font-black text-sm text-slate-700">
+                            {t.balanceAfter}
                           </span>
                         </td>
                         <td className="p-5">
@@ -135,7 +173,7 @@ const TransactionHistory = () => {
                     );
                   }) : (
                     <tr>
-                      <td colSpan={6} className="p-20 text-center text-slate-300">
+                      <td colSpan={7} className="p-20 text-center text-slate-300">
                         <div className="flex flex-col items-center gap-2">
                           <Clock size={48} className="opacity-20 mb-2" />
                           <p className="font-bold uppercase tracking-widest text-xs">No movements registered in this ledger</p>

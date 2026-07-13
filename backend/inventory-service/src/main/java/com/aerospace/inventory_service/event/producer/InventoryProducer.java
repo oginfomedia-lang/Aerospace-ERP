@@ -65,4 +65,13 @@ public class InventoryProducer {
                 .decision(status)
                 .build());
     }
+
+    // ── MATERIAL SHORTAGE ─────────────────────────────────────────────────────
+    // Topic: material-shortage-events — consumed by procurement-service to auto-raise a DRAFT PO
+
+    public void sendMaterialShortageEvent(MaterialShortageEvent event) {
+        log.info("[KAFKA] Publishing MATERIAL_SHORTAGE for partId={} woNumber={} shortfall={}",
+                event.getPartId(), event.getWoNumber(), event.getShortfallQty());
+        kafkaTemplate.send(KafkaTopics.MATERIAL_SHORTAGE, String.valueOf(event.getPartId()), event);
+    }
 }

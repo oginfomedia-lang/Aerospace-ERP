@@ -87,11 +87,14 @@ public class PartController {
     }
     
     // ERP Step: Issue to Production
+    // batchNumber is optional: omit it to auto-consume the oldest APPROVED batches
+    // first (FIFO), splitting across as many batches as needed; pass it to pin the
+    // issue to one specific batch instead (fails if that batch alone is short).
     @PostMapping("/{id}/issue-to-production")
     public ResponseEntity<ApiResponse<PartResponseDTO>> issueMaterial(
             @PathVariable Long id,
             @RequestParam int qty,
-            @RequestParam String batchNumber) {
+            @RequestParam(required = false) String batchNumber) {
         return ResponseEntity.ok(new ApiResponse<>("MATERIAL_ISSUED_TO_PRODUCTION",
                 partService.issueToProduction(id, qty, batchNumber)));
     }

@@ -1,8 +1,11 @@
 package com.aerospace.procurement_service.event.consumer;
 
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
+import com.aerospace.procurement_service.event.KafkaTopics;
+import com.aerospace.procurement_service.event.MaterialShortageEvent;
 import com.aerospace.procurement_service.event.StockLowEvent;
 
 import lombok.RequiredArgsConstructor;
@@ -14,10 +17,13 @@ import lombok.extern.slf4j.Slf4j;
 public class InventoryConsumer {
     private final com.aerospace.procurement_service.service.PurchaseOrderService poService;
 
-    @KafkaListener(topics = "inventory-stock-low", groupId = "procurement-service-group", containerFactory = "kafkaListenerContainerFactory")
+    // Topic string previously didn't match what inventory-service actually publishes
+    // to ("inventory-stock-low" vs the real "stock-low-events"), so this listener
+    // never fired. Fixed to use the shared constant.
+    @KafkaListener(topics = KafkaTopics.STOCK_LOW, groupId = "procurement-service-group", containerFactory = "kafkaListenerContainerFactory")
     public void handleStockLowEvent(StockLowEvent event) {
         //1.log it so we can see it working in the terminal
-        log.warn("🚨 [PROCUREMENT ALERT] Low stock detected for Part: {} (ID: {}). Current Qty: {} (Reorder Level: {})", 
+        log.warn("🚨 [PROCUREMENT ALERT] Low stock detected for Part: {} (ID: {}). Current Qty: {} (Reorder Level: {})",
             event.getPartName(),
             event.getPartId(),
             event.getCurrentQuantity(),
@@ -29,6 +35,22 @@ public class InventoryConsumer {
             poService.createDraftPOFromStockLow(event);
         } catch (Exception e) {
             log.error("Failed to automatically create draft PO from stock low event", e);
+        }
+    }
+
+    // WO-creation-time shortage → auto-raise a DRAFT PO for the shortfall.
+    @KafkaListener(
+        topics = KafkaTopics.MATERIAL_SHORTAGE,
+        groupId = "procurement-service-group",
+        containerFactory = "materialShortageKafkaListenerContainerFactory"
+    )
+    public void handleMaterialShortageEvent(@Payload MaterialShortageEvent event) {
+        log.warn("🚨 [PROCUREMENT ALERT] Material shortage for WO {} — part {} short by {} units",
+                event.getWoNumber(), event.getSkuCode(), event.getShortfallQty());
+        try {
+            poService.createDraftPOFromShortage(event);
+        } catch (Exception e) {
+            log.error("Failed to automatically create draft PO from shortage event", e);
         }
     }
 }

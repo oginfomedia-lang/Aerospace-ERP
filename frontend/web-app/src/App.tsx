@@ -11,6 +11,8 @@ import WorkOrders from './pages/WorkOrders';
 import ProductionOrders from './pages/ProductionOrders';
 import ProcurementSuppliers from './pages/ProcurementSuppliers';
 import ProcurementOrders from './pages/ProcurementOrders';
+import MaterialReceipts from './pages/MaterialReceipts';
+import NCRPage from './pages/NCRPage';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -50,6 +52,8 @@ function App() {
             <Route path="/production" element={<ProductionOrders />} />
             <Route path="/suppliers" element={<ProcurementSuppliers />} />
             <Route path="/purchase-orders" element={<ProcurementOrders />} />
+            <Route path="/material-receipts" element={<MaterialReceipts />} />
+            <Route path="/ncr" element={<NCRPage />} />
           </Route>
         </Route>
 

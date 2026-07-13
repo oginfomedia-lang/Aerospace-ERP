@@ -6,7 +6,7 @@ import procurementApi from '../api/procurementAxios';
 import api from '../api/axios';
 import { Supplier, PurchaseOrderResponse, PurchaseOrderRequest, POLineItemDTO } from '../types/procurement';
 import { Part } from '../types/inventory';
-import { GRNFromPOModal } from '../components/GRNFromPOModal';
+import { MaterialReceiptFromPOModal } from '../components/MaterialReceiptFromPOModal';
 import { POApprovalModal } from '../components/POApprovalModal';
 
 const ProcurementOrders = () => {
@@ -228,7 +228,14 @@ const ProcurementOrders = () => {
             {orders.map(order => (
               <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
                 <td className="px-6 py-4">
-                  <div className="font-bold text-slate-900 font-mono">{order.poNumber}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-bold text-slate-900 font-mono">{order.poNumber}</div>
+                    {order.remarks?.startsWith('AUTO-RAISED') && (
+                      <span title={order.remarks} className="px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase rounded bg-violet-100 text-violet-700 border border-violet-200">
+                        AUTO
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 font-medium text-slate-700">
                   {order.supplierName}
@@ -314,7 +321,7 @@ const ProcurementOrders = () => {
                       onClick={() => setSelectedPOForGRN(order)}
                       className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
                     >
-                      Process GRN Inward →
+                      Record Material Receipt →
                     </button>
                   )}
                 </td>
@@ -454,7 +461,7 @@ const ProcurementOrders = () => {
       )}
 
       {selectedPOForGRN && (
-        <GRNFromPOModal
+        <MaterialReceiptFromPOModal
           po={selectedPOForGRN}
           onClose={() => setSelectedPOForGRN(null)}
           onSuccess={() => {

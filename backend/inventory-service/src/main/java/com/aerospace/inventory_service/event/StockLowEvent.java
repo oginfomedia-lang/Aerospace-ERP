@@ -13,6 +13,7 @@ public class StockLowEvent {
     // Legacy field — renamed below but kept via currentQty alias
     private Long partId;
     private String partName;
+    private String skuCode; // the actual reorderable SKU — partName is NOT a valid PO line item code
 
     // ── Fields required by notification-service ──────────────────────────────
     private String batchNumber;

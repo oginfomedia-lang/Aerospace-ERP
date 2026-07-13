@@ -21,7 +21,8 @@ public class PartMapper {
                 .maxStock(dto.getMaxStock())
                 .safetyStock(dto.getSafetyStock())
                 .leadTimeDays(dto.getLeadTimeDays())
-                .shelfLifeDays(dto.getShelfLifeDays());
+                .shelfLifeDays(dto.getShelfLifeDays())
+                .preferredSupplierId(dto.getPreferredSupplierId());
                 // Removed quantity, batch, and status as they are now Ledger-based
 
         if (dto.getItemStatus() != null) builder.status(dto.getItemStatus());
@@ -53,6 +54,7 @@ public class PartMapper {
                 .expiryTracking(part.isExpiryTracking())
                 .shelfLifeDays(part.getShelfLifeDays())
                 .qcRequired(part.isQcRequired())
+                .preferredSupplierId(part.getPreferredSupplierId())
                 // Note: quantity, status (stock bucket), and batchNumber will be set
                 // by the Service layer after aggregating StockBalances
                 .build();

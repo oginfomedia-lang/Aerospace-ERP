@@ -94,13 +94,10 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
               ...prev,
               [line.partId]: { qty: data.quantity, batch: data.batchNumber, skuCode: data.serialNumber }
             }));
-            // Auto-fill issue form batch if available
-            if (data.batchNumber && (!issueForm[line.id] || !issueForm[line.id].batch)) {
-              setIssueForm(prev => ({
-                ...prev,
-                [line.id]: { ...prev[line.id], batch: data.batchNumber, qty: prev[line.id]?.qty ?? '' }
-              }));
-            }
+            // Batch field is intentionally left blank — issuing with no batch triggers
+            // FIFO (oldest APPROVED batch first, split across as many as needed) on
+            // inventory-service. Pre-filling it here would silently pin every issue
+            // to a single batch and defeat that.
           }).catch(() => {});
         }
       });
@@ -144,29 +141,29 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
       toast.error('This line has no linked inventory part.');
       return;
     }
-    const batch = f.batch || inventoryLevels[line.partId]?.batch;
-    if (!batch) {
-      toast.error('No approved batch available to issue from for this part.');
-      return;
-    }
 
     setIssuing(lineItemId);
     try {
       // 1. Deduct from inventory FIRST — this is the source of truth for stock (INV-BR-001/002).
       //    If there isn't enough APPROVED stock, this throws and nothing else happens.
-      await api.post(`/inventory/${line.partId}/issue-to-production`, null, {
-        params: { qty: Number(f.qty), batchNumber: batch },
+      //    Leaving batch blank triggers FIFO (oldest APPROVED batch first, split across
+      //    as many as needed); a manually typed batch pins the issue to just that one.
+      const res = await api.post(`/inventory/${line.partId}/issue-to-production`, null, {
+        params: { qty: Number(f.qty), ...(f.batch ? { batchNumber: f.batch } : {}) },
       });
+      // The batch(es) inventory actually drew from — not a guess, since FIFO decides
+      // this server-side and may span more than one batch.
+      const batchesUsed: string = res.data?.data?.batchNumber || f.batch || 'Unknown';
 
       // 2. Only record against the work order line once inventory actually moved.
       await workOrderApi.post<ApiResponse<WorkOrder>>(`/work-orders/${wo.id}/issue-material`, {
         lineItemId,
         quantityIssued: Number(f.qty),
-        batchNumber: batch,
+        batchNumber: batchesUsed,
         issuedBy: 'Store Keeper',
       } as IssueMaterialRequest);
 
-      toast.success(`Issued ${f.qty} units — deducted from inventory and recorded on the work order.`);
+      toast.success(`Issued ${f.qty} units from batch(es) ${batchesUsed} — deducted from inventory and recorded on the work order.`);
       setIssueForm(prev => ({ ...prev, [lineItemId]: { qty: '', batch: '' } }));
       onSuccess();
     } catch (e: any) {
@@ -461,7 +458,8 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                       />
                       <input
                         type="text"
-                        placeholder="Batch number"
+                        placeholder="Blank = FIFO (oldest batch first)"
+                        title="Leave blank to auto-issue from the oldest APPROVED batch(es) first. Type a batch number to pin the issue to that one batch only."
                         value={issueForm[line.id]?.batch ?? ''}
                         onChange={e => setIssueForm(prev => ({
                           ...prev,

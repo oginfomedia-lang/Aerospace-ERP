@@ -62,5 +62,11 @@ public class Part {
     @Column(nullable = false)
     private boolean qcRequired = true;
 
+    // Soft reference to procurement-service's Supplier (separate DB — no FK possible).
+    // When set, an auto-raised shortage PO goes to this supplier; when null, the
+    // shortage consumer falls back to the first CERTIFIED supplier (same fallback
+    // procurement-service already uses for its low-stock auto-draft-PO).
+    private Long preferredSupplierId;
+
     // Total quantity is now a derived value or managed via StockBalance logic
 }

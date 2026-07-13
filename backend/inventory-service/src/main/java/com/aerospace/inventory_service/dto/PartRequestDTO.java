@@ -30,4 +30,8 @@ public class PartRequestDTO {
     private Boolean expiryTracking;
     private Integer shelfLifeDays;
     private Boolean qcRequired;
+
+    // Soft reference to procurement-service's Supplier — used for auto-raising a
+    // shortage PO when a Work Order needs more than what's currently APPROVED.
+    private Long preferredSupplierId;
 }

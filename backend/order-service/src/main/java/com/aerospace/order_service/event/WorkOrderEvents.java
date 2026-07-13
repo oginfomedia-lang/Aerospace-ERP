@@ -6,10 +6,18 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 // ── Events PUBLISHED by work-order-service ───────────────────────────────────
 
 public class WorkOrderEvents {
+
+    /** One material line's demand — enough for a consumer to check availability elsewhere. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class MaterialLineSummary {
+        private Long partId;
+        private Integer quantityRequired;
+    }
 
     /** Published when a new work order is created */
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -23,6 +31,9 @@ public class WorkOrderEvents {
         private String createdBy;
         private String location;
         private LocalDateTime createdAt;
+        // Lets consumers (e.g. inventory-service) check each line's stock availability
+        // without a synchronous callback — this repo is Kafka-only, no cross-service REST.
+        private List<MaterialLineSummary> materialLines;
     }
 
     /** Published on every status transition */

@@ -3,7 +3,7 @@ import { NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut,
-  Wrench, Factory, ShoppingCart, Users
+  Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert
 } from 'lucide-react';
 import path from 'path';
 import { useAuth } from '../context/AuthContext';
@@ -42,6 +42,13 @@ const navItems = [
     roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
   },
   {
+    path: '/material-receipts',
+    label: 'Material Receipts',
+    icon: <Truck size={18} />,
+    description: 'Gate entry → GRN',
+    roles: ['STORE_KEEPER', 'PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
+  },
+  {
     path: '/inventory',
     label: 'Inventory',
     icon: <Package size={18} />,
@@ -54,6 +61,13 @@ const navItems = [
     icon: <ShieldCheck size={18} />,
     description: 'Compliance decisions',
     roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/ncr',
+    label: 'NCR',
+    icon: <ShieldAlert size={18} />,
+    description: 'Non-conformance disposition',
+    roles: ['QA_INSPECTOR', 'STORE_KEEPER', 'MANAGER', 'ADMIN']
   },
   {
     path: '/production',
@@ -194,6 +208,8 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/production' && 'Production'}
               {location.pathname === '/suppliers' && 'Suppliers'}
               {location.pathname === '/purchase-orders' && 'Purchase Orders'}
+              {location.pathname === '/material-receipts' && 'Material Receipts'}
+              {location.pathname === '/ncr' && 'Non-Conformance Reports'}
               {location.pathname.includes('/transactions') && 'Transaction History'}
             </span>
           </div>

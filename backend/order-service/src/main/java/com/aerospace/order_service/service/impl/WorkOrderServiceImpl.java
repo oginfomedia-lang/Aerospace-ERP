@@ -92,6 +92,16 @@ public class WorkOrderServiceImpl implements WorkOrderService {
 
         // Publish Kafka event
         try {
+            List<MaterialLineSummary> materialLines = req.getMaterialItems() == null
+                    ? List.of()
+                    : req.getMaterialItems().stream()
+                            .filter(item -> item.getPartId() != null)
+                            .map(item -> MaterialLineSummary.builder()
+                                    .partId(item.getPartId())
+                                    .quantityRequired(item.getQuantityRequired())
+                                    .build())
+                            .toList();
+
             producer.publishCreated(WorkOrderCreatedEvent.builder()
                     .workOrderId(saved.getId())
                     .woNumber(woNumber)
@@ -102,6 +112,7 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                     .createdBy(saved.getCreatedBy())
                     .location(saved.getLocation())
                     .createdAt(saved.getCreatedAt())
+                    .materialLines(materialLines)
                     .build());
         } catch (Exception ex) {
             log.warn("[KAFKA] Failed to publish WORK_ORDER_CREATED for {}: {}", woNumber, ex.getMessage());

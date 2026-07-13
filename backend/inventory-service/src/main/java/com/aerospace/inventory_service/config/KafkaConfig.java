@@ -2,6 +2,7 @@ package com.aerospace.inventory_service.config;
 
 import com.aerospace.inventory_service.event.PartCreatedEvent;
 import com.aerospace.inventory_service.event.QAStatusUpdatedEvent;
+import com.aerospace.inventory_service.event.WorkOrderCreatedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -78,6 +79,30 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, PartCreatedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(partCreatedConsumerFactory());
+        return factory;
+    }
+
+    // Factory for WorkOrderCreatedEvent — used by work-order-created-events topic
+    @Bean
+    public ConsumerFactory<String, WorkOrderCreatedEvent> workOrderCreatedConsumerFactory() {
+        Map<String, Object> props = baseConsumerProps();
+
+        JsonDeserializer<WorkOrderCreatedEvent> deserializer =
+                new JsonDeserializer<>(WorkOrderCreatedEvent.class);
+        deserializer.setUseTypeHeaders(false);
+        deserializer.addTrustedPackages("*");
+
+        ErrorHandlingDeserializer<WorkOrderCreatedEvent> errorHandling =
+                new ErrorHandlingDeserializer<>(deserializer);
+
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), errorHandling);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, WorkOrderCreatedEvent> workOrderCreatedKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, WorkOrderCreatedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(workOrderCreatedConsumerFactory());
         return factory;
     }
 }

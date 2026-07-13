@@ -48,6 +48,10 @@ public class PartResponseDTO {
     private Integer shelfLifeDays;
     private boolean qcRequired;
 
+    // Soft reference to procurement-service's Supplier — used for auto-raising a
+    // shortage PO when a Work Order needs more than what's currently APPROVED.
+    private Long preferredSupplierId;
+
     // Set only on GRN receipt responses (GRN-FR-001: system-generated, never user-typed)
     private String grnNumber;
 }

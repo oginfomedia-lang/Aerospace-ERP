@@ -9,6 +9,7 @@ import lombok.*;
 public class StockLowEvent {
     private Long partId;
     private String partName;
+    private String skuCode;
     private String batchNumber;
     private int currentQuantity;
     private int reorderLevel;

@@ -76,6 +76,9 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                         .quantityIssued(0)
                         .status(MaterialLineItem.LineItemStatus.PENDING)
                         .remarks(item.getRemarks())
+                        .unitPrice(item.getUnitPrice())
+                        .taxRatePercent(item.getTaxRatePercent())
+                        .description(item.getDescription())
                         .build();
                 lineItemRepository.save(line);
             });
@@ -355,6 +358,9 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                 .quantityIssued(0)
                 .status(MaterialLineItem.LineItemStatus.PENDING)
                 .remarks(req.getRemarks())
+                .unitPrice(req.getUnitPrice())
+                .taxRatePercent(req.getTaxRatePercent())
+                .description(req.getDescription())
                 .build();
         lineItemRepository.save(line);
         return toResponse(workOrderRepository.findById(workOrderId).orElse(wo));
@@ -410,6 +416,9 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                         .quantityIssued(l.getQuantityIssued())
                         .status(l.getStatus())
                         .remarks(l.getRemarks())
+                        .unitPrice(l.getUnitPrice())
+                        .taxRatePercent(l.getTaxRatePercent())
+                        .description(l.getDescription())
                         .build())
                 .toList();
 
@@ -420,6 +429,18 @@ public class WorkOrderServiceImpl implements WorkOrderService {
         boolean allReady = !lines.isEmpty() && lines.stream()
                 .allMatch(l -> l.getStatus() == MaterialLineItem.LineItemStatus.ISSUED
                             || l.getStatus() == MaterialLineItem.LineItemStatus.CANCELLED);
+
+        java.math.BigDecimal totalMaterialCost = lines.stream()
+                .filter(l -> l.getUnitPrice() != null && l.getQuantityRequired() != null)
+                .map(l -> {
+                    java.math.BigDecimal base = l.getUnitPrice()
+                            .multiply(java.math.BigDecimal.valueOf(l.getQuantityRequired()));
+                    java.math.BigDecimal taxMultiplier = java.math.BigDecimal.ONE.add(
+                            (l.getTaxRatePercent() != null ? l.getTaxRatePercent() : java.math.BigDecimal.ZERO)
+                                    .divide(java.math.BigDecimal.valueOf(100)));
+                    return base.multiply(taxMultiplier);
+                })
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 
         return WorkOrderResponse.builder()
                 .id(wo.getId())
@@ -444,6 +465,7 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                 .totalPartsRequired(totalRequired)
                 .totalPartsIssued(totalIssued)
                 .allMaterialReady(allReady)
+                .totalMaterialCost(totalMaterialCost)
                 .build();
     }
 }

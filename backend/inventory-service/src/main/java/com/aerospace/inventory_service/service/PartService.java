@@ -20,8 +20,10 @@ public interface PartService {
     // Standard ERP Core Operations (Step 1+2: GRN Inward)
     PartResponseDTO addStock(Long id, int quantity, String batchNumber, String location,
                              LocalDateTime expiryDate, String grnNumber, String challanNumber,
-                             String supplierName, String transportName, Integer inspectionQty);
-    PartResponseDTO issueToProduction(Long id, int quantity, String batchNumber);
+                             String supplierName, String transportName, Integer inspectionQty,
+                             String poNumber);
+    PartResponseDTO issueToProduction(Long id, int quantity, String batchNumber,
+                                       Long workOrderId, String woNumber, Long lineItemId);
     PartResponseDTO processQADecision(Long id, String batchNumber, String newStatus, String remarks);
 
     // Advanced ERP Integration Methods

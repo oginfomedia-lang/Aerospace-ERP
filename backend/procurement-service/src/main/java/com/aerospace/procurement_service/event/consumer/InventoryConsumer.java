@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import com.aerospace.procurement_service.event.KafkaTopics;
 import com.aerospace.procurement_service.event.MaterialShortageEvent;
+import com.aerospace.procurement_service.event.QAStatusChangedEvent;
 import com.aerospace.procurement_service.event.StockLowEvent;
 
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,21 @@ public class InventoryConsumer {
             poService.createDraftPOFromShortage(event);
         } catch (Exception e) {
             log.error("Failed to automatically create draft PO from shortage event", e);
+        }
+    }
+
+    // QA approved/rejected a received batch — reflect it on the originating PO line
+    // item, if the batch is traceable to one (event.poNumber != null).
+    @KafkaListener(
+        topics = KafkaTopics.QA_STATUS_CHANGED,
+        groupId = "procurement-service-group",
+        containerFactory = "qaStatusChangedKafkaListenerContainerFactory"
+    )
+    public void handleQaStatusChanged(@Payload QAStatusChangedEvent event) {
+        try {
+            poService.applyQaOutcome(event);
+        } catch (Exception e) {
+            log.error("Failed to apply QA outcome to purchase order", e);
         }
     }
 }

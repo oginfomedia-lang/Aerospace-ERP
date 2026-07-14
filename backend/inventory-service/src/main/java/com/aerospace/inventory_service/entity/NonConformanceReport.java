@@ -28,6 +28,10 @@ public class NonConformanceReport {
     private String batchNumber;
     private Integer quantity;
 
+    // Soft reference to the procurement-service PO this rejected batch was received
+    // against — null when the batch wasn't traceable to a PO (e.g. manual stock add).
+    private String poNumber;
+
     @Column(length = 1000)
     private String reason; // QA remarks captured at rejection time
 

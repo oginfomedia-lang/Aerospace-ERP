@@ -19,6 +19,15 @@ public class SupplierRequest {
     private String phone;
     private String address;
 
+    private String city;
+    private String state;
+    private String stateCode;
+    private String pincode;
+    private String country;
+    private String gstin;
+    private String pan;
+    private String gstinRegType;
+
     @NotBlank(message = "Certification status is required")
     private String certificationStatus;
 

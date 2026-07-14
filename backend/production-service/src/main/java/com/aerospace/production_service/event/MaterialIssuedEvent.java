@@ -8,6 +8,12 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MaterialIssuedEvent {
+    // Set only when this issue was made against a specific Work Order line —
+    // lets us match it to an open ProductionOrder for that same WO.
+    private Long workOrderId;
+    private String woNumber;
+    private Long lineItemId;
+
     private Long partId;
     private String partName;
     private String batchNumber;

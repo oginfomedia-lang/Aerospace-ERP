@@ -24,4 +24,14 @@ public class POLineItemDTO {
 
     private String uom;
 
+    // Snapshotted from the Part at line-add time (frontend fills this from the
+    // selected Part, read-only in the UI — not a per-PO negotiated value)
+    private String hsnCode;
+    private BigDecimal taxRatePercent;
+
+    // QA outcome (read-only, populated from the PO line item once inspected)
+    private Integer acceptedQuantity;
+    private Integer rejectedQuantity;
+    private String ncrNumber;
+
 }

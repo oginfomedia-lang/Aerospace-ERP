@@ -46,6 +46,7 @@ workorder:
       work-order-completed: work-order-completed-events
       material-request: material-request-events
       qa-status-changed: qa-status-changed-events    # consumed from inventory-service
+      material-issued: material-issued-events        # consumed from inventory-service
 
 # Cross-service HTTP clients (used by RestTemplate for inventory stock checks)
 services:

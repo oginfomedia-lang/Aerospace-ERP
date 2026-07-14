@@ -316,6 +316,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         po.setDeliveryDate(request.getDeliveryDate());
         po.setCurrency(request.getCurrency());
         po.setRemarks(request.getRemarks());
+        po.setShipToName(request.getShipToName());
+        po.setShipToAddress(request.getShipToAddress());
+        po.setShipToState(request.getShipToState());
+        po.setShipToStateCode(request.getShipToStateCode());
+        po.setPaymentTerms(request.getPaymentTerms());
+        po.setPayment(request.getPayment());
+        po.setDeliveryTerms(request.getDeliveryTerms());
+        po.setExciseDuty(request.getExciseDuty());
+        po.setTermsAndConditions(request.getTermsAndConditions());
 
         // Replace line items wholesale — orphanRemoval on PurchaseOrder.items deletes the old rows
         po.getItems().clear();
@@ -448,6 +457,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         po.setCurrency("USD");
         po.setRemarks("AUTO-RAISED: shortage for WO " + event.getWoNumber()
                 + " — verify price before submitting.");
+        po.setSourceWorkOrderId(event.getWorkOrderId());
+        po.setSourceWoNumber(event.getWoNumber());
 
         POLineItem item = new POLineItem();
         item.setPurchaseOrder(po);
@@ -463,6 +474,43 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         poRepository.save(po);
         log.info("📢 [PROCUREMENT AUTO] Created draft PO {} for WO {} shortage on part {} (qty {})",
                 po.getPoNumber(), event.getWoNumber(), event.getSkuCode(), event.getShortfallQty());
+    }
+
+    // ── APPLY QA OUTCOME TO PO LINE ITEM ─────────────────────────────────────
+    // Kafka-driven, like the two auto-raise handlers above — closes the loop so a
+    // PO's line shows how much of what was received actually passed QA.
+    @Transactional
+    @Override
+    public void applyQaOutcome(com.aerospace.procurement_service.event.QAStatusChangedEvent event) {
+        if (event.getPoNumber() == null || event.getPoNumber().isBlank()) {
+            return; // not traceable to a PO (e.g. manual stock add) — nothing to update
+        }
+
+        PurchaseOrder po = poRepository.findByPoNumber(event.getPoNumber()).orElse(null);
+        if (po == null) {
+            log.warn("QA outcome for PO {} — no matching purchase order found", event.getPoNumber());
+            return;
+        }
+
+        POLineItem line = po.getItems().stream()
+                .filter(i -> i.getSkuCode().equals(event.getSkuCode()))
+                .findFirst()
+                .orElse(null);
+        if (line == null) {
+            log.warn("QA outcome for PO {} — no line item for SKU {}", event.getPoNumber(), event.getSkuCode());
+            return;
+        }
+
+        int qty = event.getQuantity() != null ? event.getQuantity() : 0;
+        if ("APPROVED".equalsIgnoreCase(event.getNewStatus())) {
+            line.setAcceptedQuantity((line.getAcceptedQuantity() != null ? line.getAcceptedQuantity() : 0) + qty);
+        } else if ("REJECTED".equalsIgnoreCase(event.getNewStatus())) {
+            line.setRejectedQuantity((line.getRejectedQuantity() != null ? line.getRejectedQuantity() : 0) + qty);
+            line.setNcrNumber(event.getNcrNumber());
+        }
+        poRepository.save(po);
+        log.info("📢 [PROCUREMENT] Applied QA outcome {} (qty {}) to PO {} line {}",
+                event.getNewStatus(), qty, event.getPoNumber(), event.getSkuCode());
     }
 
     private Supplier firstCertifiedSupplier() {

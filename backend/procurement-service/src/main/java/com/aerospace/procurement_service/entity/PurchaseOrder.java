@@ -43,6 +43,28 @@ public class PurchaseOrder {
 
     private String remarks;
 
+    // Set only when this PO was auto-raised for a Work Order material shortage —
+    // lets the UI trace a shortage all the way from the WO to the PO and back.
+    private Long sourceWorkOrderId;
+    private String sourceWoNumber;
+
+    // Optional per-PO overrides for the printed document — null means "use the
+    // Organization Profile default" at render time (see POReceiptDocument.tsx).
+    private String shipToName;
+    private String shipToAddress;
+    private String shipToState;
+    private String shipToStateCode;
+    @Column(length = 1000)
+    private String paymentTerms;
+    @Column(length = 1000)
+    private String payment;
+    @Column(length = 1000)
+    private String deliveryTerms;
+    @Column(length = 1000)
+    private String exciseDuty;
+    @Column(length = 4000)
+    private String termsAndConditions;
+
     // Which approval level is currently pending; null when not in an approval chain (PUR-BR-001)
     private Integer currentApprovalLevel;
 

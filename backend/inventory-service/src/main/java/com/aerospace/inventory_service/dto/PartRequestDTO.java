@@ -2,6 +2,8 @@ package com.aerospace.inventory_service.dto;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class PartRequestDTO {
     private String name;
@@ -14,6 +16,13 @@ public class PartRequestDTO {
     private Integer reorderLevel;
     private String status;    // Maps to qaStatus in Entity
     private String qaRemarks; // Added to capture remarks from React form
+
+    // Item-master reference pricing — shown when adding this part to a Work
+    // Order; distinct from a PO's own negotiated unitPrice.
+    private BigDecimal unitPrice;
+    private BigDecimal taxRatePercent;
+    private String hsnCode;
+    private String description;
 
     // Planning levels (ITM-BR-006)
     private Integer minStock;

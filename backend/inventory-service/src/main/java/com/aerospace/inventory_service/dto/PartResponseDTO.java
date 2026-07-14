@@ -1,5 +1,6 @@
 package com.aerospace.inventory_service.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -18,6 +19,7 @@ public class PartResponseDTO {
     private String serialNumber;
     private String batchNumber;   // Added — APPROVED-batch summary, see `balances` for full per-batch state
     private Integer quantity;     // Added — APPROVED-only quantity (usable/available stock)
+    private Integer pendingQaQuantity; // Arrived but not yet QA-approved — not counted in `quantity` above
     private String location;
     private String partType;
     private String criticality;   // Added
@@ -54,4 +56,11 @@ public class PartResponseDTO {
 
     // Set only on GRN receipt responses (GRN-FR-001: system-generated, never user-typed)
     private String grnNumber;
+
+    // Item-master reference pricing — shown when adding this part to a Work
+    // Order; distinct from a PO's own negotiated unitPrice.
+    private BigDecimal unitPrice;
+    private BigDecimal taxRatePercent;
+    private String hsnCode;
+    private String description;
 }

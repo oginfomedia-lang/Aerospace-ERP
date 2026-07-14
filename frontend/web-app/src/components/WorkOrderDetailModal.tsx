@@ -6,9 +6,11 @@ import {
   Loader2, History, AlertTriangle, ShieldCheck, Edit3, Trash2
 } from 'lucide-react';
 import workOrderApi from '../api/workOrderAxios';
+import procurementApi from '../api/procurementAxios';
+import { PurchaseOrderResponse } from '../types/procurement';
 import {
   WorkOrder, WorkOrderStatus, StatusTransitionRequest,
-  IssueMaterialRequest, StatusHistoryEntry, ApiResponse
+  StatusHistoryEntry, ApiResponse
 } from '../types/workOrder';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
@@ -73,8 +75,9 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
   const [transitioning, setTransitioning] = useState(false);
   const [transitionRemarks, setTransitionRemarks] = useState('');
   const [issueForm, setIssueForm] = useState<{ [lineId: number]: { qty: string; batch: string } }>({});
-  const [inventoryLevels, setInventoryLevels] = useState<{ [partId: number]: { qty: number; batch: string; skuCode: string } }>({});
+  const [inventoryLevels, setInventoryLevels] = useState<{ [partId: number]: { qty: number; batch: string; skuCode: string; pendingQa: number } }>({});
   const [issuing, setIssuing] = useState<number | null>(null);
+  const [linkedPOs, setLinkedPOs] = useState<PurchaseOrderResponse[]>([]);
 
   useEffect(() => {
     if (workOrder && isOpen) {
@@ -92,7 +95,10 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
             const data = res.data.data;
             setInventoryLevels(prev => ({
               ...prev,
-              [line.partId]: { qty: data.quantity, batch: data.batchNumber, skuCode: data.serialNumber }
+              [line.partId]: {
+                qty: data.quantity, batch: data.batchNumber, skuCode: data.serialNumber,
+                pendingQa: data.pendingQaQuantity || 0,
+              }
             }));
             // Batch field is intentionally left blank — issuing with no batch triggers
             // FIFO (oldest APPROVED batch first, split across as many as needed) on
@@ -101,6 +107,17 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
           }).catch(() => {});
         }
       });
+    }
+  }, [workOrder, activeTab]);
+
+  useEffect(() => {
+    if (workOrder && activeTab === 'material') {
+      // No dedicated "POs for this WO" endpoint exists — the PO list is small enough
+      // that filtering client-side (same approach the PO page itself uses for prefill)
+      // is simpler than adding a new backend query param for this.
+      procurementApi.get<PurchaseOrderResponse[]>('/purchase-orders')
+        .then(res => setLinkedPOs(res.data.filter(po => po.sourceWoNumber === workOrder.woNumber)))
+        .catch(() => setLinkedPOs([]));
     }
   }, [workOrder, activeTab]);
 
@@ -144,28 +161,32 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
 
     setIssuing(lineItemId);
     try {
-      // 1. Deduct from inventory FIRST — this is the source of truth for stock (INV-BR-001/002).
-      //    If there isn't enough APPROVED stock, this throws and nothing else happens.
-      //    Leaving batch blank triggers FIFO (oldest APPROVED batch first, split across
-      //    as many as needed); a manually typed batch pins the issue to just that one.
+      // Deduct from inventory — this is the single source of truth for stock
+      // (INV-BR-001/002). If there isn't enough APPROVED stock, this throws and
+      // nothing else happens. Leaving batch blank triggers FIFO (oldest APPROVED
+      // batch first, split across as many as needed); a manually typed batch pins
+      // the issue to just that one.
+      //
+      // Passing workOrderId/lineItemId lets inventory-service publish a
+      // MaterialIssuedEvent carrying this WO context — order-service consumes
+      // that event and updates this line's quantityIssued/status itself, so the
+      // work order stays in sync even if this browser tab closes right after.
       const res = await api.post(`/inventory/${line.partId}/issue-to-production`, null, {
-        params: { qty: Number(f.qty), ...(f.batch ? { batchNumber: f.batch } : {}) },
+        params: {
+          qty: Number(f.qty),
+          ...(f.batch ? { batchNumber: f.batch } : {}),
+          workOrderId: wo.id,
+          woNumber: wo.woNumber,
+          lineItemId,
+        },
       });
-      // The batch(es) inventory actually drew from — not a guess, since FIFO decides
-      // this server-side and may span more than one batch.
       const batchesUsed: string = res.data?.data?.batchNumber || f.batch || 'Unknown';
 
-      // 2. Only record against the work order line once inventory actually moved.
-      await workOrderApi.post<ApiResponse<WorkOrder>>(`/work-orders/${wo.id}/issue-material`, {
-        lineItemId,
-        quantityIssued: Number(f.qty),
-        batchNumber: batchesUsed,
-        issuedBy: 'Store Keeper',
-      } as IssueMaterialRequest);
-
-      toast.success(`Issued ${f.qty} units from batch(es) ${batchesUsed} — deducted from inventory and recorded on the work order.`);
+      toast.success(`Issued ${f.qty} units from batch(es) ${batchesUsed} — deducted from inventory. Work order will update momentarily.`);
       setIssueForm(prev => ({ ...prev, [lineItemId]: { qty: '', batch: '' } }));
-      onSuccess();
+      // Small delay so the async Kafka round-trip to order-service has time to
+      // land before we refetch — the WO line update isn't part of this request.
+      setTimeout(onSuccess, 800);
     } catch (e: any) {
       toast.error(e.response?.data?.message || 'Issue failed — stock was not deducted.');
     } finally {
@@ -401,7 +422,17 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                                   <CheckCircle2 size={10} /> Ready to Issue
                                 </span>
                               )}
+                              {inventoryLevels[line.partId].pendingQa > 0 && (
+                                <span className="text-xs font-black text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg flex items-center gap-1">
+                                  <Clock size={10} /> {inventoryLevels[line.partId].pendingQa} pending QA inspection
+                                </span>
+                              )}
                             </div>
+                            {inventoryLevels[line.partId].pendingQa > 0 && (
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                Material has arrived but isn't usable yet — it won't count toward the shortage above until QA approves it.
+                              </p>
+                            )}
                           </div>
                           {inventoryLevels[line.partId].qty < (line.quantityRequired - line.quantityIssued) && line.status !== 'ISSUED' && (
                             <button
@@ -479,6 +510,45 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                   )}
                   </div>
                 ))
+              )}
+
+              {linkedPOs.length > 0 && (
+                <div className="pt-2">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-2">
+                    Linked Purchase Orders (raised for this Work Order's shortage)
+                  </span>
+                  <div className="space-y-2">
+                    {linkedPOs.map(po => {
+                      const rejected = po.items?.reduce((sum, i) => sum + (i.rejectedQuantity ?? 0), 0) || 0;
+                      const accepted = po.items?.reduce((sum, i) => sum + (i.acceptedQuantity ?? 0), 0) || 0;
+                      return (
+                        <div key={po.id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl border border-slate-100 px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-slate-800 text-xs">{po.poNumber}</span>
+                            <span className="px-2 py-0.5 text-[9px] font-black uppercase rounded-full bg-slate-200 text-slate-600">
+                              {po.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {accepted > 0 && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-black rounded bg-emerald-100 text-emerald-700">
+                                ✓ {accepted} accepted
+                              </span>
+                            )}
+                            {rejected > 0 && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-black rounded bg-red-100 text-red-700">
+                                ✕ {rejected} rejected
+                              </span>
+                            )}
+                            {accepted === 0 && rejected === 0 && (
+                              <span className="text-[9px] text-slate-400 font-bold">Awaiting receipt/QA</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           )}

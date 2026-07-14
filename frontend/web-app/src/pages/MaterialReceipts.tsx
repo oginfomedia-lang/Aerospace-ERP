@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Truck, PackageCheck, Clock, Loader2, X, CheckCircle2 } from 'lucide-react';
-import { ApiResponse, MaterialReceipt, FormGrnRequest } from '../types/inventory';
+import { ApiResponse, MaterialReceipt, MaterialReceiptItem, FormGrnRequest, Location } from '../types/inventory';
+import { ReceiptModal } from '../components/ReceiptModal';
 
 // Step 1→2 of the gate-to-GRN flow: Material Receipts are logged at the gate
 // (via Purchase Orders → "Record Material Receipt"); this page is where the GRN
@@ -12,12 +13,15 @@ const MaterialReceipts = () => {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<MaterialReceipt | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [receiptForView, setReceiptForView] = useState<MaterialReceipt | null>(null);
+  const [grnForView, setGrnForView] = useState<{ receipt: MaterialReceipt; item: MaterialReceiptItem } | null>(null);
 
   const [form, setForm] = useState<FormGrnRequest>({
-    location: 'MAIN_STORE',
+    location: '',
     expiryDate: '',
     inspectionQty: undefined,
   });
+  const [locations, setLocations] = useState<Location[]>([]);
 
   const fetchReceipts = async () => {
     setLoading(true);
@@ -31,11 +35,15 @@ const MaterialReceipts = () => {
     }
   };
 
-  useEffect(() => { fetchReceipts(); }, []);
+  useEffect(() => {
+    fetchReceipts();
+    api.get<Location[]>('/inventory/locations', { params: { activeOnly: true } })
+      .then(res => setLocations(res.data)).catch(() => {});
+  }, []);
 
   const handleOpenFormGrn = (receipt: MaterialReceipt) => {
     setSelected(receipt);
-    setForm({ location: 'MAIN_STORE', expiryDate: '', inspectionQty: undefined });
+    setForm({ location: '', expiryDate: '', inspectionQty: undefined });
   };
 
   const handleFormGrn = async (e: React.FormEvent) => {
@@ -114,7 +122,12 @@ const MaterialReceipts = () => {
             <tbody className="divide-y divide-slate-100">
               {pending.map(r => (
                 <tr key={r.id} className="hover:bg-slate-50/50">
-                  <td className="px-6 py-4 font-bold font-mono text-slate-900">{r.mrNumber}</td>
+                  <td className="px-6 py-4 font-bold font-mono text-slate-900">
+                    <button onClick={() => setReceiptForView(r)} title="View / print / download this receipt"
+                      className="hover:text-cyan-600 hover:underline transition-colors">
+                      {r.mrNumber}
+                    </button>
+                  </td>
                   <td className="px-6 py-4 text-slate-600">{r.poNumber}</td>
                   <td className="px-6 py-4 text-slate-600">{r.supplierName}</td>
                   <td className="px-6 py-4 text-slate-600">{r.challanNumber}</td>
@@ -153,10 +166,25 @@ const MaterialReceipts = () => {
             <tbody className="divide-y divide-slate-100">
               {processed.map(r => (
                 <tr key={r.id} className="hover:bg-slate-50/50">
-                  <td className="px-6 py-4 font-bold font-mono text-slate-900">{r.mrNumber}</td>
+                  <td className="px-6 py-4 font-bold font-mono text-slate-900">
+                    <button onClick={() => setReceiptForView(r)} title="View / print / download this receipt"
+                      className="hover:text-cyan-600 hover:underline transition-colors">
+                      {r.mrNumber}
+                    </button>
+                  </td>
                   <td className="px-6 py-4 text-slate-600">{r.poNumber}</td>
                   <td className="px-6 py-4 text-slate-600 font-mono text-xs">
-                    {r.items.map(i => i.grnNumber).filter(Boolean).join(', ') || '—'}
+                    {r.items.filter(i => i.grnNumber).length > 0 ? (
+                      r.items.filter(i => i.grnNumber).map((i, idx) => (
+                        <React.Fragment key={i.id}>
+                          {idx > 0 && ', '}
+                          <button onClick={() => setGrnForView({ receipt: r, item: i })}
+                            title="View / print / download this GRN" className="hover:text-cyan-600 hover:underline transition-colors">
+                            {i.grnNumber}
+                          </button>
+                        </React.Fragment>
+                      ))
+                    ) : '—'}
                   </td>
                 </tr>
               ))}
@@ -181,9 +209,14 @@ const MaterialReceipts = () => {
             <form onSubmit={handleFormGrn} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Storage Location</label>
-                <input type="text" required value={form.location}
+                <select required value={form.location}
                   onChange={e => setForm({ ...form, location: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500 outline-none" />
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500 outline-none">
+                  <option value="" disabled>Select a location...</option>
+                  {locations.map(l => (
+                    <option key={l.id} value={l.code}>{l.code} — {l.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Batch Expiry Date (if tracked)</label>
@@ -223,6 +256,116 @@ const MaterialReceipts = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {receiptForView && (
+        <ReceiptModal
+          isOpen={!!receiptForView}
+          onClose={() => setReceiptForView(null)}
+          title="Material Receipt"
+          documentNumber={receiptForView.mrNumber}
+        >
+          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">PO Number</p>
+              <p className="font-bold text-slate-800">{receiptForView.poNumber || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Status</p>
+              <p className="font-bold text-slate-800">{receiptForView.status}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Supplier</p>
+              <p className="font-bold text-slate-800">{receiptForView.supplierName || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Challan Number</p>
+              <p className="font-bold text-slate-800">{receiptForView.challanNumber || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Transport</p>
+              <p className="font-bold text-slate-800">{receiptForView.transportName || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Received By</p>
+              <p className="font-bold text-slate-800">{receiptForView.receivedBy || '—'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Received At</p>
+              <p className="font-bold text-slate-800">{new Date(receiptForView.receivedAt).toLocaleString()}</p>
+            </div>
+          </div>
+
+          <table className="w-full text-left text-sm border-t border-slate-200">
+            <thead className="text-slate-400 uppercase text-[10px] tracking-wider">
+              <tr>
+                <th className="py-2">SKU</th>
+                <th className="py-2 text-right">Qty</th>
+                <th className="py-2 pl-4">GRN Number</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {receiptForView.items.map(item => (
+                <tr key={item.id}>
+                  <td className="py-2 font-mono font-bold text-slate-700">{item.skuCode}</td>
+                  <td className="py-2 text-right text-slate-600">{item.quantity} {item.uom}</td>
+                  <td className="py-2 pl-4 font-mono text-xs text-slate-600">{item.grnNumber || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ReceiptModal>
+      )}
+
+      {grnForView && (
+        <ReceiptModal
+          isOpen={!!grnForView}
+          onClose={() => setGrnForView(null)}
+          title="Goods Received Note (GRN)"
+          documentNumber={grnForView.item.grnNumber || ''}
+        >
+          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Material Receipt</p>
+              <p className="font-bold text-slate-800">{grnForView.receipt.mrNumber}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">PO Number</p>
+              <p className="font-bold text-slate-800">{grnForView.receipt.poNumber || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Supplier</p>
+              <p className="font-bold text-slate-800">{grnForView.receipt.supplierName || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Challan Number</p>
+              <p className="font-bold text-slate-800">{grnForView.receipt.challanNumber || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Transport</p>
+              <p className="font-bold text-slate-800">{grnForView.receipt.transportName || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Received At</p>
+              <p className="font-bold text-slate-800">{new Date(grnForView.receipt.receivedAt).toLocaleString()}</p>
+            </div>
+          </div>
+
+          <table className="w-full text-left text-sm border-t border-slate-200">
+            <thead className="text-slate-400 uppercase text-[10px] tracking-wider">
+              <tr>
+                <th className="py-2">SKU</th>
+                <th className="py-2 text-right">Quantity Received</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              <tr>
+                <td className="py-2 font-mono font-bold text-slate-700">{grnForView.item.skuCode}</td>
+                <td className="py-2 text-right text-slate-600">{grnForView.item.quantity} {grnForView.item.uom}</td>
+              </tr>
+            </tbody>
+          </table>
+        </ReceiptModal>
       )}
     </div>
   );

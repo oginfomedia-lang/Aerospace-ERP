@@ -102,7 +102,10 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
         partName: part.name,
         partNumber: part.serialNumber,
         quantityRequired: 1,
-        remarks: ''
+        remarks: '',
+        unitPrice: part.unitPrice ?? undefined,
+        taxRatePercent: part.taxRatePercent ?? undefined,
+        description: part.description ?? undefined,
       };
     });
     setForm(f => ({ ...f, materialItems: [...(f.materialItems ?? []), ...newItems] }));
@@ -392,6 +395,11 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                           <div>
                             <div className="text-sm font-bold text-slate-900">{part.name}</div>
                             <div className="text-xs text-slate-500">SKU: {part.serialNumber} | Stock: {part.quantity} APPROVED</div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              {part.unitPrice != null ? `Rate: ₹${part.unitPrice}` : 'Rate: —'}
+                              {part.taxRatePercent != null ? ` | Tax: ${part.taxRatePercent}%` : ''}
+                              {part.description ? ` | ${part.description}` : ''}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -419,36 +427,24 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
             ) : (
               <div className="space-y-2">
                 <div className="grid grid-cols-12 gap-2 px-3 mb-1">
-                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">PART ID</span>
-                  <span className="col-span-4 text-[10px] text-slate-400 font-bold">NAME</span>
-                  <span className="col-span-3 text-[10px] text-slate-400 font-bold">SKU</span>
+                  <span className="col-span-3 text-[10px] text-slate-400 font-bold">NAME / SKU</span>
                   <span className="col-span-2 text-[10px] text-slate-400 font-bold">QTY</span>
+                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">RATE</span>
+                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">TAX %</span>
+                  <span className="col-span-2 text-[10px] text-slate-400 font-bold">LINE TOTAL</span>
                 </div>
-                {form.materialItems?.map((line, i) => (
+                {form.materialItems?.map((line, i) => {
+                  const lineTotal = line.unitPrice != null
+                    ? line.unitPrice * line.quantityRequired * (1 + (line.taxRatePercent || 0) / 100)
+                    : null;
+                  return (
                   <div key={i} className="grid grid-cols-12 gap-2 items-center bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        disabled
-                        value={line.partId || ''}
-                        className="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono text-slate-500"
-                      />
-                    </div>
-                    <div className="col-span-4">
-                      <input
-                        type="text"
-                        disabled
-                        value={line.partName}
-                        className="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500"
-                      />
-                    </div>
                     <div className="col-span-3">
-                      <input
-                        type="text"
-                        disabled
-                        value={line.partNumber}
-                        className="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500"
-                      />
+                      <div className="text-xs font-bold text-slate-700 truncate">{line.partName}</div>
+                      <div className="text-[10px] text-slate-400 font-mono truncate">{line.partNumber}</div>
+                      {line.description && (
+                        <div className="text-[10px] text-slate-400 truncate" title={line.description}>{line.description}</div>
+                      )}
                     </div>
                     <div className="col-span-2">
                       <input
@@ -460,6 +456,15 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                         className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>
+                    <div className="col-span-2 text-xs font-bold text-slate-600">
+                      {line.unitPrice != null ? `₹${line.unitPrice}` : '—'}
+                    </div>
+                    <div className="col-span-2 text-xs font-bold text-slate-600">
+                      {line.taxRatePercent != null ? `${line.taxRatePercent}%` : '—'}
+                    </div>
+                    <div className="col-span-2 text-xs font-black text-slate-800">
+                      {lineTotal != null ? `₹${lineTotal.toFixed(2)}` : '—'}
+                    </div>
                     <div className="col-span-1 flex justify-center">
                       <button
                         type="button"
@@ -470,7 +475,19 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
+                {form.materialItems?.some(l => l.unitPrice != null) && (
+                  <div className="flex justify-end px-3 pt-1">
+                    <span className="text-xs font-black text-slate-700">
+                      Estimated Material Cost: ₹{(form.materialItems ?? [])
+                        .reduce((sum, l) => sum + (l.unitPrice != null
+                          ? l.unitPrice * l.quantityRequired * (1 + (l.taxRatePercent || 0) / 100)
+                          : 0), 0)
+                        .toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>

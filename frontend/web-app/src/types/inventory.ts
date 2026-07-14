@@ -7,6 +7,8 @@ export interface Part {
   serialNumber: string;
   batchNumber: string | null;
   quantity: number | null;
+  // Arrived but not yet QA-approved — excluded from `quantity` above until dispositioned.
+  pendingQaQuantity: number | null;
   location: string | null;
   partType: string | null;
   criticality: string | null;
@@ -14,6 +16,13 @@ export interface Part {
   status: string | null;
   qaRemarks: string | null;
   expiryDate: string | null;
+
+  // Item-master pricing (reference values shown when adding this part to a
+  // Work Order — not tied to any specific PO's negotiated price).
+  unitPrice: number | null;
+  taxRatePercent: number | null;
+  hsnCode: string | null;
+  description: string | null;
 
   // Planning levels (ITM-BR-006: minStock <= reorderLevel <= maxStock)
   minStock: number | null;
@@ -83,6 +92,10 @@ export interface PartRequest {
   shelfLifeDays?: number;
   qcRequired?: boolean;
   preferredSupplierId?: number;
+  unitPrice?: number;
+  taxRatePercent?: number;
+  hsnCode?: string;
+  description?: string;
 }
 
 // ============================================================
@@ -224,6 +237,23 @@ export interface DispositionRequest {
 }
 
 // ============================================================
+// Matches: Location.java / LocationRequest.java (inventory-service)
+// ============================================================
+export interface Location {
+  id: number;
+  code: string;
+  name: string;
+  zone: string | null;
+  active: boolean;
+}
+
+export interface LocationRequest {
+  code: string;
+  name: string;
+  zone?: string;
+}
+
+// ============================================================
 // Matches: ApiResponse.java — used by BOTH inventory (8081) and qa (8082)
 // ============================================================
 export interface ApiResponse<T> {
@@ -232,3 +262,20 @@ export interface ApiResponse<T> {
 }
 
 export type StockStatus = 'PENDING_QA' | 'APPROVED' | 'REJECTED' | 'RESERVED' | 'EMPTY';
+
+// ============================================================
+// Approved Vendor List — matches: PartSupplierResponse.java / PartBasicDTO.java
+// (inventory-service). A part can have several approved suppliers, at most one
+// marked preferred (kept in sync with Part.preferredSupplierId on the backend).
+// ============================================================
+export interface ApprovedSupplier {
+  supplierId: number;
+  preferred: boolean;
+}
+
+export interface PartBasic {
+  id: number;
+  name: string;
+  skuCode: string;
+  preferred: boolean;
+}

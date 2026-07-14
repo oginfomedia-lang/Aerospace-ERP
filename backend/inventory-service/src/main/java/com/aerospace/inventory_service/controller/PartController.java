@@ -79,9 +79,10 @@ public class PartController {
             @RequestParam(required = false) String challanNumber,
             @RequestParam(required = false) String supplierName,
             @RequestParam(required = false) String transportName,
-            @RequestParam(required = false) Integer inspectionQty) {
+            @RequestParam(required = false) Integer inspectionQty,
+            @RequestParam(required = false) String poNumber) {
         PartResponseDTO result = partService.addStock(id, qty, batchNumber, location, expiryDate,
-                grnNumber, challanNumber, supplierName, transportName, inspectionQty);
+                grnNumber, challanNumber, supplierName, transportName, inspectionQty, poNumber);
         return ResponseEntity.ok(new ApiResponse<>(
                 "STOCK_RECEIVED_" + result.getStatus(), result));
     }
@@ -94,9 +95,15 @@ public class PartController {
     public ResponseEntity<ApiResponse<PartResponseDTO>> issueMaterial(
             @PathVariable Long id,
             @RequestParam int qty,
-            @RequestParam(required = false) String batchNumber) {
+            @RequestParam(required = false) String batchNumber,
+            // Set when this issue is against a specific Work Order material line —
+            // lets order-service/production-service update their own records for
+            // this same issuance. Omit for ad-hoc issues not tied to any WO.
+            @RequestParam(required = false) Long workOrderId,
+            @RequestParam(required = false) String woNumber,
+            @RequestParam(required = false) Long lineItemId) {
         return ResponseEntity.ok(new ApiResponse<>("MATERIAL_ISSUED_TO_PRODUCTION",
-                partService.issueToProduction(id, qty, batchNumber)));
+                partService.issueToProduction(id, qty, batchNumber, workOrderId, woNumber, lineItemId)));
     }
 
     // ERP Step: QA Lifecycle

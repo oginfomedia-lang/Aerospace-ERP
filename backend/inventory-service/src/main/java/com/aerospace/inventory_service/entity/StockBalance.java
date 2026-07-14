@@ -30,6 +30,10 @@ public class StockBalance {
 
     private String location; // e.g., "WH1-ZONE-A-BIN12"
 
+    // Soft reference to the procurement-service PO this batch was received against —
+    // null for stock added outside a GRN (manual adjustments, initial stock entry).
+    private String poNumber;
+
     private LocalDateTime lastUpdated;
 
     @PreUpdate

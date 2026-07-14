@@ -35,6 +35,20 @@ public class POLineItem {
 
     private String uom; // Unit of Measure
 
+    // Snapshotted from the Part item master at line-add time (frontend responsibility,
+    // same pattern as MaterialLineItem.taxRatePercent on the Work Order side) — a
+    // product-classification fact, not a per-PO negotiated value like unitPrice.
+    private String hsnCode;
+    private BigDecimal taxRatePercent;
+
+    // QA outcome, updated asynchronously from inventory-service's QAStatusChangedEvent
+    // once the received goods for this SKU are inspected (see InventoryConsumer).
+    @Builder.Default
+    private Integer acceptedQuantity = 0;
+    @Builder.Default
+    private Integer rejectedQuantity = 0;
+    private String ncrNumber; // last NCR raised against this line, if any
+
     @PrePersist
     @PreUpdate
     public void calculateTotal() {

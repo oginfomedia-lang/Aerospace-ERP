@@ -22,8 +22,17 @@ public class PurchaseOrderMapper {
                 .deliveryDate(dto.getDeliveryDate())
                 .currency(dto.getCurrency())
                 .remarks(dto.getRemarks())
+                .shipToName(dto.getShipToName())
+                .shipToAddress(dto.getShipToAddress())
+                .shipToState(dto.getShipToState())
+                .shipToStateCode(dto.getShipToStateCode())
+                .paymentTerms(dto.getPaymentTerms())
+                .payment(dto.getPayment())
+                .deliveryTerms(dto.getDeliveryTerms())
+                .exciseDuty(dto.getExciseDuty())
+                .termsAndConditions(dto.getTermsAndConditions())
                 .build();
-        
+
         if (dto.getItems() != null) {
             List<POLineItem> items = dto.getItems().stream()
                     .map(itemDto -> toLineItemEntity(itemDto, po))
@@ -42,6 +51,8 @@ public class PurchaseOrderMapper {
                 .quantity(dto.getQuantity())
                 .unitPrice(dto.getUnitPrice())
                 .uom(dto.getUom())
+                .hsnCode(dto.getHsnCode())
+                .taxRatePercent(dto.getTaxRatePercent())
                 .build();
     }
 
@@ -60,6 +71,17 @@ public class PurchaseOrderMapper {
                 .currency(po.getCurrency())
                 .items(po.getItems() != null ? po.getItems().stream().map(this::toLineItemDTO).collect(Collectors.toList()) : null)
                 .remarks(po.getRemarks())
+                .sourceWorkOrderId(po.getSourceWorkOrderId())
+                .sourceWoNumber(po.getSourceWoNumber())
+                .shipToName(po.getShipToName())
+                .shipToAddress(po.getShipToAddress())
+                .shipToState(po.getShipToState())
+                .shipToStateCode(po.getShipToStateCode())
+                .paymentTerms(po.getPaymentTerms())
+                .payment(po.getPayment())
+                .deliveryTerms(po.getDeliveryTerms())
+                .exciseDuty(po.getExciseDuty())
+                .termsAndConditions(po.getTermsAndConditions())
                 .currentApprovalLevel(po.getCurrentApprovalLevel())
                 .documentVersion(po.getDocumentVersion())
                 .build();
@@ -89,6 +111,11 @@ public class PurchaseOrderMapper {
                 .unitPrice(item.getUnitPrice())
                 .totalPrice(item.getTotalPrice())
                 .uom(item.getUom())
+                .hsnCode(item.getHsnCode())
+                .taxRatePercent(item.getTaxRatePercent())
+                .acceptedQuantity(item.getAcceptedQuantity())
+                .rejectedQuantity(item.getRejectedQuantity())
+                .ncrNumber(item.getNcrNumber())
                 .build();
     }
 }

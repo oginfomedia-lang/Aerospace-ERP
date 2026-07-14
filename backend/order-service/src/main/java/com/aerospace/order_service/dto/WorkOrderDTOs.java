@@ -10,6 +10,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -54,6 +55,13 @@ public class WorkOrderDTOs {
         private Integer quantityRequired;
 
         private String remarks;
+
+        // Snapshotted from the Part item master at the time this line was added
+        // (same rationale as POLineItem.unitPrice — a point-in-time snapshot,
+        // not a live join back to inventory-service).
+        private BigDecimal unitPrice;
+        private BigDecimal taxRatePercent;
+        private String description;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -114,6 +122,9 @@ public class WorkOrderDTOs {
         private int totalPartsRequired;
         private int totalPartsIssued;
         private boolean allMaterialReady;
+        // Sum of quantityRequired * unitPrice * (1 + taxRatePercent/100) across all
+        // lines that have a snapshotted rate — an estimate, not an invoiced total.
+        private BigDecimal totalMaterialCost;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -127,6 +138,9 @@ public class WorkOrderDTOs {
         private Integer quantityIssued;
         private MaterialLineItem.LineItemStatus status;
         private String remarks;
+        private BigDecimal unitPrice;
+        private BigDecimal taxRatePercent;
+        private String description;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor

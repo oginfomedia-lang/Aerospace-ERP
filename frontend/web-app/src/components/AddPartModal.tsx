@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
 import procurementApi from '../api/procurementAxios';
 import { X, Package, MapPin, Hash, ChevronRight, CheckCircle, CalendarClock } from 'lucide-react';
-import { ApiResponse, Part } from '../types/inventory';
+import { ApiResponse, Part, Location } from '../types/inventory';
 import { Supplier } from '../types/procurement';
 import toast from 'react-hot-toast';
 
@@ -34,12 +34,19 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
     qcRequired: true,
     shelfLifeDays: 0,
     preferredSupplierId: '' as number | '',
+    unitPrice: '' as number | '',
+    taxRatePercent: '' as number | '',
+    hsnCode: '',
+    description: '',
   });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
 
   useEffect(() => {
     procurementApi.get('/suppliers').then(res => setSuppliers(res.data)).catch(() => {});
+    api.get<Location[]>('/inventory/locations', { params: { activeOnly: true } })
+      .then(res => setLocations(res.data)).catch(() => {});
   }, []);
 
   // FIX 1: expiryDate moved here to Step 2 state — it is a batch/stock property,
@@ -61,6 +68,7 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
       minStock: 0, maxStock: 0, safetyStock: 0, leadTimeDays: 0,
       batchRequired: true, serialRequired: false, expiryTracking: false, qcRequired: true,
       shelfLifeDays: 0, preferredSupplierId: '',
+      unitPrice: '', taxRatePercent: '', hsnCode: '', description: '',
     });
     setStockData({ batchNumber: '', quantity: 0, location: '', expiryDate: '' });
   };
@@ -102,6 +110,10 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
       leadTimeDays: masterData.leadTimeDays || undefined,
       shelfLifeDays: masterData.shelfLifeDays || undefined,
       preferredSupplierId: masterData.preferredSupplierId || undefined,
+      unitPrice: masterData.unitPrice || undefined,
+      taxRatePercent: masterData.taxRatePercent || undefined,
+      hsnCode: masterData.hsnCode || undefined,
+      description: masterData.description || undefined,
     };
 
     try {
@@ -177,10 +189,10 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 flex flex-col max-h-[90vh]">
 
         {/* Header */}
-        <div className="bg-slate-50 px-6 py-4 border-b flex justify-between items-center">
+        <div className="bg-slate-50 px-6 py-4 border-b flex justify-between items-center shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-600 rounded-lg text-white"><Package size={20} /></div>
             <div>
@@ -198,7 +210,7 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
         </div>
 
         {/* Step Indicator */}
-        <div className="flex border-b border-slate-100">
+        <div className="flex border-b border-slate-100 shrink-0">
           <div className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest transition-colors
             ${step === 'master' ? 'bg-blue-600 text-white' : 'bg-emerald-50 text-emerald-600'}`}>
             {step === 'master' ? '1. Part Identity' :
@@ -212,7 +224,8 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
 
         {/* ── STEP 1: Material Master ── */}
         {step === 'master' && (
-          <form onSubmit={handleCreateMaster} className="p-6 space-y-5">
+          <form onSubmit={handleCreateMaster} className="flex flex-col flex-1 min-h-0">
+          <div className="p-6 space-y-5 overflow-y-auto flex-1">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="md:col-span-2">
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Part Name *</label>
@@ -276,6 +289,30 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
                   onChange={e => setMasterData({ ...masterData, leadTimeDays: Number(e.target.value) || 0 })} />
               </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Unit Price (Rate)</label>
+                <input type="number" value={masterData.unitPrice} min={0} step="0.01" placeholder="0.00"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setMasterData({ ...masterData, unitPrice: e.target.value ? Number(e.target.value) : '' })} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Tax Rate %</label>
+                <input type="number" value={masterData.taxRatePercent} min={0} step="0.01" placeholder="e.g. 18"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setMasterData({ ...masterData, taxRatePercent: e.target.value ? Number(e.target.value) : '' })} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">HSN Code</label>
+                <input type="text" value={masterData.hsnCode} placeholder="e.g. 0501040165"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-mono"
+                  onChange={e => setMasterData({ ...masterData, hsnCode: e.target.value })} />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Description</label>
+                <textarea rows={2} value={masterData.description} placeholder="Short description shown when adding this part to a Work Order"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none"
+                  onChange={e => setMasterData({ ...masterData, description: e.target.value })} />
+              </div>
               <div className="md:col-span-2">
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Preferred Supplier</label>
                 <select value={masterData.preferredSupplierId}
@@ -329,7 +366,8 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
                 </p>
               )}
             </div>
-            <div className="flex gap-4 pt-4 border-t border-slate-100">
+          </div>
+            <div className="flex gap-4 p-6 pt-4 border-t border-slate-100 shrink-0">
               <button type="button" onClick={handleClose}
                 className="flex-1 px-4 py-3 border border-slate-200 rounded-xl hover:bg-slate-50 font-bold text-slate-600 transition-all">
                 Cancel
@@ -344,7 +382,8 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
 
         {/* ── STEP 2: Stock Inward ── */}
         {step === 'stock' && (
-          <form onSubmit={handleAddStock} className="p-6 space-y-5">
+          <form onSubmit={handleAddStock} className="flex flex-col flex-1 min-h-0">
+          <div className="p-6 space-y-5 overflow-y-auto flex-1">
             <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700 font-medium">
               {createdPart?.qcRequired
                 ? <>Stock enters <strong>PENDING_QA</strong>. QA must approve before it becomes available for production.</>
@@ -368,9 +407,14 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block flex items-center gap-1.5">
                   <MapPin size={12} /> Warehouse Location
                 </label>
-                <input type="text" placeholder="e.g. WH1-ZONE-A-BIN12" value={stockData.location}
+                <select value={stockData.location}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
-                  onChange={e => setStockData({ ...stockData, location: e.target.value })} />
+                  onChange={e => setStockData({ ...stockData, location: e.target.value })}>
+                  <option value="">— No location set —</option>
+                  {locations.map(l => (
+                    <option key={l.id} value={l.code}>{l.code} — {l.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 {/* FIX 1: Expiry date is HERE in Step 2 — it belongs to the batch being received */}
@@ -386,8 +430,9 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
                 </p>
               </div>
             </div>
+          </div>
 
-            <div className="flex gap-4 pt-4 border-t border-slate-100">
+            <div className="flex gap-4 p-6 pt-4 border-t border-slate-100 shrink-0">
               <button type="button" onClick={handleSkipStock}
                 className="flex-1 px-4 py-3 border border-slate-200 rounded-xl hover:bg-slate-50 font-bold text-slate-500 transition-all text-sm">
                 Skip for Now

@@ -23,6 +23,10 @@ export interface MaterialLineItem {
   quantityIssued: number;
   status: LineItemStatus;
   remarks: string | null;
+  // Snapshotted from the Part item master when this line was added.
+  unitPrice: number | null;
+  taxRatePercent: number | null;
+  description: string | null;
 }
 
 export interface WorkOrder {
@@ -48,6 +52,7 @@ export interface WorkOrder {
   totalPartsRequired: number;
   totalPartsIssued: number;
   allMaterialReady: boolean;
+  totalMaterialCost: number | null;
 }
 
 export interface StatusHistoryEntry {
@@ -94,6 +99,9 @@ export interface MaterialLineItemRequest {
   partNumber?: string;
   quantityRequired: number;
   remarks?: string;
+  unitPrice?: number;
+  taxRatePercent?: number;
+  description?: string;
 }
 
 export interface UpdateWorkOrderRequest {

@@ -1,6 +1,7 @@
 package com.aerospace.procurement_service.config;
 
 import com.aerospace.procurement_service.event.MaterialShortageEvent;
+import com.aerospace.procurement_service.event.QAStatusChangedEvent;
 import com.aerospace.procurement_service.event.StockLowEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -115,6 +116,33 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, MaterialShortageEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(materialShortageConsumerFactory());
+        return factory;
+    }
+
+    @Bean
+    public ConsumerFactory<String, QAStatusChangedEvent> qaStatusChangedConsumerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "procurement-service-group");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+
+        JsonDeserializer<QAStatusChangedEvent> deserializer = new JsonDeserializer<>(QAStatusChangedEvent.class);
+        deserializer.setUseTypeHeaders(false);
+        deserializer.addTrustedPackages("*");
+
+        ErrorHandlingDeserializer<QAStatusChangedEvent> errorHandlingDeserializer =
+                new ErrorHandlingDeserializer<>(deserializer);
+
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), errorHandlingDeserializer);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, QAStatusChangedEvent> qaStatusChangedKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, QAStatusChangedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(qaStatusChangedConsumerFactory());
         return factory;
     }
 }

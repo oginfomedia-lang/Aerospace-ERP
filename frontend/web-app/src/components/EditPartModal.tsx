@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import procurementApi from '../api/procurementAxios';
-import { X, Edit3, ShieldAlert } from 'lucide-react';
-import { Part } from '../types/inventory';
+import { X, Edit3, ShieldAlert, Star, Trash2 } from 'lucide-react';
+import { Part, ApprovedSupplier } from '../types/inventory';
 import { Supplier } from '../types/procurement';
 import toast from 'react-hot-toast';
 
@@ -34,13 +34,61 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
     qcRequired: true,
     shelfLifeDays: 0,
     preferredSupplierId: '' as number | '',
+    unitPrice: '' as number | '',
+    taxRatePercent: '' as number | '',
+    hsnCode: '',
+    description: '',
   });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [approvedSuppliers, setApprovedSuppliers] = useState<ApprovedSupplier[]>([]);
+  const [addSupplierId, setAddSupplierId] = useState<number | ''>('');
 
   useEffect(() => {
     procurementApi.get('/suppliers').then(res => setSuppliers(res.data)).catch(() => {});
   }, []);
+
+  const fetchApprovedSuppliers = () => {
+    if (!part) return;
+    api.get(`/inventory/parts/${part.id}/suppliers`)
+      .then(res => setApprovedSuppliers(res.data.data)).catch(() => setApprovedSuppliers([]));
+  };
+
+  useEffect(() => {
+    fetchApprovedSuppliers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [part]);
+
+  const handleAddApprovedSupplier = async () => {
+    if (!part || !addSupplierId) return;
+    try {
+      await api.post(`/inventory/parts/${part.id}/suppliers`, { supplierId: Number(addSupplierId), preferred: approvedSuppliers.length === 0 });
+      setAddSupplierId('');
+      fetchApprovedSuppliers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to add approved supplier.');
+    }
+  };
+
+  const handleRemoveApprovedSupplier = async (supplierId: number) => {
+    if (!part) return;
+    try {
+      await api.delete(`/inventory/parts/${part.id}/suppliers/${supplierId}`);
+      fetchApprovedSuppliers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to remove approved supplier.');
+    }
+  };
+
+  const handleMarkPreferred = async (supplierId: number) => {
+    if (!part) return;
+    try {
+      await api.post(`/inventory/parts/${part.id}/suppliers`, { supplierId, preferred: true });
+      fetchApprovedSuppliers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to mark preferred supplier.');
+    }
+  };
 
   useEffect(() => {
     if (part) {
@@ -60,6 +108,10 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
         qcRequired: part.qcRequired,
         shelfLifeDays: part.shelfLifeDays || 0,
         preferredSupplierId: part.preferredSupplierId || '',
+        unitPrice: part.unitPrice || '',
+        taxRatePercent: part.taxRatePercent || '',
+        hsnCode: part.hsnCode || '',
+        description: part.description || '',
       });
     }
   }, [part]);
@@ -105,6 +157,10 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
       qcRequired: formData.qcRequired,
       shelfLifeDays: formData.shelfLifeDays || undefined,
       preferredSupplierId: formData.preferredSupplierId || undefined,
+      unitPrice: formData.unitPrice || undefined,
+      taxRatePercent: formData.taxRatePercent || undefined,
+      hsnCode: formData.hsnCode || undefined,
+      description: formData.description || undefined,
     };
 
     try {
@@ -125,9 +181,9 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in zoom-in-95 duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 flex flex-col max-h-[90vh]">
 
-        <div className="bg-slate-50 px-6 py-4 border-b flex justify-between items-center rounded-t-2xl">
+        <div className="bg-slate-50 px-6 py-4 border-b flex justify-between items-center rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-600 rounded-lg text-white">
               <Edit3 size={18} />
@@ -144,7 +200,8 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <div className="p-6 space-y-5 overflow-y-auto flex-1">
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Part Name *</label>
             <input
@@ -258,6 +315,35 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
             )}
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Unit Price (Rate)</label>
+              <input type="number" value={formData.unitPrice} min={0} step="0.01" placeholder="0.00"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+                onChange={e => setFormData({ ...formData, unitPrice: e.target.value ? Number(e.target.value) : '' })} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Tax Rate %</label>
+              <input type="number" value={formData.taxRatePercent} min={0} step="0.01" placeholder="e.g. 18"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+                onChange={e => setFormData({ ...formData, taxRatePercent: e.target.value ? Number(e.target.value) : '' })} />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">HSN Code</label>
+            <input type="text" value={formData.hsnCode} placeholder="e.g. 0501040165"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono"
+              onChange={e => setFormData({ ...formData, hsnCode: e.target.value })} />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Description</label>
+            <textarea rows={2} value={formData.description} placeholder="Short description shown when adding this part to a Work Order"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium resize-none"
+              onChange={e => setFormData({ ...formData, description: e.target.value })} />
+          </div>
+
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">Preferred Supplier</label>
             <select value={formData.preferredSupplierId}
@@ -273,6 +359,51 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
             </p>
           </div>
 
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+            <label className="text-xs font-bold text-slate-500 uppercase block tracking-wider">Approved Suppliers</label>
+            {approvedSuppliers.length === 0 ? (
+              <p className="text-xs text-slate-400">No approved suppliers yet — add one below.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {approvedSuppliers.map(as => {
+                  const s = suppliers.find(x => x.id === as.supplierId);
+                  return (
+                    <div key={as.supplierId} className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200">
+                      <span className="text-sm font-semibold text-slate-700 truncate">
+                        {s ? `${s.name} (${s.vendorCode})` : `Supplier #${as.supplierId}`}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button type="button" onClick={() => handleMarkPreferred(as.supplierId)}
+                          title={as.preferred ? 'Preferred supplier' : 'Mark as preferred'}
+                          className={as.preferred ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}>
+                          <Star size={16} fill={as.preferred ? 'currentColor' : 'none'} />
+                        </button>
+                        <button type="button" onClick={() => handleRemoveApprovedSupplier(as.supplierId)}
+                          title="Remove" className="text-slate-300 hover:text-red-600">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <select value={addSupplierId}
+                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500"
+                onChange={e => setAddSupplierId(e.target.value ? Number(e.target.value) : '')}>
+                <option value="">Add an approved supplier...</option>
+                {suppliers.filter(s => !approvedSuppliers.some(as => as.supplierId === s.id)).map(s => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.vendorCode})</option>
+                ))}
+              </select>
+              <button type="button" onClick={handleAddApprovedSupplier} disabled={!addSupplierId}
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg transition-all disabled:opacity-50">
+                Add
+              </button>
+            </div>
+          </div>
+
           {/* ERP notice — explain why stock fields are not here */}
           <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">
             <ShieldAlert size={18} className="text-amber-500 mt-0.5 shrink-0" />
@@ -282,7 +413,8 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
             </p>
           </div>
 
-          <div className="flex gap-3 pt-2">
+        </div>
+          <div className="flex gap-3 p-6 pt-4 border-t border-slate-100 shrink-0">
             <button type="button" onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold text-sm hover:bg-slate-50 rounded-xl transition-all">
               Cancel
             </button>

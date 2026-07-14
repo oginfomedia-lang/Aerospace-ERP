@@ -107,7 +107,8 @@ public class MaterialReceiptServiceImpl implements MaterialReceiptService {
                     receipt.getChallanNumber(),
                     receipt.getSupplierName(),
                     receipt.getTransportName(),
-                    request.getInspectionQty()
+                    request.getInspectionQty(),
+                    receipt.getPoNumber()
             );
             item.setGrnNumber(result.getGrnNumber());
         }

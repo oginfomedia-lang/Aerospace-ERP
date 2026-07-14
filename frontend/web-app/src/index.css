@@ -1,3 +1,26 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Isolate a ReceiptModal's content on the printed page — everything else on
+   screen (sidebar, other modal chrome, etc.) is hidden, and #receipt-print-root
+   is pulled out to cover the full page regardless of its scrollable ancestor. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #receipt-print-root,
+  #receipt-print-root * {
+    visibility: visible;
+  }
+  #receipt-print-root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 24px;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

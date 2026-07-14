@@ -8,6 +8,7 @@ import com.aerospace.inventory_service.exception.ResourceNotFoundException;
 import com.aerospace.inventory_service.mapper.PartMapper;
 import com.aerospace.inventory_service.repository.*;
 import com.aerospace.inventory_service.service.DocumentSequenceService;
+import com.aerospace.inventory_service.service.LocationService;
 import com.aerospace.inventory_service.service.PartService;
 import com.aerospace.inventory_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class PartServiceImpl implements PartService {
     private final InventoryProducer inventoryProducer;
     private final DocumentSequenceService documentSequenceService;
     private final NcrRepository ncrRepository;
+    private final LocationService locationService;
 
     // ── CREATE PART ──────────────────────────────────────────────────────────
     // Kafka: PART_CREATED → notification-service logs "New Part Registered"
@@ -102,7 +104,7 @@ public class PartServiceImpl implements PartService {
                                     LocalDateTime expiryDate,
                                     String ignoredManualGrnNumber, String challanNumber,
                                     String supplierName, String transportName,
-                                    Integer inspectionQty) {
+                                    Integer inspectionQty, String poNumber) {
         Part part = partRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
 
@@ -114,6 +116,9 @@ public class PartServiceImpl implements PartService {
         }
         if (part.isExpiryTracking() && expiryDate == null) {
             throw new IllegalArgumentException("ITM-BR-003: Expiry date is required for this item (expiry tracking enabled).");
+        }
+        if (loc != null && !loc.isBlank()) {
+            locationService.assertActive(loc);
         }
 
         // GRN-FR-001: the GRN number is always system-generated — manual/free-text numbers are ignored.
@@ -132,6 +137,9 @@ public class PartServiceImpl implements PartService {
         balance.setQuantity(balance.getQuantity() + quantity);
         balance.setLocation(loc);
         balance.setExpiryDate(expiryDate);
+        if (poNumber != null && !poNumber.isBlank()) {
+            balance.setPoNumber(poNumber);
+        }
         balanceRepository.save(balance);
 
         // Build GRN traceability remark (Step 1+2 of GRN flow)
@@ -170,7 +178,8 @@ public class PartServiceImpl implements PartService {
 
     @Override
     @Transactional
-    public PartResponseDTO issueToProduction(Long id, int quantity, String batch) {
+    public PartResponseDTO issueToProduction(Long id, int quantity, String batch,
+                                              Long workOrderId, String woNumber, Long lineItemId) {
         Part part = partRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
 
@@ -238,6 +247,9 @@ public class PartServiceImpl implements PartService {
         try {
             inventoryProducer.sendMaterialIssuedEvent(
                 MaterialIssuedEvent.builder()
+                    .workOrderId(workOrderId)
+                    .woNumber(woNumber)
+                    .lineItemId(lineItemId)
                     .partId(id)
                     .partName(part.getName())
                     .batchNumber(batchSummary.toString())
@@ -294,6 +306,7 @@ public class PartServiceImpl implements PartService {
         int qty = pending.getQuantity();
         String loc = pending.getLocation();
         LocalDateTime expiry = pending.getExpiryDate();
+        String poNumber = pending.getPoNumber();
         balanceRepository.delete(pending);
 
         StockBalance target = balanceRepository
@@ -305,6 +318,9 @@ public class PartServiceImpl implements PartService {
         target.setQuantity(target.getQuantity() + qty);
         target.setLocation(loc);
         target.setExpiryDate(expiry);
+        if (poNumber != null && !poNumber.isBlank()) {
+            target.setPoNumber(poNumber);
+        }
         balanceRepository.save(target);
 
         transactionService.logTransaction(id, batch, "QA_DECISION", 0, null,
@@ -313,14 +329,16 @@ public class PartServiceImpl implements PartService {
         // GRN-FR / aerospace QC convention: a rejected batch doesn't just sit blocked —
         // it needs a Non-Conformance Report so it gets dispositioned (return to vendor,
         // scrap, or use-as-is under special approval) instead of staying REJECTED forever.
+        String ncrNumber = null;
         if (StockStatus.REJECTED.name().equalsIgnoreCase(newStatus)) {
-            String ncrNumber = documentSequenceService.generate("NCR");
+            ncrNumber = documentSequenceService.generate("NCR");
             ncrRepository.save(NonConformanceReport.builder()
                     .ncrNumber(ncrNumber)
                     .partId(id)
                     .partName(part.getName())
                     .batchNumber(batch)
                     .quantity(qty)
+                    .poNumber(poNumber)
                     .reason(remarks)
                     .status(NcrStatus.OPEN)
                     .build());
@@ -343,6 +361,10 @@ public class PartServiceImpl implements PartService {
                     .remarks(remarks != null ? remarks : "")
                     .batchExpired(expired)
                     .expiryDate(expiry != null ? expiry.toString() : "")
+                    .poNumber(poNumber)
+                    .skuCode(part.getSkuCode())
+                    .quantity(qty)
+                    .ncrNumber(ncrNumber)
                     .build()
             );
         } catch (Exception ex) {
@@ -424,6 +446,10 @@ public class PartServiceImpl implements PartService {
         if (dto.getExpiryTracking() != null) part.setExpiryTracking(dto.getExpiryTracking());
         if (dto.getQcRequired() != null) part.setQcRequired(dto.getQcRequired());
         if (dto.getPreferredSupplierId() != null) part.setPreferredSupplierId(dto.getPreferredSupplierId());
+        if (dto.getUnitPrice() != null) part.setUnitPrice(dto.getUnitPrice());
+        if (dto.getTaxRatePercent() != null) part.setTaxRatePercent(dto.getTaxRatePercent());
+        if (dto.getHsnCode() != null) part.setHsnCode(dto.getHsnCode());
+        if (dto.getDescription() != null) part.setDescription(dto.getDescription());
 
         return mapWithLiveStock(partRepository.save(part), null);
     }
@@ -474,12 +500,14 @@ public class PartServiceImpl implements PartService {
         }
 
         return addStock(id, (int) (inputQty * factor), batch, loc, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     @Override
     @Transactional
     public void transferStock(Long id, String batch, String fromBin, String toBin, int qty) {
+        locationService.assertActive(toBin);
+
         StockBalance source = balanceRepository
                 .findByPartIdAndBatchNumberAndLocation(id, batch, fromBin)
                 .orElseThrow(() -> new RuntimeException("Source bin location not found"));
@@ -566,6 +594,15 @@ public class PartServiceImpl implements PartService {
                         .expiryDate(b.getExpiryDate())
                         .build())
                 .toList());
+
+        // Surfaced separately from the APPROVED-only summary above so callers (e.g.
+        // the Work Order Stock Check widget) can tell "arrived but awaiting QA"
+        // apart from "not arrived at all" instead of both looking like a shortage.
+        long pendingQaQty = balances.stream()
+                .filter(b -> b.getStatus() == StockStatus.PENDING_QA)
+                .mapToLong(b -> b.getQuantity() != null ? b.getQuantity() : 0L)
+                .sum();
+        dto.setPendingQaQuantity((int) pendingQaQty);
 
         if (status != null) {
             // Caller asked for a specific bucket (e.g. getById(..., APPROVED)) — keep

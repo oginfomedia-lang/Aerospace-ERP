@@ -24,4 +24,10 @@ public class QAStatusChangedEvent {
     private String remarks;
     private boolean batchExpired;
     private String expiryDate;
+
+    // ── Fields required by procurement-service to update PO line item QA outcome ──
+    private String poNumber;   // null when this batch isn't traceable to a PO
+    private String skuCode;
+    private Integer quantity;  // qty covered by this decision
+    private String ncrNumber;  // set only when newStatus == REJECTED
 }

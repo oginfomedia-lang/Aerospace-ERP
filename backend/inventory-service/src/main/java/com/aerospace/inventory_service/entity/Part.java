@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 
+import java.math.BigDecimal;
+
 @Entity
 @Data
 @Builder
@@ -67,6 +69,18 @@ public class Part {
     // shortage consumer falls back to the first CERTIFIED supplier (same fallback
     // procurement-service already uses for its low-stock auto-draft-PO).
     private Long preferredSupplierId;
+
+    // Item-master reference pricing — shown when adding this part to a Work
+    // Order; distinct from a PO's own negotiated unitPrice (POLineItem.unitPrice).
+    private BigDecimal unitPrice;
+    private BigDecimal taxRatePercent;
+
+    // GST product classification code — snapshotted onto a PO line item when this
+    // part is added to a Purchase Order (see POLineItem.hsnCode).
+    private String hsnCode;
+
+    @Column(length = 2000)
+    private String description;
 
     // Total quantity is now a derived value or managed via StockBalance logic
 }

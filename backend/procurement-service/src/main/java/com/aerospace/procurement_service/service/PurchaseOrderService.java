@@ -15,6 +15,10 @@ public interface PurchaseOrderService {
     void createDraftPOFromStockLow(com.aerospace.procurement_service.event.StockLowEvent event);
     void createDraftPOFromShortage(com.aerospace.procurement_service.event.MaterialShortageEvent event);
 
+    // Updates the matching PO line item's accepted/rejected quantity + NCR reference
+    // once inventory-service reports a QA decision against a traceable PO/SKU.
+    void applyQaOutcome(com.aerospace.procurement_service.event.QAStatusChangedEvent event);
+
     // Only permitted while status == DRAFT — this is what lets a mistaken SKU/supplier be fixed
     PurchaseOrderResponse updatePurchaseOrder(Long id, PurchaseOrderRequest request);
 

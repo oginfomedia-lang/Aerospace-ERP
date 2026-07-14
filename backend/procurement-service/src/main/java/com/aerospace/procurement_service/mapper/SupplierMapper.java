@@ -17,6 +17,14 @@ public class SupplierMapper {
                 .email(dto.getEmail())
                 .phone(dto.getPhone())
                 .address(dto.getAddress())
+                .city(dto.getCity())
+                .state(dto.getState())
+                .stateCode(dto.getStateCode())
+                .pincode(dto.getPincode())
+                .country(dto.getCountry())
+                .gstin(dto.getGstin())
+                .pan(dto.getPan())
+                .gstinRegType(dto.getGstinRegType())
                 .certificationStatus(dto.getCertificationStatus())
                 .rating(dto.getRating())
                 .build();
@@ -30,6 +38,14 @@ public class SupplierMapper {
         supplier.setEmail(dto.getEmail());
         supplier.setPhone(dto.getPhone());
         supplier.setAddress(dto.getAddress());
+        supplier.setCity(dto.getCity());
+        supplier.setState(dto.getState());
+        supplier.setStateCode(dto.getStateCode());
+        supplier.setPincode(dto.getPincode());
+        supplier.setCountry(dto.getCountry());
+        supplier.setGstin(dto.getGstin());
+        supplier.setPan(dto.getPan());
+        supplier.setGstinRegType(dto.getGstinRegType());
         supplier.setCertificationStatus(dto.getCertificationStatus());
         supplier.setRating(dto.getRating());
     }

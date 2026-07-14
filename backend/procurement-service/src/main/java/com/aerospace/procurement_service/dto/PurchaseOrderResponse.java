@@ -21,6 +21,22 @@ public class PurchaseOrderResponse {
     private List<POLineItemDTO> items;
     private String remarks;
 
+    // Set only when this PO was auto-raised for a Work Order material shortage
+    private Long sourceWorkOrderId;
+    private String sourceWoNumber;
+
+    // Optional per-PO overrides for the printed document — null falls back to the
+    // Organization Profile default at render time.
+    private String shipToName;
+    private String shipToAddress;
+    private String shipToState;
+    private String shipToStateCode;
+    private String paymentTerms;
+    private String payment;
+    private String deliveryTerms;
+    private String exciseDuty;
+    private String termsAndConditions;
+
     // Approval chain (PUR-BR-001)
     private Integer currentApprovalLevel;
     private int documentVersion;

@@ -3,6 +3,8 @@ package com.aerospace.order_service.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "material_line_items")
 @Data
@@ -38,6 +40,14 @@ public class MaterialLineItem {
     private LineItemStatus status;
 
     private String remarks;
+
+    // Snapshotted from the Part item master (inventory-service) at the time this
+    // line was added — same rationale as procurement-service's POLineItem.unitPrice.
+    private BigDecimal unitPrice;
+    private BigDecimal taxRatePercent;
+
+    @Column(length = 2000)
+    private String description;
 
     public enum LineItemStatus {
         PENDING,    // not yet issued

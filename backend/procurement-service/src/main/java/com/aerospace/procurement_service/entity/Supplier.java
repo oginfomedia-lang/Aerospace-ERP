@@ -29,6 +29,18 @@ public class Supplier {
     private String phone;
     private String address;
 
+    // Structured address + tax registration — shown on the printed PO's Vendor
+    // Address block, and used to decide CGST+SGST (same state as buyer) vs IGST
+    // (different state) when computing tax on a PO.
+    private String city;
+    private String state;
+    private String stateCode;
+    private String pincode;
+    private String country;
+    private String gstin;
+    private String pan;
+    private String gstinRegType; // e.g. "Full GST Registered", "Composition", "Unregistered"
+
     @Column(nullable = false)
     private String certificationStatus; // e.g., "CERTIFIED", "EXPIRED", "PENDING"
 

@@ -10,9 +10,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MaterialIssuedEvent {
-    // Legacy fields — kept so existing code still compiles
-    private Long materialId;
-    private String workOrderId;
+    // Set only when this issue was made against a specific Work Order line
+    // (WorkOrderDetailModal's "Issue Material" flow) — null for ad-hoc issues
+    // from the plain Inventory screen. order-service and production-service
+    // use these to update their own records for the same issuance.
+    private Long workOrderId;
+    private String woNumber;
+    private Long lineItemId;
 
     // ── New fields required by notification-service ──────────────────────────
     private Long partId;

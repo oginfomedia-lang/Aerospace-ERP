@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
 import { X, SlidersHorizontal, ArrowDownToLine, ShieldCheck, Bookmark, ArrowLeftRight } from 'lucide-react';
-import { Part } from '../types/inventory';
+import { Part, Location } from '../types/inventory';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -45,6 +45,12 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
 
   // Transfer fields
   const [transferData, setTransferData] = useState({ batchNumber: part?.batchNumber || '', fromBin: part?.location || '', toBin: '', qty: 0 });
+
+  const [locations, setLocations] = useState<Location[]>([]);
+  useEffect(() => {
+    api.get<Location[]>('/inventory/locations', { params: { activeOnly: true } })
+      .then(res => setLocations(res.data)).catch(() => {});
+  }, []);
 
   if (!isOpen || !part) return null;
 
@@ -287,9 +293,14 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Store / Bin Location</label>
-                  <input type="text" placeholder="WH1-BIN-A"
+                  <select
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 text-sm"
-                    onChange={e => setInwardData({ ...inwardData, location: e.target.value })} />
+                    onChange={e => setInwardData({ ...inwardData, location: e.target.value })}>
+                    <option value="">— No location set —</option>
+                    {locations.map(l => (
+                      <option key={l.id} value={l.code}>{l.code} — {l.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Batch Expiry Date</label>
@@ -371,16 +382,25 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">From Bin *</label>
-                  <input type="text" required defaultValue={part.location || ''}
-                    placeholder="WH1-BIN-A"
+                  <select required defaultValue={part.location || ''}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500"
-                    onChange={e => setTransferData({ ...transferData, fromBin: e.target.value })} />
+                    onChange={e => setTransferData({ ...transferData, fromBin: e.target.value })}>
+                    <option value="" disabled>Select a location...</option>
+                    {locations.map(l => (
+                      <option key={l.id} value={l.code}>{l.code} — {l.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">To Bin *</label>
-                  <input type="text" required placeholder="WH1-BIN-B"
+                  <select required defaultValue=""
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500"
-                    onChange={e => setTransferData({ ...transferData, toBin: e.target.value })} />
+                    onChange={e => setTransferData({ ...transferData, toBin: e.target.value })}>
+                    <option value="" disabled>Select a location...</option>
+                    {locations.map(l => (
+                      <option key={l.id} value={l.code}>{l.code} — {l.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div>

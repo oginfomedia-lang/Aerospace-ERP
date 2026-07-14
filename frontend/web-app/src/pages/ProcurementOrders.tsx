@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ShoppingCart, Plus, Loader2, RefreshCw, Trash2, Edit3 } from 'lucide-react';
+import { ShoppingCart, Plus, RefreshCw, Trash2, Edit3, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import procurementApi from '../api/procurementAxios';
 import api from '../api/axios';
-import { Supplier, PurchaseOrderResponse, PurchaseOrderRequest, POLineItemDTO } from '../types/procurement';
+import { Supplier, PurchaseOrderResponse, PurchaseOrderRequest, POLineItemDTO, OrganizationProfile } from '../types/procurement';
 import { Part } from '../types/inventory';
 import { MaterialReceiptFromPOModal } from '../components/MaterialReceiptFromPOModal';
 import { POApprovalModal } from '../components/POApprovalModal';
+import { ReceiptModal } from '../components/ReceiptModal';
+import { POReceiptDocument } from '../components/POReceiptDocument';
 
 const ProcurementOrders = () => {
   const [orders, setOrders] = useState<PurchaseOrderResponse[]>([]);
@@ -18,6 +20,9 @@ const ProcurementOrders = () => {
   const [selectedPOForGRN, setSelectedPOForGRN] = useState<PurchaseOrderResponse | null>(null);
   const [selectedPOForApproval, setSelectedPOForApproval] = useState<PurchaseOrderResponse | null>(null);
   const [editingPO, setEditingPO] = useState<PurchaseOrderResponse | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedPOForReceipt, setSelectedPOForReceipt] = useState<PurchaseOrderResponse | null>(null);
+  const [orgProfile, setOrgProfile] = useState<OrganizationProfile | null>(null);
 
   const location = useLocation();
   const state = location.state as { prefillItems?: any[], woNumber?: string } | null;
@@ -30,16 +35,26 @@ const ProcurementOrders = () => {
   const [items, setItems] = useState<POLineItemDTO[]>([
     { skuCode: '', quantity: 1, unitPrice: 0, uom: 'PCS' }
   ]);
+  const [shipToName, setShipToName] = useState('');
+  const [shipToAddress, setShipToAddress] = useState('');
+  const [shipToState, setShipToState] = useState('');
+  const [shipToStateCode, setShipToStateCode] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState('');
+  const [payment, setPayment] = useState('');
+  const [deliveryTerms, setDeliveryTerms] = useState('');
+  const [exciseDuty, setExciseDuty] = useState('');
+  const [termsAndConditions, setTermsAndConditions] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
     try {
       // Assuming a GET /purchase-orders endpoint exists, otherwise we just handle creation for now
       // Since we didn't explicitly implement GET /purchase-orders in backend, we'll gracefully handle 404s
-      const [suppRes, orderRes, partsRes] = await Promise.allSettled([
+      const [suppRes, orderRes, partsRes, orgRes] = await Promise.allSettled([
         procurementApi.get('/suppliers'),
         procurementApi.get('/purchase-orders'),
         api.get('/inventory'),
+        procurementApi.get('/organization-profile'),
       ]);
 
       if (suppRes.status === 'fulfilled') setSuppliers(suppRes.value.data);
@@ -47,6 +62,7 @@ const ProcurementOrders = () => {
       // PO line items must reference a real inventory SKU, otherwise GRN part-ID
       // resolution fails later — this list is what the item picker is built from.
       if (partsRes.status === 'fulfilled') setParts(partsRes.value.data.data);
+      if (orgRes.status === 'fulfilled') setOrgProfile(orgRes.value.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -76,6 +92,18 @@ const ProcurementOrders = () => {
     setCurrency('USD');
     setRemarks('');
     setItems([{ skuCode: '', quantity: 1, unitPrice: 0, uom: 'PCS' }]);
+    // Ship-to defaults to our own address (goods normally arrive at our own site);
+    // payment/delivery/excise/T&C default to the Organization Profile's boilerplate —
+    // all editable per PO from here.
+    setShipToName(orgProfile?.companyName || '');
+    setShipToAddress(orgProfile?.addressLine || '');
+    setShipToState(orgProfile?.state || '');
+    setShipToStateCode(orgProfile?.stateCode || '');
+    setPaymentTerms(orgProfile?.defaultPaymentTerms || '');
+    setPayment(orgProfile?.defaultPayment || '');
+    setDeliveryTerms(orgProfile?.defaultDeliveryTerms || '');
+    setExciseDuty(orgProfile?.defaultExciseDuty || '');
+    setTermsAndConditions(orgProfile?.termsAndConditions || '');
   };
 
   const handleOpenCreate = () => {
@@ -93,6 +121,15 @@ const ProcurementOrders = () => {
     setCurrency(po.currency || 'USD');
     setRemarks(po.remarks || '');
     setItems(po.items.map(i => ({ ...i })));
+    setShipToName(po.shipToName || '');
+    setShipToAddress(po.shipToAddress || '');
+    setShipToState(po.shipToState || '');
+    setShipToStateCode(po.shipToStateCode || '');
+    setPaymentTerms(po.paymentTerms || '');
+    setPayment(po.payment || '');
+    setDeliveryTerms(po.deliveryTerms || '');
+    setExciseDuty(po.exciseDuty || '');
+    setTermsAndConditions(po.termsAndConditions || '');
     setShowModal(true);
   };
 
@@ -118,6 +155,13 @@ const ProcurementOrders = () => {
   const handleItemChange = (index: number, field: keyof POLineItemDTO, value: string | number) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
+    if (field === 'skuCode') {
+      // HSN/tax rate are product-classification facts, not PO-negotiated — snapshot
+      // them straight from the Part item master (unitPrice stays manually entered).
+      const part = parts.find(p => p.serialNumber === value);
+      newItems[index].hsnCode = part?.hsnCode || undefined;
+      newItems[index].taxRatePercent = part?.taxRatePercent ?? undefined;
+    }
     setItems(newItems);
   };
 
@@ -133,6 +177,15 @@ const ProcurementOrders = () => {
       deliveryDate: deliveryDate ? new Date(deliveryDate).toISOString() : new Date().toISOString(),
       currency,
       remarks,
+      shipToName: shipToName || undefined,
+      shipToAddress: shipToAddress || undefined,
+      shipToState: shipToState || undefined,
+      shipToStateCode: shipToStateCode || undefined,
+      paymentTerms: paymentTerms || undefined,
+      payment: payment || undefined,
+      deliveryTerms: deliveryTerms || undefined,
+      exciseDuty: exciseDuty || undefined,
+      termsAndConditions: termsAndConditions || undefined,
       items: items.map(item => ({
         ...item,
         quantity: Number(item.quantity),
@@ -188,6 +241,22 @@ const ProcurementOrders = () => {
     }
   };
 
+  // QA rejected part of a shipment — pre-fill a fresh draft PO for just the rejected
+  // quantity so the shortfall it left behind (especially one raised from a WO shortage)
+  // can actually be re-ordered instead of silently staying unresolved.
+  const handleRaiseReplacementPO = (order: PurchaseOrderResponse, item: POLineItemDTO) => {
+    setEditingPO(null);
+    setSupplierId(order.supplierId);
+    setDeliveryDate('');
+    setCurrency(order.currency || 'USD');
+    setRemarks(
+      `Replacement for ${item.rejectedQuantity} unit(s) of ${item.skuCode} rejected under NCR ${item.ncrNumber} (original PO: ${order.poNumber})` +
+      (order.sourceWoNumber ? ` — Work Order: ${order.sourceWoNumber}` : '')
+    );
+    setItems([{ skuCode: item.skuCode, quantity: item.rejectedQuantity || 0, unitPrice: item.unitPrice, uom: item.uom }]);
+    setShowModal(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -225,12 +294,38 @@ const ProcurementOrders = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {orders.map(order => (
-              <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
+            {orders.map(order => {
+              const hasQaOutcome = order.items?.some(i => (i.acceptedQuantity ?? 0) > 0 || (i.rejectedQuantity ?? 0) > 0);
+              const isExpanded = expandedId === order.id;
+              return (
+              <React.Fragment key={order.id}>
+              <tr className="hover:bg-slate-50/50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <div className="font-bold text-slate-900 font-mono">{order.poNumber}</div>
-                    {order.remarks?.startsWith('AUTO-RAISED') && (
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : order.id)}
+                      title="View line items"
+                      className="p-0.5 text-slate-400 hover:text-slate-700"
+                    >
+                      {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </button>
+                    <button
+                      onClick={() => setSelectedPOForReceipt(order)}
+                      title="View / print / download this Purchase Order"
+                      className="font-bold text-slate-900 font-mono hover:text-blue-600 hover:underline transition-colors"
+                    >
+                      {order.poNumber}
+                    </button>
+                    {hasQaOutcome && (
+                      <span className="px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase rounded bg-slate-100 text-slate-500 border border-slate-200">
+                        QA
+                      </span>
+                    )}
+                    {order.sourceWoNumber ? (
+                      <span title={order.remarks || undefined} className="px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase rounded bg-violet-100 text-violet-700 border border-violet-200">
+                        Shortage: {order.sourceWoNumber}
+                      </span>
+                    ) : order.remarks?.startsWith('AUTO-RAISED') && (
                       <span title={order.remarks} className="px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase rounded bg-violet-100 text-violet-700 border border-violet-200">
                         AUTO
                       </span>
@@ -326,7 +421,72 @@ const ProcurementOrders = () => {
                   )}
                 </td>
               </tr>
-            ))}
+              {isExpanded && (
+                <tr className="bg-slate-50/70">
+                  <td colSpan={6} className="px-6 py-4">
+                    <table className="w-full text-xs">
+                      <thead className="text-slate-400 uppercase tracking-wider">
+                        <tr>
+                          <th className="text-left pb-2">SKU</th>
+                          <th className="text-right pb-2">Ordered</th>
+                          <th className="text-right pb-2">Unit Price</th>
+                          <th className="text-left pb-2 pl-4">QA Outcome</th>
+                          <th className="text-right pb-2">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {order.items.map((item, idx) => {
+                          const accepted = item.acceptedQuantity ?? 0;
+                          const rejected = item.rejectedQuantity ?? 0;
+                          return (
+                            <tr key={idx}>
+                              <td className="py-2 font-mono font-bold text-slate-700">{item.skuCode}</td>
+                              <td className="py-2 text-right text-slate-600">{item.quantity} {item.uom}</td>
+                              <td className="py-2 text-right text-slate-600">{order.currency} {item.unitPrice?.toFixed(2)}</td>
+                              <td className="py-2 pl-4">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {accepted > 0 && (
+                                    <span className="px-1.5 py-0.5 font-black rounded bg-emerald-100 text-emerald-700">
+                                      ✓ {accepted} accepted
+                                    </span>
+                                  )}
+                                  {rejected > 0 && (
+                                    <span className="px-1.5 py-0.5 font-black rounded bg-red-100 text-red-700">
+                                      ✕ {rejected} rejected{item.ncrNumber ? ` · ${item.ncrNumber}` : ''}
+                                    </span>
+                                  )}
+                                  {accepted === 0 && rejected === 0 && (
+                                    <span className="text-slate-400">Not yet inspected</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-2 text-right">
+                                {rejected > 0 && (
+                                  <button
+                                    onClick={() => handleRaiseReplacementPO(order, item)}
+                                    className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-all"
+                                  >
+                                    Raise Replacement PO →
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {order.sourceWoNumber && order.items?.some(i => (i.rejectedQuantity ?? 0) > 0) && (
+                      <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-bold">
+                        <AlertTriangle size={14} className="shrink-0" />
+                        Work Order {order.sourceWoNumber} is still short — some of this PO's quantity was rejected in QA and hasn't been replaced yet.
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
+              );
+            })}
             {orders.length === 0 && !loading && (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
@@ -372,9 +532,63 @@ const ProcurementOrders = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Remarks / Notes</label>
-                  <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)} 
+                  <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                     placeholder="Urgent delivery instructions..." />
+                </div>
+
+                {/* Shipment & Document Terms — pre-filled from Org Settings, editable per PO */}
+                <div className="border-t border-slate-100 pt-6 space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900">Shipment & Document Terms</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Ship To Name</label>
+                      <input type="text" value={shipToName} onChange={e => setShipToName(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Ship To Address</label>
+                      <input type="text" value={shipToAddress} onChange={e => setShipToAddress(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Ship To State</label>
+                      <input type="text" value={shipToState} onChange={e => setShipToState(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Ship To State Code</label>
+                      <input type="text" value={shipToStateCode} onChange={e => setShipToStateCode(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Payment Terms</label>
+                    <textarea rows={2} value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Payment</label>
+                    <input type="text" value={payment} onChange={e => setPayment(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      placeholder="e.g. 30% Advance alongwith order & balance against Proforma Invoice" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Delivery Terms</label>
+                    <textarea rows={2} value={deliveryTerms} onChange={e => setDeliveryTerms(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Excise Duty</label>
+                    <input type="text" value={exciseDuty} onChange={e => setExciseDuty(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Special Terms and Conditions</label>
+                    <textarea rows={6} value={termsAndConditions} onChange={e => setTermsAndConditions(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono text-xs"
+                      placeholder="One clause per line — numbered automatically on the printed PO." />
+                  </div>
                 </div>
 
                 {/* Line Items */}
@@ -407,6 +621,11 @@ const ProcurementOrders = () => {
                           {unresolvedSku && (
                             <p className="text-[10px] text-red-500 font-bold mt-1">
                               This SKU doesn't match any item in Inventory — GRN receipt will fail. Pick a real item.
+                            </p>
+                          )}
+                          {knownPart && (
+                            <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                              HSN: {item.hsnCode || '—'} · Tax: {item.taxRatePercent != null ? `${item.taxRatePercent}%` : '—'}
                             </p>
                           )}
                         </div>
@@ -480,6 +699,23 @@ const ProcurementOrders = () => {
             fetchData();
           }}
         />
+      )}
+
+      {selectedPOForReceipt && (
+        <ReceiptModal
+          isOpen={!!selectedPOForReceipt}
+          onClose={() => setSelectedPOForReceipt(null)}
+          title="Purchase Order"
+          documentNumber={selectedPOForReceipt.poNumber}
+          plain
+        >
+          <POReceiptDocument
+            po={selectedPOForReceipt}
+            supplier={suppliers.find(s => s.id === selectedPOForReceipt.supplierId)}
+            org={orgProfile}
+            parts={parts}
+          />
+        </ReceiptModal>
       )}
     </div>
   );

@@ -22,7 +22,11 @@ public class PartMapper {
                 .safetyStock(dto.getSafetyStock())
                 .leadTimeDays(dto.getLeadTimeDays())
                 .shelfLifeDays(dto.getShelfLifeDays())
-                .preferredSupplierId(dto.getPreferredSupplierId());
+                .preferredSupplierId(dto.getPreferredSupplierId())
+                .unitPrice(dto.getUnitPrice())
+                .taxRatePercent(dto.getTaxRatePercent())
+                .hsnCode(dto.getHsnCode())
+                .description(dto.getDescription());
                 // Removed quantity, batch, and status as they are now Ledger-based
 
         if (dto.getItemStatus() != null) builder.status(dto.getItemStatus());
@@ -55,6 +59,10 @@ public class PartMapper {
                 .shelfLifeDays(part.getShelfLifeDays())
                 .qcRequired(part.isQcRequired())
                 .preferredSupplierId(part.getPreferredSupplierId())
+                .unitPrice(part.getUnitPrice())
+                .taxRatePercent(part.getTaxRatePercent())
+                .hsnCode(part.getHsnCode())
+                .description(part.getDescription())
                 // Note: quantity, status (stock bucket), and batchNumber will be set
                 // by the Service layer after aggregating StockBalances
                 .build();

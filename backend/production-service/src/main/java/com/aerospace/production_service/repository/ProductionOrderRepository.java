@@ -21,6 +21,8 @@ public interface ProductionOrderRepository extends JpaRepository<ProductionOrder
 
     List<ProductionOrder> findByStatus(ProductionOrderStatus status);
 
+    List<ProductionOrder> findByWorkOrderId(Long workOrderId);
+
     List<ProductionOrder> findByPriority(ProductionPriority priority);
 
     List<ProductionOrder> findByProductionLine(String productionLine);

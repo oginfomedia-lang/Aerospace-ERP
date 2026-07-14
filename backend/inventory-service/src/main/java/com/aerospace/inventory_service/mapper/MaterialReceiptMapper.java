@@ -21,6 +21,7 @@ public class MaterialReceiptMapper {
                 .transportName(receipt.getTransportName())
                 .receivedBy(receipt.getReceivedBy())
                 .receivedAt(receipt.getReceivedAt())
+                .grnFormedAt(receipt.getGrnFormedAt())
                 .status(receipt.getStatus().name())
                 .items(receipt.getItems().stream().map(this::toItemDTO).toList())
                 .build();
@@ -33,6 +34,10 @@ public class MaterialReceiptMapper {
                 .quantity(item.getQuantity())
                 .uom(item.getUom())
                 .grnNumber(item.getGrnNumber())
+                .batchNumber(item.getBatchNumber())
+                .location(item.getLocation())
+                .expiryDate(item.getExpiryDate())
+                .inspectionQty(item.getInspectionQty())
                 .build();
     }
 }

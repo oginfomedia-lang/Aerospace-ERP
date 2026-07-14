@@ -15,7 +15,10 @@ import lombok.NoArgsConstructor;
 public class QAResultEvent {
     private Long partId;
     private String batchNumber;
-    private String status;          // "APPROVED" or "REJECTED" — matches StockStatus enum in inventory
+    private String status;          // "APPROVED", "REJECTED", or "PARTIALLY_APPROVED"
+    private Integer approvedQty;    // portion of the pending batch moved to APPROVED stock
+    private Integer rejectedQty;    // portion of the pending batch moved to REJECTED stock (NCR-worthy)
+    private String criteria;        // acceptance standard/spec applied for this inspection
     private String location;        // bin location — inventory needs this to find the right StockBalance row
     private String remarks;         // passed through so inventory transaction log has the QA note
     private String certificateNumber; // for full audit trail in inventory transaction

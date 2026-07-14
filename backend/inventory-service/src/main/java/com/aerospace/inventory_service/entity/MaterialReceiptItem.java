@@ -3,6 +3,8 @@ package com.aerospace.inventory_service.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "material_receipt_items")
 @Data
@@ -24,4 +26,12 @@ public class MaterialReceiptItem {
 
     // Populated once form-grn actually posts this item's stock (GRN-FR-001: system-generated)
     private String grnNumber;
+
+    // Snapshotted from FormGrnRequest at GRN-formation time (see formGrn()) — previously
+    // only used transiently to post StockBalance, never persisted for later redisplay
+    // on the printed GRN document.
+    private String batchNumber;
+    private String location;
+    private LocalDateTime expiryDate;
+    private Integer inspectionQty;
 }

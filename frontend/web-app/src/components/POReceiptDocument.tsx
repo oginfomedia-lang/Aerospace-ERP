@@ -147,6 +147,7 @@ export const POReceiptDocument: React.FC<Props> = ({ po, supplier, org, parts })
                 <td className="py-1.5">
                   <div className="font-bold">{item.skuCode}</div>
                   {part?.name && <div>{part.name}</div>}
+                  {item.description && <div className="text-[10px] text-slate-600">{item.description}</div>}
                   {accepted === 0 && rejected === 0 ? (
                     <div className="text-slate-400 text-[10px]">Not yet inspected</div>
                   ) : (

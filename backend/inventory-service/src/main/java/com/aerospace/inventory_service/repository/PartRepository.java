@@ -19,4 +19,9 @@ public interface PartRepository extends JpaRepository<Part, Long> {
 
     @Query("SELECT p.partType, COUNT(p) FROM Part p GROUP BY p.partType")
     List<Object[]> countPartsByType();
+
+    // Used by DashboardService to compute low-stock count (same rule as the frontend's
+    // LowStockAlert: approved quantity <= reorderLevel, only for parts that set one).
+    @Query("SELECT p.id, p.reorderLevel FROM Part p WHERE p.reorderLevel IS NOT NULL")
+    List<Object[]> findIdAndReorderLevelWhereReorderLevelSet();
 }

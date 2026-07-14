@@ -161,6 +161,7 @@ const ProcurementOrders = () => {
       const part = parts.find(p => p.serialNumber === value);
       newItems[index].hsnCode = part?.hsnCode || undefined;
       newItems[index].taxRatePercent = part?.taxRatePercent ?? undefined;
+      newItems[index].description = part?.description || undefined;
     }
     setItems(newItems);
   };
@@ -253,9 +254,22 @@ const ProcurementOrders = () => {
       `Replacement for ${item.rejectedQuantity} unit(s) of ${item.skuCode} rejected under NCR ${item.ncrNumber} (original PO: ${order.poNumber})` +
       (order.sourceWoNumber ? ` — Work Order: ${order.sourceWoNumber}` : '')
     );
-    setItems([{ skuCode: item.skuCode, quantity: item.rejectedQuantity || 0, unitPrice: item.unitPrice, uom: item.uom }]);
+    setItems([{
+      skuCode: item.skuCode,
+      quantity: item.rejectedQuantity || 0,
+      unitPrice: item.unitPrice,
+      uom: item.uom,
+      replacementForNcrNumber: item.ncrNumber,
+    }]);
     setShowModal(true);
   };
+
+  // A replacement PO was already raised for this NCR if any (non-cancelled) order has a
+  // line item tagged with it — checked against `orders`, already loaded in state, so this
+  // needs no extra API call.
+  const findReplacementPO = (ncrNumber: string) =>
+    orders.find(o => o.status !== 'CANCELLED' &&
+      o.items.some(i => i.replacementForNcrNumber === ncrNumber));
 
   return (
     <div className="space-y-6">
@@ -461,14 +475,21 @@ const ProcurementOrders = () => {
                                 </div>
                               </td>
                               <td className="py-2 text-right">
-                                {rejected > 0 && (
-                                  <button
-                                    onClick={() => handleRaiseReplacementPO(order, item)}
-                                    className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-all"
-                                  >
-                                    Raise Replacement PO →
-                                  </button>
-                                )}
+                                {rejected > 0 && (() => {
+                                  const replacementPO = item.ncrNumber ? findReplacementPO(item.ncrNumber) : undefined;
+                                  return replacementPO ? (
+                                    <span className="px-2 py-1 text-[11px] font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded-lg whitespace-nowrap">
+                                      ↻ Replacement raised: {replacementPO.poNumber} ({replacementPO.status})
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleRaiseReplacementPO(order, item)}
+                                      className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-all"
+                                    >
+                                      Raise Replacement PO →
+                                    </button>
+                                  );
+                                })()}
                               </td>
                             </tr>
                           );
@@ -628,6 +649,10 @@ const ProcurementOrders = () => {
                               HSN: {item.hsnCode || '—'} · Tax: {item.taxRatePercent != null ? `${item.taxRatePercent}%` : '—'}
                             </p>
                           )}
+                          <input type="text" placeholder="Description (auto-filled from item, editable)"
+                            value={item.description || ''}
+                            onChange={e => handleItemChange(idx, 'description', e.target.value)}
+                            className="w-full mt-1.5 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
                         </div>
                         <div className="w-24">
                           <input required type="number" min="1" placeholder="Qty" value={item.quantity}

@@ -55,10 +55,17 @@ export interface POLineItemDTO {
   hsnCode?: string | null;
   taxRatePercent?: number | null;
 
+  // Snapshotted from Part.description at line-add time, editable per PO line thereafter.
+  description?: string | null;
+
   // QA outcome (read-only, populated once the received goods for this SKU are inspected)
   acceptedQuantity?: number | null;
   rejectedQuantity?: number | null;
   ncrNumber?: string | null;
+
+  // Set when this line was pre-filled via "Raise Replacement PO" for a rejected
+  // quantity on another PO's NCR — lets the UI detect a replacement was already raised.
+  replacementForNcrNumber?: string | null;
 }
 
 export interface PurchaseOrderRequest {
@@ -149,6 +156,10 @@ export interface OrganizationProfile {
   defaultDeliveryTerms: string | null;
   defaultExciseDuty: string | null;
   termsAndConditions: string | null;
+
+  // Three-way match setting — max allowed % difference between a vendor invoice's unit
+  // price and the PO's negotiated price before it's held as a variance.
+  invoicePriceTolerancePercent: number | null;
 }
 
 export type OrganizationProfileRequest = Omit<OrganizationProfile, 'id'>;
@@ -166,4 +177,55 @@ export interface POApprovalHistoryEntry {
   remarks: string | null;
   digitalSignatureHash: string | null;
   documentVersion: number;
+}
+
+// ============================================================
+// Three-way match — matches: VendorInvoice.java / VendorInvoiceLineItem.java (procurement-service)
+// A vendor invoice's lines are matched against the PO's negotiated unitPrice and the
+// QA-accepted quantity already on POLineItem — no cross-service call needed.
+// ============================================================
+export interface VendorInvoiceLineItemDTO {
+  skuCode: string;
+  invoicedQuantity: number;
+  invoicedUnitPrice: number;
+  invoicedTotal?: number;
+
+  // Populated by the match — read-only, ignored on request.
+  matchedPoQuantity?: number | null;
+  matchedPoUnitPrice?: number | null;
+  quantityVariance?: number | null;
+  priceVariancePercent?: number | null;
+  lineStatus?: 'MATCHED' | 'VARIANCE' | 'UNMATCHED_SKU' | null;
+}
+
+export interface VendorInvoiceRequest {
+  purchaseOrderId: number;
+  supplierInvoiceRef?: string;
+  invoiceDate?: string;
+  currency?: string;
+  remarks?: string;
+  items: VendorInvoiceLineItemDTO[];
+}
+
+export interface VendorInvoiceResponse {
+  id: number;
+  invoiceNumber: string;
+  supplierInvoiceRef: string | null;
+
+  purchaseOrderId: number;
+  poNumber: string | null;
+  supplierId: number | null;
+  supplierName: string | null;
+
+  invoiceDate: string;
+  currency: string | null;
+  totalAmount: number;
+  status: 'PENDING_MATCH' | 'MATCHED' | 'VARIANCE_HOLD' | 'APPROVED' | 'REJECTED' | 'PAID';
+  remarks: string | null;
+
+  items: VendorInvoiceLineItemDTO[];
+
+  approvedBy: string | null;
+  approvedAt: string | null;
+  paidAt: string | null;
 }

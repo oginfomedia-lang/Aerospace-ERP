@@ -24,6 +24,13 @@ public interface PartService {
                              String poNumber);
     PartResponseDTO issueToProduction(Long id, int quantity, String batchNumber,
                                        Long workOrderId, String woNumber, Long lineItemId);
+    // Splits the batch's pending quantity between APPROVED and REJECTED stock — either side
+    // can be 0 for the old all-or-nothing behavior, or both > 0 for a genuine partial split.
+    PartResponseDTO processQADecision(Long id, String batchNumber, Integer approvedQty, Integer rejectedQty,
+                                       String criteria, String remarks);
+
+    // Convenience overload for callers that only have a single status (e.g. the manual
+    // admin override endpoint) — resolves the full pending quantity to one side.
     PartResponseDTO processQADecision(Long id, String batchNumber, String newStatus, String remarks);
 
     // Advanced ERP Integration Methods

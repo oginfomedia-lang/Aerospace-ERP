@@ -11,6 +11,7 @@ const emptyForm: OrganizationProfileRequest = {
   range: '', division: '',
   bankName: '', bankBranch: '', bankAccountNumber: '', bankIfsc: '',
   defaultPaymentTerms: '', defaultPayment: '', defaultDeliveryTerms: '', defaultExciseDuty: '', termsAndConditions: '',
+  invoicePriceTolerancePercent: null,
 };
 
 // Singleton "who are we" record — the letterhead, GSTIN/bank details, and default
@@ -199,6 +200,23 @@ const OrgSettings = () => {
           <label className={labelCls}>Special Terms and Conditions</label>
           <textarea rows={8} className={inputCls + ' font-mono text-xs'} value={form.termsAndConditions || ''} onChange={set('termsAndConditions')}
             placeholder="One clause per line — numbered automatically on the printed PO." />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-5">
+        <h2 className="font-black text-slate-800 uppercase tracking-wider text-sm">Accounts Payable — Three-Way Match</h2>
+        <div>
+          <label className={labelCls}>Invoice Price Tolerance %</label>
+          <input
+            type="number" min={0} step="0.1" className={inputCls + ' max-w-xs'}
+            value={form.invoicePriceTolerancePercent ?? ''}
+            onChange={e => setForm({ ...form, invoicePriceTolerancePercent: e.target.value ? Number(e.target.value) : null })}
+            placeholder="e.g. 2"
+          />
+          <p className="text-[10px] text-slate-400 mt-1">
+            A vendor invoice's unit price can differ from the PO's price by up to this percent before it's held as a variance.
+            Quantity has no equivalent setting — invoicing more than the QA-accepted quantity is always held.
+          </p>
         </div>
       </div>
     </form>

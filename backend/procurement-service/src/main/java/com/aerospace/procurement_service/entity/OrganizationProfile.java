@@ -3,6 +3,8 @@ package com.aerospace.procurement_service.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 // Singleton row (id is always fixed at 1 — see OrganizationProfileServiceImpl) holding
 // the "who are we" letterhead/tax/banking info and default document boilerplate reused
 // on every printed Purchase Order.
@@ -51,4 +53,9 @@ public class OrganizationProfile {
     private String defaultExciseDuty;
     @Column(length = 4000)
     private String termsAndConditions;
+
+    // Three-way match business setting — a vendor invoice's unit price can differ from the
+    // PO's negotiated price by up to this percent before it's held as a variance. Quantity
+    // has no equivalent setting: it's always zero-tolerance against QA-accepted quantity.
+    private BigDecimal invoicePriceTolerancePercent;
 }

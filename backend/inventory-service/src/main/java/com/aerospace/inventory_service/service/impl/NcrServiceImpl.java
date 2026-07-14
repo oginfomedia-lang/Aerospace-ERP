@@ -15,6 +15,7 @@ import com.aerospace.inventory_service.service.NcrService;
 import com.aerospace.inventory_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +47,7 @@ public class NcrServiceImpl implements NcrService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "dashboardStats", allEntries = true)
     public NcrResponse disposition(Long id, DispositionRequest request) {
         NonConformanceReport ncr = findOrThrow(id);
         if (ncr.getStatus() == NcrStatus.DISPOSITIONED) {

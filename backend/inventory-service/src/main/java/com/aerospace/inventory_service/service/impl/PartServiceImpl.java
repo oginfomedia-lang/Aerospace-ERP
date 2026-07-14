@@ -100,6 +100,7 @@ public class PartServiceImpl implements PartService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "dashboardStats", allEntries = true)
     public PartResponseDTO addStock(Long id, int quantity, String batch, String loc,
                                     LocalDateTime expiryDate,
                                     String ignoredManualGrnNumber, String challanNumber,
@@ -295,7 +296,9 @@ public class PartServiceImpl implements PartService {
 
     @Override
     @Transactional
-    public PartResponseDTO processQADecision(Long id, String batch, String newStatus, String remarks) {
+    @CacheEvict(value = "dashboardStats", allEntries = true)
+    public PartResponseDTO processQADecision(Long id, String batch, Integer approvedQty, Integer rejectedQty,
+                                              String criteria, String remarks) {
         Part part = partRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
 
@@ -303,48 +306,49 @@ public class PartServiceImpl implements PartService {
                 .findByPartIdAndBatchNumberAndStatus(id, batch, StockStatus.PENDING_QA)
                 .orElseThrow(() -> new ResourceNotFoundException("Pending stock not found for batch: " + batch));
 
-        int qty = pending.getQuantity();
+        int approved = approvedQty != null ? approvedQty : 0;
+        int rejected = rejectedQty != null ? rejectedQty : 0;
+        int pendingQty = pending.getQuantity();
+        if (approved + rejected != pendingQty) {
+            throw new IllegalArgumentException("Approved (" + approved + ") + rejected (" + rejected
+                    + ") must equal the pending quantity (" + pendingQty + ") for batch " + batch + ".");
+        }
+
         String loc = pending.getLocation();
         LocalDateTime expiry = pending.getExpiryDate();
         String poNumber = pending.getPoNumber();
         balanceRepository.delete(pending);
 
-        StockBalance target = balanceRepository
-                .findByPartIdAndBatchNumberAndStatus(id, batch, StockStatus.valueOf(newStatus))
-                .orElse(StockBalance.builder()
-                        .partId(id).batchNumber(batch)
-                        .status(StockStatus.valueOf(newStatus)).quantity(0).build());
+        String newStatus = rejected == 0 ? "APPROVED" : approved == 0 ? "REJECTED" : "PARTIALLY_APPROVED";
 
-        target.setQuantity(target.getQuantity() + qty);
-        target.setLocation(loc);
-        target.setExpiryDate(expiry);
-        if (poNumber != null && !poNumber.isBlank()) {
-            target.setPoNumber(poNumber);
+        if (approved > 0) {
+            moveToStatus(id, batch, StockStatus.APPROVED, approved, loc, expiry, poNumber);
         }
-        balanceRepository.save(target);
-
-        transactionService.logTransaction(id, batch, "QA_DECISION", 0, null,
-                "Moved to " + newStatus + ": " + remarks);
-
-        // GRN-FR / aerospace QC convention: a rejected batch doesn't just sit blocked —
-        // it needs a Non-Conformance Report so it gets dispositioned (return to vendor,
-        // scrap, or use-as-is under special approval) instead of staying REJECTED forever.
         String ncrNumber = null;
-        if (StockStatus.REJECTED.name().equalsIgnoreCase(newStatus)) {
+        if (rejected > 0) {
+            moveToStatus(id, batch, StockStatus.REJECTED, rejected, loc, expiry, poNumber);
+
+            // GRN-FR / aerospace QC convention: a rejected batch doesn't just sit blocked —
+            // it needs a Non-Conformance Report so it gets dispositioned (return to vendor,
+            // scrap, or use-as-is under special approval) instead of staying REJECTED forever.
             ncrNumber = documentSequenceService.generate("NCR");
             ncrRepository.save(NonConformanceReport.builder()
                     .ncrNumber(ncrNumber)
                     .partId(id)
                     .partName(part.getName())
                     .batchNumber(batch)
-                    .quantity(qty)
+                    .quantity(rejected)
                     .poNumber(poNumber)
                     .reason(remarks)
                     .status(NcrStatus.OPEN)
                     .build());
             log.info("[NCR] {} auto-created for rejected batch {} (partId={}, qty={})",
-                    ncrNumber, batch, id, qty);
+                    ncrNumber, batch, id, rejected);
         }
+
+        transactionService.logTransaction(id, batch, "QA_DECISION", 0, null,
+                "Moved to " + newStatus + " (approved=" + approved + ", rejected=" + rejected + "): "
+                        + (criteria != null && !criteria.isBlank() ? "[" + criteria + "] " : "") + remarks);
 
         try {
             boolean expired = expiry != null && expiry.isBefore(LocalDateTime.now());
@@ -363,7 +367,9 @@ public class PartServiceImpl implements PartService {
                     .expiryDate(expiry != null ? expiry.toString() : "")
                     .poNumber(poNumber)
                     .skuCode(part.getSkuCode())
-                    .quantity(qty)
+                    .quantity(pendingQty)
+                    .approvedQty(approved)
+                    .rejectedQty(rejected)
                     .ncrNumber(ncrNumber)
                     .build()
             );
@@ -372,12 +378,44 @@ public class PartServiceImpl implements PartService {
         }
 
         PartResponseDTO response = mapper.toDTO(part);
-        response.setQuantity(target.getQuantity());
+        response.setQuantity(approved);
         response.setBatchNumber(batch);
         response.setStatus(newStatus);
         response.setQaRemarks(remarks);
         response.setExpiryDate(expiry);
         return response;
+    }
+
+    // Adds `qty` to the target status bucket for this part/batch, creating it if absent —
+    // shared by both the approved and rejected sides of a (possibly partial) QA split.
+    private void moveToStatus(Long partId, String batch, StockStatus status, int qty,
+                              String location, LocalDateTime expiry, String poNumber) {
+        StockBalance target = balanceRepository
+                .findByPartIdAndBatchNumberAndStatus(partId, batch, status)
+                .orElse(StockBalance.builder()
+                        .partId(partId).batchNumber(batch)
+                        .status(status).quantity(0).build());
+        target.setQuantity(target.getQuantity() + qty);
+        target.setLocation(location);
+        target.setExpiryDate(expiry);
+        if (poNumber != null && !poNumber.isBlank()) {
+            target.setPoNumber(poNumber);
+        }
+        balanceRepository.save(target);
+    }
+
+    // Convenience overload — resolves the full pending quantity to one side, for callers
+    // (the manual admin override endpoint) that only have a single status, not a split.
+    @Override
+    @Transactional
+    @CacheEvict(value = "dashboardStats", allEntries = true)
+    public PartResponseDTO processQADecision(Long id, String batch, String newStatus, String remarks) {
+        StockBalance pending = balanceRepository
+                .findByPartIdAndBatchNumberAndStatus(id, batch, StockStatus.PENDING_QA)
+                .orElseThrow(() -> new ResourceNotFoundException("Pending stock not found for batch: " + batch));
+        int qty = pending.getQuantity();
+        boolean approved = StockStatus.APPROVED.name().equalsIgnoreCase(newStatus);
+        return processQADecision(id, batch, approved ? qty : 0, approved ? 0 : qty, null, remarks);
     }
 
     // ── REST QUERIES ─────────────────────────────────────────────────────────
@@ -456,6 +494,7 @@ public class PartServiceImpl implements PartService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "dashboardStats", allEntries = true)
     public void reserveStock(Long partId, String batch, int quantity) {
         StockBalance approvedStock = balanceRepository
                 .findByPartIdAndBatchNumberAndStatus(partId, batch, StockStatus.APPROVED)

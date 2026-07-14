@@ -111,9 +111,14 @@ public class MaterialReceiptServiceImpl implements MaterialReceiptService {
                     receipt.getPoNumber()
             );
             item.setGrnNumber(result.getGrnNumber());
+            item.setBatchNumber(defaultBatch);
+            item.setLocation(request.getLocation());
+            item.setExpiryDate(request.getExpiryDate());
+            item.setInspectionQty(request.getInspectionQty());
         }
 
         receipt.setStatus(MaterialReceiptStatus.GRN_FORMED);
+        receipt.setGrnFormedAt(java.time.LocalDateTime.now());
         MaterialReceipt saved = receiptRepository.save(receipt);
         log.info("[MATERIAL-RECEIPT] GRN formed from {} ({} item(s))", receipt.getMrNumber(), receipt.getItems().size());
         return mapper.toDTO(saved);

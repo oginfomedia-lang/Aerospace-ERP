@@ -29,13 +29,21 @@ public class InspectionServiceImpl implements InspectionService {
     @Transactional
     public InspectionResponseDTO submitDecision(InspectionRequestDTO dto) {
 
-        // Validate decision value — must be APPROVED or REJECTED
-        QADecision decision;
-        try {
-            decision = QADecision.valueOf(dto.getDecision().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Invalid decision: '" + dto.getDecision() + "'. Must be APPROVED or REJECTED.");
+        // Validate the approved/rejected split adds up to the batch's total pending quantity —
+        // synchronously, here, rather than letting a bad split fail silently later inside the
+        // async Kafka consumer on the inventory-service side.
+        int approvedQty = dto.getApprovedQty();
+        int rejectedQty = dto.getRejectedQty();
+        if (approvedQty + rejectedQty != dto.getTotalQuantity()) {
+            throw new RuntimeException("Approved qty (" + approvedQty + ") + rejected qty (" + rejectedQty
+                    + ") must equal the batch's total quantity (" + dto.getTotalQuantity() + ").");
         }
+
+        // Decision is derived from the split, not client-sent — all-approved, all-rejected,
+        // or a genuine partial split.
+        QADecision decision = rejectedQty == 0 ? QADecision.APPROVED
+                : approvedQty == 0 ? QADecision.REJECTED
+                : QADecision.PARTIALLY_APPROVED;
 
         // Step 1: Save inspection report to QA database
         // This is saved BEFORE Kafka publish — if Kafka fails, we still have the record
@@ -44,6 +52,9 @@ public class InspectionServiceImpl implements InspectionService {
                 .partId(dto.getPartId())
                 .batchNumber(dto.getBatchNumber())
                 .decision(decision)
+                .approvedQty(approvedQty)
+                .rejectedQty(rejectedQty)
+                .criteria(dto.getCriteria())
                 .remarks(dto.getRemarks())
                 .certificateNumber(dto.getCertificateNumber())
                 .inspectorName(dto.getInspectorName())
@@ -51,14 +62,18 @@ public class InspectionServiceImpl implements InspectionService {
                 .build();
 
         InspectionReport saved = inspectionRepository.save(report);
-        log.info("Inspection saved — ID: {}, partId: {}, batch: {}, decision: {}",
-                 saved.getId(), saved.getPartId(), saved.getBatchNumber(), saved.getDecision());
+        log.info("Inspection saved — ID: {}, partId: {}, batch: {}, decision: {} (approved={}, rejected={})",
+                 saved.getId(), saved.getPartId(), saved.getBatchNumber(), saved.getDecision(),
+                 saved.getApprovedQty(), saved.getRejectedQty());
 
         // Step 2: Build Kafka event — must match QAStatusUpdatedEvent in inventory-service
         QAResultEvent event = QAResultEvent.builder()
                 .partId(saved.getPartId())
                 .batchNumber(saved.getBatchNumber())
-                .status(saved.getDecision().name()) // "APPROVED" or "REJECTED"
+                .status(saved.getDecision().name()) // "APPROVED", "REJECTED", or "PARTIALLY_APPROVED"
+                .approvedQty(saved.getApprovedQty())
+                .rejectedQty(saved.getRejectedQty())
+                .criteria(saved.getCriteria())
                 .location(dto.getLocation())
                 .remarks(saved.getRemarks())
                 .certificateNumber(saved.getCertificateNumber())
@@ -116,6 +131,9 @@ public class InspectionServiceImpl implements InspectionService {
                     .partId(report.getPartId())
                     .batchNumber(report.getBatchNumber())
                     .status(report.getDecision().name())
+                    .approvedQty(report.getApprovedQty())
+                    .rejectedQty(report.getRejectedQty())
+                    .criteria(report.getCriteria())
                     .remarks(report.getRemarks())
                     .certificateNumber(report.getCertificateNumber())
                     .inspectorName(report.getInspectorName())
@@ -138,6 +156,9 @@ public class InspectionServiceImpl implements InspectionService {
                 .partId(report.getPartId())
                 .batchNumber(report.getBatchNumber())
                 .decision(report.getDecision().name())
+                .approvedQty(report.getApprovedQty())
+                .rejectedQty(report.getRejectedQty())
+                .criteria(report.getCriteria())
                 .remarks(report.getRemarks())
                 .certificateNumber(report.getCertificateNumber())
                 .inspectorName(report.getInspectorName())

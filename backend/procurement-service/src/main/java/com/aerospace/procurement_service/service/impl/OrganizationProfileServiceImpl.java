@@ -49,6 +49,7 @@ public class OrganizationProfileServiceImpl implements OrganizationProfileServic
         profile.setDefaultDeliveryTerms(request.getDefaultDeliveryTerms());
         profile.setDefaultExciseDuty(request.getDefaultExciseDuty());
         profile.setTermsAndConditions(request.getTermsAndConditions());
+        profile.setInvoicePriceTolerancePercent(request.getInvoicePriceTolerancePercent());
         return repository.save(profile);
     }
 }

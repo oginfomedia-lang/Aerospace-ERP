@@ -501,16 +501,20 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             return;
         }
 
-        int qty = event.getQuantity() != null ? event.getQuantity() : 0;
-        if ("APPROVED".equalsIgnoreCase(event.getNewStatus())) {
-            line.setAcceptedQuantity((line.getAcceptedQuantity() != null ? line.getAcceptedQuantity() : 0) + qty);
-        } else if ("REJECTED".equalsIgnoreCase(event.getNewStatus())) {
-            line.setRejectedQuantity((line.getRejectedQuantity() != null ? line.getRejectedQuantity() : 0) + qty);
+        // Split quantities drive this directly rather than branching on newStatus — a
+        // PARTIALLY_APPROVED decision moves both buckets in the same event.
+        int approvedQty = event.getApprovedQty() != null ? event.getApprovedQty() : 0;
+        int rejectedQty = event.getRejectedQty() != null ? event.getRejectedQty() : 0;
+        if (approvedQty > 0) {
+            line.setAcceptedQuantity((line.getAcceptedQuantity() != null ? line.getAcceptedQuantity() : 0) + approvedQty);
+        }
+        if (rejectedQty > 0) {
+            line.setRejectedQuantity((line.getRejectedQuantity() != null ? line.getRejectedQuantity() : 0) + rejectedQty);
             line.setNcrNumber(event.getNcrNumber());
         }
         poRepository.save(po);
-        log.info("📢 [PROCUREMENT] Applied QA outcome {} (qty {}) to PO {} line {}",
-                event.getNewStatus(), qty, event.getPoNumber(), event.getSkuCode());
+        log.info("📢 [PROCUREMENT] Applied QA outcome {} (approved {}, rejected {}) to PO {} line {}",
+                event.getNewStatus(), approvedQty, rejectedQty, event.getPoNumber(), event.getSkuCode());
     }
 
     private Supplier firstCertifiedSupplier() {

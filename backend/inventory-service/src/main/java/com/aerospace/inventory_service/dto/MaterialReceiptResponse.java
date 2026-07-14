@@ -21,6 +21,7 @@ public class MaterialReceiptResponse {
     private String transportName;
     private String receivedBy;
     private LocalDateTime receivedAt;
+    private LocalDateTime grnFormedAt;
     private String status;
     private List<MaterialReceiptItemResponse> items;
 }

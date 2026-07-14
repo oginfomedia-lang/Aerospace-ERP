@@ -19,6 +19,8 @@ public class QAStatusChangedEvent {
     private String batchNumber;
     private String newStatus;
     private Integer quantity;
+    private Integer approvedQty;
+    private Integer rejectedQty;
     private String poNumber;
     private String ncrNumber;
 }

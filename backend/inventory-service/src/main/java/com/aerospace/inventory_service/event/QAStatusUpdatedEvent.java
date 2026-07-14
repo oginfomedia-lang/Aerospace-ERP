@@ -11,6 +11,9 @@ public class QAStatusUpdatedEvent {
     private Long partId;
     private String batchNumber;
     private String status;
+    private Integer approvedQty;
+    private Integer rejectedQty;
+    private String criteria;
     private String location;
     private String remarks;
     private String certificateNumber;

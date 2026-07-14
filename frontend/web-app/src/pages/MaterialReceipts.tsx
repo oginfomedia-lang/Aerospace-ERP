@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
+import procurementApi from '../api/procurementAxios';
 import toast from 'react-hot-toast';
 import { Truck, PackageCheck, Clock, Loader2, X, CheckCircle2 } from 'lucide-react';
-import { ApiResponse, MaterialReceipt, MaterialReceiptItem, FormGrnRequest, Location } from '../types/inventory';
+import { ApiResponse, MaterialReceipt, MaterialReceiptItem, FormGrnRequest, Location, Part } from '../types/inventory';
+import { OrganizationProfile, Supplier, PurchaseOrderResponse } from '../types/procurement';
 import { ReceiptModal } from '../components/ReceiptModal';
+import { MaterialReceiptDocument } from '../components/MaterialReceiptDocument';
+import { GrnReceiptDocument } from '../components/GrnReceiptDocument';
 
 // Step 1→2 of the gate-to-GRN flow: Material Receipts are logged at the gate
 // (via Purchase Orders → "Record Material Receipt"); this page is where the GRN
@@ -22,6 +26,10 @@ const MaterialReceipts = () => {
     inspectionQty: undefined,
   });
   const [locations, setLocations] = useState<Location[]>([]);
+  const [orgProfile, setOrgProfile] = useState<OrganizationProfile | null>(null);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderResponse[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
 
   const fetchReceipts = async () => {
     setLoading(true);
@@ -39,6 +47,17 @@ const MaterialReceipts = () => {
     fetchReceipts();
     api.get<Location[]>('/inventory/locations', { params: { activeOnly: true } })
       .then(res => setLocations(res.data)).catch(() => {});
+    // Cross-service lookups purely for the printed Material Receipt document (company
+    // letterhead, supplier code, and the PO's ordered qty / order date) — read-only,
+    // same pattern as ProcurementOrders.tsx fetching inventory Parts.
+    procurementApi.get<OrganizationProfile>('/organization-profile')
+      .then(res => setOrgProfile(res.data)).catch(() => {});
+    procurementApi.get<Supplier[]>('/suppliers')
+      .then(res => setSuppliers(res.data)).catch(() => {});
+    procurementApi.get<PurchaseOrderResponse[]>('/purchase-orders')
+      .then(res => setPurchaseOrders(res.data)).catch(() => {});
+    api.get<ApiResponse<Part[]>>('/inventory')
+      .then(res => setParts(res.data.data)).catch(() => {});
   }, []);
 
   const handleOpenFormGrn = (receipt: MaterialReceipt) => {
@@ -264,56 +283,14 @@ const MaterialReceipts = () => {
           onClose={() => setReceiptForView(null)}
           title="Material Receipt"
           documentNumber={receiptForView.mrNumber}
+          plain
         >
-          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">PO Number</p>
-              <p className="font-bold text-slate-800">{receiptForView.poNumber || '—'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Status</p>
-              <p className="font-bold text-slate-800">{receiptForView.status}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Supplier</p>
-              <p className="font-bold text-slate-800">{receiptForView.supplierName || '—'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Challan Number</p>
-              <p className="font-bold text-slate-800">{receiptForView.challanNumber || '—'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Transport</p>
-              <p className="font-bold text-slate-800">{receiptForView.transportName || '—'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Received By</p>
-              <p className="font-bold text-slate-800">{receiptForView.receivedBy || '—'}</p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Received At</p>
-              <p className="font-bold text-slate-800">{new Date(receiptForView.receivedAt).toLocaleString()}</p>
-            </div>
-          </div>
-
-          <table className="w-full text-left text-sm border-t border-slate-200">
-            <thead className="text-slate-400 uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="py-2">SKU</th>
-                <th className="py-2 text-right">Qty</th>
-                <th className="py-2 pl-4">GRN Number</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {receiptForView.items.map(item => (
-                <tr key={item.id}>
-                  <td className="py-2 font-mono font-bold text-slate-700">{item.skuCode}</td>
-                  <td className="py-2 text-right text-slate-600">{item.quantity} {item.uom}</td>
-                  <td className="py-2 pl-4 font-mono text-xs text-slate-600">{item.grnNumber || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <MaterialReceiptDocument
+            receipt={receiptForView}
+            org={orgProfile}
+            supplier={suppliers.find(s => s.name === receiptForView.supplierName)}
+            po={purchaseOrders.find(o => o.poNumber === receiptForView.poNumber)}
+          />
         </ReceiptModal>
       )}
 
@@ -323,48 +300,16 @@ const MaterialReceipts = () => {
           onClose={() => setGrnForView(null)}
           title="Goods Received Note (GRN)"
           documentNumber={grnForView.item.grnNumber || ''}
+          plain
         >
-          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Material Receipt</p>
-              <p className="font-bold text-slate-800">{grnForView.receipt.mrNumber}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">PO Number</p>
-              <p className="font-bold text-slate-800">{grnForView.receipt.poNumber || '—'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Supplier</p>
-              <p className="font-bold text-slate-800">{grnForView.receipt.supplierName || '—'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Challan Number</p>
-              <p className="font-bold text-slate-800">{grnForView.receipt.challanNumber || '—'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Transport</p>
-              <p className="font-bold text-slate-800">{grnForView.receipt.transportName || '—'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Received At</p>
-              <p className="font-bold text-slate-800">{new Date(grnForView.receipt.receivedAt).toLocaleString()}</p>
-            </div>
-          </div>
-
-          <table className="w-full text-left text-sm border-t border-slate-200">
-            <thead className="text-slate-400 uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="py-2">SKU</th>
-                <th className="py-2 text-right">Quantity Received</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              <tr>
-                <td className="py-2 font-mono font-bold text-slate-700">{grnForView.item.skuCode}</td>
-                <td className="py-2 text-right text-slate-600">{grnForView.item.quantity} {grnForView.item.uom}</td>
-              </tr>
-            </tbody>
-          </table>
+          <GrnReceiptDocument
+            item={grnForView.item}
+            receipt={grnForView.receipt}
+            org={orgProfile}
+            supplier={suppliers.find(s => s.name === grnForView.receipt.supplierName)}
+            po={purchaseOrders.find(o => o.poNumber === grnForView.receipt.poNumber)}
+            parts={parts}
+          />
         </ReceiptModal>
       )}
     </div>

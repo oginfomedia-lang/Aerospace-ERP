@@ -15,6 +15,7 @@ import ProcurementOrders from './pages/ProcurementOrders';
 import MaterialReceipts from './pages/MaterialReceipts';
 import NCRPage from './pages/NCRPage';
 import OrgSettings from './pages/OrgSettings';
+import VendorInvoices from './pages/VendorInvoices';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -55,6 +56,7 @@ function App() {
             <Route path="/suppliers" element={<ProcurementSuppliers />} />
             <Route path="/locations" element={<Locations />} />
             <Route path="/purchase-orders" element={<ProcurementOrders />} />
+            <Route path="/vendor-invoices" element={<VendorInvoices />} />
             <Route path="/material-receipts" element={<MaterialReceipts />} />
             <Route path="/ncr" element={<NCRPage />} />
             <Route path="/org-settings" element={<OrgSettings />} />

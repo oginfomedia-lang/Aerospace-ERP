@@ -40,11 +40,23 @@ public class DashboardServiceImpl implements DashboardService { // FIX 2: was mi
                         row -> (Long) row[1]
                 ));
 
+        // Low stock = approved quantity <= reorderLevel, same rule as the frontend's
+        // LowStockAlert — only parts that have set a reorder level are considered.
+        Map<Long, Long> approvedByPart = balanceRepository.getApprovedQuantityByPart().stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+        long lowStock = partRepository.findIdAndReorderLevelWhereReorderLevelSet().stream()
+                .filter(row -> {
+                    long approvedQty = approvedByPart.getOrDefault((Long) row[0], 0L);
+                    return approvedQty <= (Integer) row[1];
+                })
+                .count();
+
         return DashboardResponseDTO.builder()
                 .totalParts(partRepository.count())
                 .totalQuantity(totalApprovedStock)
                 .pendingQAItems(pendingQA)
                 .rejectedItems(rejected)
+                .lowStockItems(lowStock)
                 .partsByType(typeMap)
                 .inventoryValue(0.0) // Wire to Finance service pricing later
                 .build();

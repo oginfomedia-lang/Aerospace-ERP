@@ -28,6 +28,8 @@ public class QAStatusChangedEvent {
     // ── Fields required by procurement-service to update PO line item QA outcome ──
     private String poNumber;   // null when this batch isn't traceable to a PO
     private String skuCode;
-    private Integer quantity;  // qty covered by this decision
-    private String ncrNumber;  // set only when newStatus == REJECTED
+    private Integer quantity;  // total pending qty covered by this decision
+    private Integer approvedQty;
+    private Integer rejectedQty;
+    private String ncrNumber;  // set only when rejectedQty > 0
 }

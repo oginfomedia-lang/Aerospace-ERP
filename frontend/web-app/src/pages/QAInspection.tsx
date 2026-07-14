@@ -38,7 +38,10 @@ const QAInspection = () => {
   const [form, setForm] = useState<InspectionRequest>({
     partId: 0,
     batchNumber: '',
-    decision: 'APPROVED',
+    approvedQty: 0,
+    rejectedQty: 0,
+    totalQuantity: 0,
+    criteria: '',
     remarks: '',
     certificateNumber: '',
     inspectorName: '',
@@ -72,7 +75,12 @@ const QAInspection = () => {
     setForm({
       partId: entry.part.id,
       batchNumber: entry.balance.batchNumber,
-      decision: 'APPROVED',
+      // Default to fully approved — the inspector edits the split if some of the
+      // batch needs to be rejected instead.
+      approvedQty: entry.balance.quantity,
+      rejectedQty: 0,
+      totalQuantity: entry.balance.quantity,
+      criteria: '',
       remarks: '',
       certificateNumber: '',
       inspectorName: '',
@@ -100,15 +108,24 @@ const QAInspection = () => {
       toast.error('Remarks are mandatory for aerospace traceability.');
       return;
     }
+    if (form.approvedQty + form.rejectedQty !== form.totalQuantity) {
+      toast.error(`Approved (${form.approvedQty}) + Rejected (${form.rejectedQty}) must equal the batch total (${form.totalQuantity}).`);
+      return;
+    }
+
+    const isPartial = form.approvedQty > 0 && form.rejectedQty > 0;
+    const isApproved = form.rejectedQty === 0;
 
     setSubmitting(true);
     try {
       await toast.promise(
         qaApi.post<ApiResponse<InspectionReport>>('/qa/inspect', form),
         {
-          loading: `Processing ${form.decision} decision for GRN batch...`,
+          loading: 'Processing QA decision for GRN batch...',
           success: (res) =>
-            form.decision === 'APPROVED'
+            isPartial
+              ? `⚠️ Partial: ${form.approvedQty} Accepted / ${form.rejectedQty} Rejected for batch ${res.data.data.batchNumber}.`
+              : isApproved
               ? `✅ GRN Approved — OK Qty transferred to store. Stock updated for batch ${res.data.data.batchNumber}.`
               : `❌ GRN Rejected — Material blocked. Batch ${res.data.data.batchNumber} remains in PENDING_QA.`,
           error: (err) => err.response?.data?.message || 'Submission failed.',
@@ -281,35 +298,60 @@ const QAInspection = () => {
                   )}
                 </div>
 
-                {/* Decision toggle */}
+                {/* Approved / Rejected quantity split */}
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-2 block tracking-wider">
-                    Decision *
+                    Approved / Rejected Qty * <span className="text-slate-400 font-normal normal-case">(must sum to {form.totalQuantity})</span>
                   </label>
                   <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setForm({ ...form, decision: 'APPROVED' })}
-                      className={`py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 border-2 transition-all ${
-                        form.decision === 'APPROVED'
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-200'
-                          : 'bg-white text-slate-400 border-slate-200 hover:border-emerald-300'
-                      }`}
-                    >
-                      <CheckCircle2 size={16} /> APPROVE
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setForm({ ...form, decision: 'REJECTED' })}
-                      className={`py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 border-2 transition-all ${
-                        form.decision === 'REJECTED'
-                          ? 'bg-red-600 text-white border-red-600 shadow-lg shadow-red-200'
-                          : 'bg-white text-slate-400 border-slate-200 hover:border-red-300'
-                      }`}
-                    >
-                      <XCircle size={16} /> REJECT
-                    </button>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1 text-emerald-600 font-black text-xs">
+                        <CheckCircle2 size={14} /> APPROVED QTY
+                      </div>
+                      <input
+                        type="number" min={0} max={form.totalQuantity} required
+                        value={form.approvedQty}
+                        onChange={e => {
+                          const approvedQty = Math.max(0, Math.min(form.totalQuantity, Number(e.target.value)));
+                          setForm({ ...form, approvedQty, rejectedQty: form.totalQuantity - approvedQty });
+                        }}
+                        className="w-full px-4 py-2.5 bg-emerald-50 border-2 border-emerald-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none text-sm font-bold"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1 text-red-600 font-black text-xs">
+                        <XCircle size={14} /> REJECTED QTY
+                      </div>
+                      <input
+                        type="number" min={0} max={form.totalQuantity} required
+                        value={form.rejectedQty}
+                        onChange={e => {
+                          const rejectedQty = Math.max(0, Math.min(form.totalQuantity, Number(e.target.value)));
+                          setForm({ ...form, rejectedQty, approvedQty: form.totalQuantity - rejectedQty });
+                        }}
+                        className="w-full px-4 py-2.5 bg-red-50 border-2 border-red-200 rounded-xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none text-sm font-bold"
+                      />
+                    </div>
                   </div>
+                  {form.approvedQty > 0 && form.rejectedQty > 0 && (
+                    <p className="mt-2 text-[10px] text-amber-600 font-bold uppercase tracking-wider">
+                      ⚠ Partial split — {form.approvedQty} accepted, {form.rejectedQty} rejected (an NCR will be raised for the rejected portion)
+                    </p>
+                  )}
+                </div>
+
+                {/* Criteria */}
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">
+                    Acceptance Criteria <span className="text-slate-400 font-normal normal-case">(spec/standard applied)</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. Visual inspection per drawing rev C, dimensional check ±0.05mm..."
+                    value={form.criteria}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none resize-none text-sm"
+                    onChange={e => setForm({ ...form, criteria: e.target.value })}
+                  />
                 </div>
 
                 {/* Remarks */}
@@ -358,14 +400,18 @@ const QAInspection = () => {
                   type="submit"
                   disabled={submitting}
                   className={`w-full py-3 rounded-xl font-black text-white transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg ${
-                    form.decision === 'APPROVED'
+                    form.approvedQty > 0 && form.rejectedQty > 0
+                      ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200'
+                      : form.rejectedQty === 0
                       ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
                       : 'bg-red-600 hover:bg-red-700 shadow-red-200'
                   } disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
                 {submitting ? (
                   <Loader2 size={16} className="animate-spin" />
-                ) : form.decision === 'APPROVED' ? (
+                ) : form.approvedQty > 0 && form.rejectedQty > 0 ? (
+                  <><CheckCircle2 size={16} /> Submit Partial Split ({form.approvedQty} / {form.rejectedQty})</>
+                ) : form.rejectedQty === 0 ? (
                   <><CheckCircle2 size={16} /> Approve — Transfer OK Qty to Store</>
                 ) : (
                   <><XCircle size={16} /> Reject — Block Material</>
@@ -374,6 +420,7 @@ const QAInspection = () => {
 
               <p className="text-[10px] text-slate-400 text-center font-medium">
                 Approval: OK Qty transfers to store and stock updates. Rejection: material remains blocked.
+                Partial: each portion moves accordingly, with an NCR raised for the rejected qty.
               </p>
               </form>
             )}
@@ -405,12 +452,16 @@ const QAInspection = () => {
                         <span className={`px-3 py-1 rounded-full text-[10px] font-black border flex items-center gap-1 ${
                           report.decision === 'APPROVED'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : report.decision === 'PARTIALLY_APPROVED'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
                             : 'bg-red-50 text-red-700 border-red-200'
                         }`}>
-                          {report.decision === 'APPROVED'
-                            ? <CheckCircle2 size={10} />
-                            : <XCircle size={10} />}
-                          {report.decision}
+                          {report.decision === 'REJECTED'
+                            ? <XCircle size={10} />
+                            : <CheckCircle2 size={10} />}
+                          {report.decision === 'PARTIALLY_APPROVED'
+                            ? `✓ ${report.approvedQty ?? 0} / ✕ ${report.rejectedQty ?? 0}`
+                            : report.decision}
                         </span>
                         <div className="flex items-center gap-2">
                           {report.publishedToInventory ? (
@@ -420,6 +471,9 @@ const QAInspection = () => {
                           )}
                         </div>
                       </div>
+                      {report.criteria && (
+                        <p className="text-[10px] text-slate-500 font-bold mb-1">Criteria: {report.criteria}</p>
+                      )}
                       <p className="text-xs text-slate-600 font-medium italic">{report.remarks}</p>
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-[10px] text-slate-400 font-bold">

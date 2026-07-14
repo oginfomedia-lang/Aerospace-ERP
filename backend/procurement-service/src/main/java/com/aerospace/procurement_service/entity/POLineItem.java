@@ -41,6 +41,11 @@ public class POLineItem {
     private String hsnCode;
     private BigDecimal taxRatePercent;
 
+    // Snapshotted from Part.description at line-add time, editable per PO line thereafter
+    // (same snapshot-then-editable convention as unitPrice).
+    @Column(length = 2000)
+    private String description;
+
     // QA outcome, updated asynchronously from inventory-service's QAStatusChangedEvent
     // once the received goods for this SKU are inspected (see InventoryConsumer).
     @Builder.Default
@@ -48,6 +53,11 @@ public class POLineItem {
     @Builder.Default
     private Integer rejectedQuantity = 0;
     private String ncrNumber; // last NCR raised against this line, if any
+
+    // Set when this line was created via "Raise Replacement PO" for a rejected quantity
+    // on another PO's NCR — lets the UI detect a replacement was already raised for that
+    // NCR and stop offering the raise action again.
+    private String replacementForNcrNumber;
 
     @PrePersist
     @PreUpdate

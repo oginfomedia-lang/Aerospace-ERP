@@ -34,6 +34,16 @@ public class InspectionReport {
     @Column(nullable = false)
     private String remarks;
 
+    // How much of the inspected batch was accepted vs rejected — together they must equal
+    // the batch's total pending quantity at inspection time (see InspectionServiceImpl).
+    private Integer approvedQty;
+    private Integer rejectedQty;
+
+    // The acceptance standard/spec applied for this inspection — distinct from `remarks`
+    // (the inspector's free-form notes).
+    @Column(length = 2000)
+    private String criteria;
+
     // Optional: certificate or test report reference
     private String certificateNumber;
 

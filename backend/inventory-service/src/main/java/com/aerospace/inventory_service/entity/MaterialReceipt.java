@@ -30,6 +30,10 @@ public class MaterialReceipt {
     private String receivedBy;
     private LocalDateTime receivedAt;
 
+    // Set once, when formGrn() flips status to GRN_FORMED — distinct from receivedAt
+    // (gate receipt time), since a GRN can be formed well after the goods arrived.
+    private LocalDateTime grnFormedAt;
+
     @Enumerated(EnumType.STRING)
     private MaterialReceiptStatus status;
 

@@ -79,7 +79,6 @@ const Dashboard = () => {
     },
     {
       title: 'Low Stock Alerts',
-      // lowStockItems comes from backend — currently 0 until backend logic added
       val: stats.lowStockItems.toLocaleString(),
       icon: <AlertTriangle size={20} />,
       color: 'from-orange-500 to-orange-600',

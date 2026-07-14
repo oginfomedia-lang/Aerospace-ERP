@@ -33,14 +33,18 @@ public class InventoryConsumer {
         containerFactory = "qaKafkaListenerContainerFactory"
     )
     public void consumeQAResult(@Payload QAStatusUpdatedEvent event) {
-        log.info("QA Result received — PartId: {}, Batch: {}, Status: {}",
-                event.getPartId(), event.getBatchNumber(), event.getStatus());
+        log.info("QA Result received — PartId: {}, Batch: {}, Status: {}, Approved: {}, Rejected: {}",
+                event.getPartId(), event.getBatchNumber(), event.getStatus(),
+                event.getApprovedQty(), event.getRejectedQty());
         try {
             partService.processQADecision(
                     event.getPartId(),
                     event.getBatchNumber(),
-                    event.getStatus(),
-                    "Automated update from Compliance Service"
+                    event.getApprovedQty(),
+                    event.getRejectedQty(),
+                    event.getCriteria(),
+                    event.getRemarks() != null && !event.getRemarks().isBlank()
+                            ? event.getRemarks() : "Automated update from Compliance Service"
             );
             log.info("Stock balance updated for Batch: {}", event.getBatchNumber());
         } catch (Exception e) {

@@ -3,7 +3,7 @@ import { NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut,
-  Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2
+  Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -38,6 +38,13 @@ const navItems = [
     label: 'Purchase Orders',
     icon: <ShoppingCart size={18} />,
     description: 'Procurement tracking',
+    roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/vendor-invoices',
+    label: 'Vendor Invoices',
+    icon: <Receipt size={18} />,
+    description: 'Three-way match & AP',
     roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
   },
   {
@@ -225,6 +232,7 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/material-receipts' && 'Material Receipts'}
               {location.pathname === '/ncr' && 'Non-Conformance Reports'}
               {location.pathname === '/org-settings' && 'Organization Settings'}
+              {location.pathname === '/vendor-invoices' && 'Vendor Invoices'}
               {location.pathname.includes('/transactions') && 'Transaction History'}
             </span>
           </div>

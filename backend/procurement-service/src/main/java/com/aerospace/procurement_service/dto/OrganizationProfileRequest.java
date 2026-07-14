@@ -2,6 +2,8 @@ package com.aerospace.procurement_service.dto;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class OrganizationProfileRequest {
     private String companyName;
@@ -31,4 +33,6 @@ public class OrganizationProfileRequest {
     private String defaultDeliveryTerms;
     private String defaultExciseDuty;
     private String termsAndConditions;
+
+    private BigDecimal invoicePriceTolerancePercent;
 }

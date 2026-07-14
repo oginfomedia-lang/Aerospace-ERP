@@ -53,6 +53,8 @@ public class PurchaseOrderMapper {
                 .uom(dto.getUom())
                 .hsnCode(dto.getHsnCode())
                 .taxRatePercent(dto.getTaxRatePercent())
+                .description(dto.getDescription())
+                .replacementForNcrNumber(dto.getReplacementForNcrNumber())
                 .build();
     }
 
@@ -113,9 +115,11 @@ public class PurchaseOrderMapper {
                 .uom(item.getUom())
                 .hsnCode(item.getHsnCode())
                 .taxRatePercent(item.getTaxRatePercent())
+                .description(item.getDescription())
                 .acceptedQuantity(item.getAcceptedQuantity())
                 .rejectedQuantity(item.getRejectedQuantity())
                 .ncrNumber(item.getNcrNumber())
+                .replacementForNcrNumber(item.getReplacementForNcrNumber())
                 .build();
     }
 }

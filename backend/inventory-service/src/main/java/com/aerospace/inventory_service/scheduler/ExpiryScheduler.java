@@ -3,6 +3,7 @@ package com.aerospace.inventory_service.scheduler;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +25,7 @@ public class ExpiryScheduler {
 
     @Scheduled(cron = "0 0 2 * * *") //runs every day at 2AM
     @Transactional
+    @CacheEvict(value = "dashboardStats", allEntries = true)
     public void autoRejectExpiredStock(){
         List<StockBalance> expired = balanceRepository.findAllByExpiryDateBeforeAndStatus(LocalDateTime.now(), StockStatus.APPROVED);
 

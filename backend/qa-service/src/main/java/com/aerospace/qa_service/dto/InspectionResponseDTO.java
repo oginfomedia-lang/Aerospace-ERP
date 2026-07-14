@@ -11,7 +11,10 @@ public class InspectionResponseDTO {
     private Long id;
     private Long partId;
     private String batchNumber;
-    private String decision;           // APPROVED or REJECTED
+    private String decision;           // APPROVED, REJECTED, or PARTIALLY_APPROVED
+    private Integer approvedQty;
+    private Integer rejectedQty;
+    private String criteria;
     private String remarks;
     private String certificateNumber;
     private String inspectorName;

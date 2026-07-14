@@ -132,7 +132,10 @@ export interface InventoryTransaction {
 export interface InspectionRequest {
   partId: number;
   batchNumber: string;
-  decision: 'APPROVED' | 'REJECTED';
+  approvedQty: number;
+  rejectedQty: number;
+  totalQuantity: number;
+  criteria?: string;
   remarks: string;
   certificateNumber?: string;
   inspectorName?: string;
@@ -146,7 +149,10 @@ export interface InspectionReport {
   id: number;
   partId: number;
   batchNumber: string;
-  decision: 'APPROVED' | 'REJECTED';
+  decision: 'APPROVED' | 'REJECTED' | 'PARTIALLY_APPROVED';
+  approvedQty: number | null;
+  rejectedQty: number | null;
+  criteria: string | null;
   remarks: string;
   certificateNumber: string | null;
   inspectorName: string | null;
@@ -169,6 +175,12 @@ export interface MaterialReceiptItem {
   quantity: number;
   uom: string;
   grnNumber: string | null;
+
+  // Snapshotted at GRN-formation time (see MaterialReceiptServiceImpl.formGrn)
+  batchNumber?: string | null;
+  location?: string | null;
+  expiryDate?: string | null;
+  inspectionQty?: number | null;
 }
 
 // ============================================================
@@ -195,6 +207,7 @@ export interface MaterialReceipt {
   transportName: string | null;
   receivedBy: string | null;
   receivedAt: string;
+  grnFormedAt?: string | null;
   status: 'RECEIVED_AT_GATE' | 'GRN_FORMED';
   items: MaterialReceiptItem[];
 }

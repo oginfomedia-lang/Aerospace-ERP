@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
+import procurementApi from '../api/procurementAxios';
 import { Link } from 'react-router-dom';
 import {
   Edit3, Search, Loader2, Clock, MinusCircle, PlusCircle,
-  Layers, MapPin, SlidersHorizontal, CalendarX2, Ban, RotateCcw
+  Layers, MapPin, SlidersHorizontal, CalendarX2, Ban, RotateCcw, Printer
 } from 'lucide-react';
 import { Part, ApiResponse } from '../types/inventory';
+import { OrganizationProfile } from '../types/procurement';
 import { AddPartModal } from '../components/AddPartModal';
 import { EditPartModal } from '../components/EditPartModal';
 import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
+import { ReceiptModal } from '../components/ReceiptModal';
+import { ItemRegisterDocument } from '../components/ItemRegisterDocument';
 import toast from 'react-hot-toast';
 
 const statusStyle: Record<string, string> = {
@@ -51,6 +55,8 @@ const InventoryList = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
+  const [showRegister, setShowRegister] = useState(false);
+  const [orgProfile, setOrgProfile] = useState<OrganizationProfile | null>(null);
 
   const fetchParts = async (query = '') => {
     setLoading(true);
@@ -64,6 +70,13 @@ const InventoryList = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Cross-service lookup purely for the printed Item Register's letterhead —
+    // read-only, same pattern as ProcurementOrders.tsx/MaterialReceipts.tsx.
+    procurementApi.get<OrganizationProfile>('/organization-profile')
+      .then(res => setOrgProfile(res.data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const delay = setTimeout(() => fetchParts(searchTerm), 300);
@@ -162,12 +175,20 @@ const InventoryList = () => {
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 text-white px-8 py-3 rounded-2xl hover:bg-blue-700 transition font-bold flex items-center gap-2 shadow-lg shadow-blue-200"
-        >
-          <PlusCircle size={20} /> Initialize Material
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowRegister(true)}
+            className="bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl hover:bg-slate-50 transition font-bold flex items-center gap-2"
+          >
+            <Printer size={18} /> Print Item Register
+          </button>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-blue-600 text-white px-8 py-3 rounded-2xl hover:bg-blue-700 transition font-bold flex items-center gap-2 shadow-lg shadow-blue-200"
+          >
+            <PlusCircle size={20} /> Initialize Material
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -325,6 +346,18 @@ const InventoryList = () => {
           </table>
         </div>
       </div>
+
+      {showRegister && (
+        <ReceiptModal
+          isOpen={showRegister}
+          onClose={() => setShowRegister(false)}
+          title="Item Register"
+          documentNumber={`${parts.length} items`}
+          plain
+        >
+          <ItemRegisterDocument parts={parts} org={orgProfile} />
+        </ReceiptModal>
+      )}
     </div>
   );
 };

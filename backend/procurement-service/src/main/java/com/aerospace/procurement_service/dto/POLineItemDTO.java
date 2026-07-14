@@ -29,9 +29,16 @@ public class POLineItemDTO {
     private String hsnCode;
     private BigDecimal taxRatePercent;
 
+    // Snapshotted from Part.description at line-add time, editable per PO line thereafter.
+    private String description;
+
     // QA outcome (read-only, populated from the PO line item once inspected)
     private Integer acceptedQuantity;
     private Integer rejectedQuantity;
     private String ncrNumber;
+
+    // Set when this line was pre-filled via "Raise Replacement PO" for a rejected
+    // quantity on another PO's NCR (see PurchaseOrderMapper for how it's persisted).
+    private String replacementForNcrNumber;
 
 }

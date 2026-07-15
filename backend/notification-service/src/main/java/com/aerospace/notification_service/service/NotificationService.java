@@ -13,6 +13,7 @@ public interface NotificationService {
     void handleMaterialIssued(MaterialIssuedEvent event);
     void handleStockReceived(StockReceivedEvent event);
     void handlePartCreated(PartCreatedEvent event);
+    void handleVendorReturn(VendorReturnEvent event);
 
     // ── Triggered by Kafka consumers — Work Orders ────────────────────────────
     void handleWorkOrderCreated(WorkOrderCreatedEvent event);

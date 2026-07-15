@@ -7,4 +7,5 @@ public class NotificationTopics {
     public static final String MATERIAL_ISSUED   = "inventory.material.issued";
     public static final String STOCK_RECEIVED    = "inventory.created";
     public static final String PART_CREATED        = "part-created-events";
+    public static final String VENDOR_RETURN     = "vendor-return-events";
 }

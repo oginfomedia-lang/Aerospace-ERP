@@ -7,13 +7,18 @@ import com.aerospace.procurement_service.dto.PurchaseOrderResponse;
 import com.aerospace.procurement_service.entity.POApprovalHistory;
 import com.aerospace.procurement_service.entity.POLineItem;
 import com.aerospace.procurement_service.entity.PurchaseOrder;
+import com.aerospace.procurement_service.repository.POApprovalHistoryRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class PurchaseOrderMapper {
+
+    private final POApprovalHistoryRepository approvalHistoryRepository;
 
     public PurchaseOrder toEntity(PurchaseOrderRequest dto) {
         if (dto == null) return null;
@@ -61,6 +66,17 @@ public class PurchaseOrderMapper {
     public PurchaseOrderResponse toDTO(PurchaseOrder po) {
         if (po == null) return null;
 
+        // Role required to act on the PO's current pending level, if it's awaiting one —
+        // looked up here (rather than passed in by each caller) so every read path (list,
+        // submit, approve) reports it consistently instead of only the action that set it.
+        String pendingApproverRole = po.getCurrentApprovalLevel() != null
+                ? approvalHistoryRepository
+                        .findByPurchaseOrder_IdAndDocumentVersionAndApprovalLevel(
+                                po.getId(), po.getDocumentVersion(), po.getCurrentApprovalLevel())
+                        .map(POApprovalHistory::getApproverRole)
+                        .orElse(null)
+                : null;
+
         return PurchaseOrderResponse.builder()
                 .id(po.getId())
                 .poNumber(po.getPoNumber())
@@ -86,6 +102,7 @@ public class PurchaseOrderMapper {
                 .termsAndConditions(po.getTermsAndConditions())
                 .currentApprovalLevel(po.getCurrentApprovalLevel())
                 .documentVersion(po.getDocumentVersion())
+                .pendingApproverRole(pendingApproverRole)
                 .build();
     }
 

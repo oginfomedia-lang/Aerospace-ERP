@@ -172,6 +172,27 @@ public class NotificationServiceImpl implements NotificationService {
                 .build(), message);
     }
 
+        @Override
+    public void handleVendorReturn(VendorReturnEvent event) {
+        log.info("[NOTIFY] VENDOR_RETURN → ncrNumber={}, skuCode={}, qty={}",
+                event.getNcrNumber(), event.getSkuCode(), event.getQuantity());
+
+        String message = String.format(
+                "↩️ VENDOR RETURN: %d units of '%s' (Batch: %s) returned to vendor under NCR %s — a debit note has been raised (PO: %s).",
+                event.getQuantity(), event.getPartName(), event.getBatchNumber(),
+                event.getNcrNumber(), event.getPoNumber());
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.VENDOR_RETURN)
+                .partId(event.getPartId())
+                .partName(event.getPartName())
+                .batchNumber(event.getBatchNumber())
+                .message(message)
+                .severity("INFO")
+                .build(), message);
+    }
+
+
     // ── Work Order Kafka Event Handlers ───────────────────────────────────────
 
     @Override

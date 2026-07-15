@@ -229,3 +229,26 @@ export interface VendorInvoiceResponse {
   approvedAt: string | null;
   paidAt: string | null;
 }
+
+// ============================================================
+// Debit Notes — matches: DebitNote.java (procurement-service)
+// Auto-raised when an NCR is dispositioned RETURN_TO_VENDOR — the accounts-payable
+// record that the supplier owes credit for a rejected quantity.
+// ============================================================
+export interface DebitNoteResponse {
+  id: number;
+  debitNoteNumber: string;
+  purchaseOrderId: number | null;
+  poNumber: string | null;
+  supplierName: string | null;
+  skuCode: string | null;
+  quantity: number | null;
+  unitPrice: number | null;
+  amount: number | null;
+  ncrNumber: string | null;
+  batchNumber: string | null;
+  status: 'OPEN' | 'SETTLED';
+  remarks: string | null;
+  createdAt: string;
+  settledAt: string | null;
+}

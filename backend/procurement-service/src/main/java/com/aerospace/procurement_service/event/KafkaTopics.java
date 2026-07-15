@@ -7,4 +7,6 @@ public class KafkaTopics {
     public static final String STOCK_LOW           = "stock-low-events";
     public static final String MATERIAL_SHORTAGE   = "material-shortage-events";
     public static final String QA_STATUS_CHANGED   = "qa-status-changed-events";
+    // Published by inventory-service when an NCR is dispositioned RETURN_TO_VENDOR.
+    public static final String VENDOR_RETURN = "vendor-return-events";
 }

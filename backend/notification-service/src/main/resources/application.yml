@@ -55,6 +55,7 @@ notification:
       material-issued:   material-issued-events
       stock-received:    stock-received-events
       part-created:      part-created-events
+      vendor-return:     vendor-return-events
       # ── Work order topics ─────────────────────────────────────────────────
       work-order-created:   work-order-created-events
       work-order-updated:   work-order-updated-events

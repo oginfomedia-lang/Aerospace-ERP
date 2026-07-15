@@ -18,6 +18,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.aerospace.inventory_service.entity.Part;
+import com.aerospace.inventory_service.event.VendorReturnEvent;
+import com.aerospace.inventory_service.event.producer.InventoryProducer;
+import com.aerospace.inventory_service.repository.PartRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +35,8 @@ public class NcrServiceImpl implements NcrService {
     private final StockBalanceRepository balanceRepository;
     private final TransactionService transactionService;
     private final NcrMapper mapper;
+    private final PartRepository partRepository;
+    private final InventoryProducer inventoryProducer;
 
     @Override
     public List<NcrResponse> getAll(String status) {
@@ -73,9 +79,37 @@ public class NcrServiceImpl implements NcrService {
         int qty = Math.min(ncr.getQuantity(), rejected.getQuantity());
 
         switch (type) {
-            case RETURN_TO_VENDOR, SCRAP -> {
-                // A true exit from the ledger — unlike the bucket-move conventions below,
-                // this stock is genuinely leaving (back to vendor, or destroyed).
+            case RETURN_TO_VENDOR -> {
+                // A true exit from the ledger — this stock is genuinely leaving, back to vendor
+                rejected.setQuantity(rejected.getQuantity() - qty);
+                balanceRepository.save(rejected);
+                transactionService.logTransaction(ncr.getPartId(), ncr.getBatchNumber(), "NCR_DISPOSITION",
+                        -qty, ncr.getNcrNumber(), type.name() + ": " + request.getRemarks());
+
+                //Auto-raise a debit note in procurement-service - only when the batch is
+                //traceable to a PO (same "not traceable, skip" guard used elsewhere for cross-service linking, eg. PurchaseOrderServiceImpl.applyQaOutcome).
+                if(ncr.getPoNumber() != null && !ncr.getPoNumber().isBlank()) {
+                    Part part = partRepository.findById(ncr.getPartId()).orElse(null);
+                    try{
+                        inventoryProducer.sendVendorReturnEvent(VendorReturnEvent.builder()
+                                .partId(ncr.getPartId())
+                                .skuCode(part != null ? part.getSkuCode() : null)
+                                .partName(part != null ? part.getName() : null)
+                                .batchNumber(ncr.getBatchNumber())
+                                .quantity(qty)
+                                .ncrNumber(ncr.getNcrNumber())
+                                .poNumber(ncr.getPoNumber())
+                                .dispositionedBy(request.getDispositionedBy())
+                                .remarks(request.getRemarks())
+                                .dispositionedAt(LocalDateTime.now())
+                                .build());
+                    } catch (Exception ex) {
+                        log.warn("[KAFKA] Failed to publish VENDOR_RETURN for NCR {} : {}",
+                                ncr.getNcrNumber(), ex.getMessage());
+                    }
+                }
+            }
+            case SCRAP -> {
                 rejected.setQuantity(rejected.getQuantity() - qty);
                 balanceRepository.save(rejected);
                 transactionService.logTransaction(ncr.getPartId(), ncr.getBatchNumber(), "NCR_DISPOSITION",

@@ -15,6 +15,7 @@ import org.springframework.kafka.core.*;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import com.aerospace.procurement_service.event.VendorReturnEvent;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -143,6 +144,33 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, QAStatusChangedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(qaStatusChangedConsumerFactory());
+        return factory;
+    }
+
+    @Bean
+    public ConsumerFactory<String, VendorReturnEvent> vendorReturnConsumerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "procurement-service-group");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+
+        JsonDeserializer<VendorReturnEvent> deserializer = new JsonDeserializer<>(VendorReturnEvent.class);
+        deserializer.setUseTypeHeaders(false);
+        deserializer.addTrustedPackages("*");
+
+        ErrorHandlingDeserializer<VendorReturnEvent> errorHandlingDeserializer =
+                new ErrorHandlingDeserializer<>(deserializer);
+
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), errorHandlingDeserializer);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, VendorReturnEvent> vendorReturnKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, VendorReturnEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(vendorReturnConsumerFactory());
         return factory;
     }
 }

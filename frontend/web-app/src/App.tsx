@@ -20,6 +20,7 @@ import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import DebitNotes from './pages/DebitNotes';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -60,6 +61,7 @@ function App() {
             <Route path="/material-receipts" element={<MaterialReceipts />} />
             <Route path="/ncr" element={<NCRPage />} />
             <Route path="/org-settings" element={<OrgSettings />} />
+            <Route path="/debit-notes" element={<DebitNotes />} />
           </Route>
         </Route>
 

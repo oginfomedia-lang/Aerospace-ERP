@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
-  Plane, ChevronRight, Bell, LogOut,
+  Plane, ChevronRight, Bell, LogOut, FileMinus,
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -45,6 +45,13 @@ const navItems = [
     label: 'Vendor Invoices',
     icon: <Receipt size={18} />,
     description: 'Three-way match & AP',
+    roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/debit-notes',
+    label: 'Debit Notes',
+    icon: <FileMinus size={18} />,
+    description: 'Vendor returns & AP credit',
     roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
   },
   {
@@ -233,6 +240,7 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/ncr' && 'Non-Conformance Reports'}
               {location.pathname === '/org-settings' && 'Organization Settings'}
               {location.pathname === '/vendor-invoices' && 'Vendor Invoices'}
+              {location.pathname === '/debit-notes' && 'Debit Notes'}
               {location.pathname.includes('/transactions') && 'Transaction History'}
             </span>
           </div>

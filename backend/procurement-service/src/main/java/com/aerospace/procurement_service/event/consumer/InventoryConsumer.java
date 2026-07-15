@@ -8,7 +8,8 @@ import com.aerospace.procurement_service.event.KafkaTopics;
 import com.aerospace.procurement_service.event.MaterialShortageEvent;
 import com.aerospace.procurement_service.event.QAStatusChangedEvent;
 import com.aerospace.procurement_service.event.StockLowEvent;
-
+import com.aerospace.procurement_service.event.VendorReturnEvent;
+import com.aerospace.procurement_service.service.DebitNoteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class InventoryConsumer {
     private final com.aerospace.procurement_service.service.PurchaseOrderService poService;
+    private final DebitNoteService debitNoteService;
 
     // Topic string previously didn't match what inventory-service actually publishes
     // to ("inventory-stock-low" vs the real "stock-low-events"), so this listener
@@ -67,6 +69,20 @@ public class InventoryConsumer {
             poService.applyQaOutcome(event);
         } catch (Exception e) {
             log.error("Failed to apply QA outcome to purchase order", e);
+        }
+    }
+
+    //rejected batch returned to vendor - auto raise a debit note against the supplier
+    @KafkaListener(
+        topics = KafkaTopics.VENDOR_RETURN,
+        groupId = "procurement-service-group",
+        containerFactory = "vendorReturnKafkaListenerContainerFactory"
+    )
+    public void handleVendorReturn(@Payload VendorReturnEvent event) {
+        try {
+            debitNoteService.createFromVendorReturn(event);
+        } catch (Exception e) {
+            log.error("Failed to create debit note from vendor return event", e);
         }
     }
 }

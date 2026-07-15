@@ -16,4 +16,8 @@ public class KafkaTopics {
     public static final String WORK_ORDER_CREATED    = "work-order-created-events";
     // Published by inventory-service, consumed by procurement-service.
     public static final String MATERIAL_SHORTAGE     = "material-shortage-events";
+
+    // Published by inventory-service, consumed by procurement-service (auto-creates a Debit
+    // Note against the supplier) and notification-service (alerts the team).
+    public static final String VENDOR_RETURN = "vendor-return-events";
 }

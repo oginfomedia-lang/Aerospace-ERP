@@ -89,6 +89,12 @@ public class KafkaConfig {
         return factory(PartCreatedEvent.class);
     }
 
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, VendorReturnEvent>
+    vendorReturnListenerFactory() {
+        return factory(VendorReturnEvent.class);
+    }
+
     // ── Work order event factories ────────────────────────────────────────────
 
     @Bean

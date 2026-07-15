@@ -9,10 +9,17 @@ import com.aerospace.order_service.exception.InvalidStatusTransitionException;
 import com.aerospace.order_service.repository.*;
 import com.aerospace.order_service.service.WorkOrderService;
 import com.aerospace.order_service.service.WoNumberGeneratorService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +35,11 @@ public class WorkOrderServiceImpl implements WorkOrderService {
     private final WorkOrderStatusHistoryRepository historyRepository;
     private final WorkOrderProducer producer;
     private final WoNumberGeneratorService woNumberGenerator;
+    private final RestTemplate restTemplate;
+    private final HttpServletRequest request;
+
+    @Value("${services.inventory.base-url}")
+    private String inventoryBaseUrl;
 
     // Valid status transitions — prevents illegal state changes
     private static final java.util.Map<WorkOrderStatus, Set<WorkOrderStatus>> ALLOWED_TRANSITIONS =
@@ -207,7 +219,35 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Line item not found: " + req.getLineItemId()));
 
-        // ── Accumulate quantity (don't overwrite) ──────────────────────────────
+        // ── Real stock check + deduction happens in inventory-service, synchronously —
+        // this is what actually validates there's enough APPROVED stock before we let the
+        // line item (and possibly the whole WO) move to ISSUED/IN_PROGRESS. A Kafka event
+        // here would be fire-and-forget with no way to reject an over-issue in time.
+        String url = UriComponentsBuilder.fromHttpUrl(inventoryBaseUrl + "/inventory/{partId}/issue-to-production")
+                .queryParam("qty", req.getQuantityIssued())
+                .queryParamIfPresent("batchNumber", java.util.Optional.ofNullable(req.getBatchNumber()))
+                .queryParam("workOrderId", wo.getId())
+                .queryParam("woNumber", wo.getWoNumber())
+                .queryParam("lineItemId", line.getId())
+                .buildAndExpand(line.getPartId())
+                .toUriString();
+        try {
+            // Forward the caller's own JWT — inventory-service's security filter requires
+            // one, and without it every call here would be rejected at 403 before ever
+            // reaching the real stock check (that's exactly what an unauthenticated call
+            // did when this was first tested).
+            HttpHeaders headers = new HttpHeaders();
+            String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+            if (authHeader != null) {
+                headers.set(HttpHeaders.AUTHORIZATION, authHeader);
+            }
+            restTemplate.postForEntity(url, new HttpEntity<>(headers), Object.class);
+        } catch (HttpStatusCodeException ex) {
+            throw new InvalidStatusTransitionException(
+                    "Inventory rejected this issue: " + ex.getResponseBodyAsString());
+        }
+
+        // ── Accumulate quantity (don't overwrite) — only reached once inventory confirms ─
         int alreadyIssued = line.getQuantityIssued() != null ? line.getQuantityIssued() : 0;
         int newTotalIssued = alreadyIssued + req.getQuantityIssued();
 
@@ -222,23 +262,6 @@ public class WorkOrderServiceImpl implements WorkOrderService {
         }
 
         lineItemRepository.save(line);
-
-        // ── Publish material request event ─────────────────────────────────────
-        try {
-            producer.publishMaterialRequest(MaterialRequestEvent.builder()
-                    .workOrderId(wo.getId())
-                    .woNumber(wo.getWoNumber())
-                    .partId(line.getPartId())
-                    .partName(line.getPartName())
-                    .batchNumber(req.getBatchNumber())
-                    .quantityRequested(req.getQuantityIssued())
-                    .requestedBy(req.getIssuedBy())
-                    .location(wo.getLocation())
-                    .requestedAt(LocalDateTime.now())
-                    .build());
-        } catch (Exception ex) {
-            log.warn("[KAFKA] Failed to publish MATERIAL_REQUEST: {}", ex.getMessage());
-        }
 
         // ── Auto-transition to IN_PROGRESS only when ALL lines are fully issued ─
         if (wo.getStatus() == WorkOrderStatus.OPEN) {

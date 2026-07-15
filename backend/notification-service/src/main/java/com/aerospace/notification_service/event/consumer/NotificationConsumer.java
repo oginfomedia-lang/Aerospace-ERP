@@ -131,4 +131,19 @@ public class NotificationConsumer {
             log.error("[CONSUMER] Failed WorkOrderCompletedEvent woNumber={}: {}", event.getWoNumber(), ex.getMessage(), ex);
         }
     }
+
+    // --9. Vendor Return ─────────────────────────────────────────────────────────────
+    @KafkaListener(
+        topics          = "${notification.kafka.topics.vendor-return:vendor-return-events}",
+        groupId          = "notification-group",
+        containerFactory = "vendorReturnListenerFactory"
+    )
+    public void onVendorReturn(VendorReturnEvent event) {
+        log.info("[CONSUMER] vendor-return-events -> ncrNumber={}, skuCode={}",
+                event.getNcrNumber(), event.getSkuCode());
+        try { notificationService.handleVendorReturn(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed VendorReturnEvent ncrNumber={}: {}", event.getNcrNumber(), ex.getMessage(), ex);
+        }
+    }
 }

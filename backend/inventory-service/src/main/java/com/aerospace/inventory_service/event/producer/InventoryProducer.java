@@ -74,4 +74,13 @@ public class InventoryProducer {
                 event.getPartId(), event.getWoNumber(), event.getShortfallQty());
         kafkaTemplate.send(KafkaTopics.MATERIAL_SHORTAGE, String.valueOf(event.getPartId()), event);
     }
+
+    // --─ VENDOR RETURN ─────────────────────────────────────────────────────
+    // Topic: vendor-return-events — consumed by procurement-service to auto-raise a Debit Note
+    //and notification-service to alert the team.
+    public void sendVendorReturnEvent(VendorReturnEvent event) {
+        log.info("[KAFKA] Publishing VENDOR_RETURN for partId={} ncrNumber={} qty={}",
+                event.getPartId(), event.getNcrNumber(), event.getQuantity());
+        kafkaTemplate.send(KafkaTopics.VENDOR_RETURN, String.valueOf(event.getPartId()), event);
+    }
 }

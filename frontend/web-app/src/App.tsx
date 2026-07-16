@@ -9,6 +9,7 @@ import QAInspection from './pages/QAInspection';
 import Notifications from './pages/Notifications';
 import WorkOrders from './pages/WorkOrders';
 import ProductionOrders from './pages/ProductionOrders';
+import RoutingTemplates from './pages/RoutingTemplates';
 import ProcurementSuppliers from './pages/ProcurementSuppliers';
 import Locations from './pages/Locations';
 import ProcurementOrders from './pages/ProcurementOrders';
@@ -21,6 +22,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import DebitNotes from './pages/DebitNotes';
+import ApprovalMatrix from './pages/ApprovalMatrix';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -54,6 +56,7 @@ function App() {
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/work-orders" element={<WorkOrders />} />
             <Route path="/production" element={<ProductionOrders />} />
+            <Route path="/routing-templates" element={<RoutingTemplates />} />
             <Route path="/suppliers" element={<ProcurementSuppliers />} />
             <Route path="/locations" element={<Locations />} />
             <Route path="/purchase-orders" element={<ProcurementOrders />} />
@@ -62,6 +65,7 @@ function App() {
             <Route path="/ncr" element={<NCRPage />} />
             <Route path="/org-settings" element={<OrgSettings />} />
             <Route path="/debit-notes" element={<DebitNotes />} />
+            <Route path="/approval-matrix" element={<ApprovalMatrix />} />
           </Route>
         </Route>
 

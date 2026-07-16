@@ -23,4 +23,5 @@ public class ProductionMaterialDTO {
 
     private MaterialStatus status;
     private String remarks;
+    private Boolean readyForAssembly;
 }

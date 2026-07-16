@@ -17,4 +17,8 @@ public interface ApprovalMatrixRepository extends JpaRepository<ApprovalMatrix, 
     List<ApprovalMatrix> findByModuleCodeAndIsActiveTrueOrderByLevelSequenceAsc(String moduleCode);
 
     long countByModuleCode(String moduleCode);
+
+    List<ApprovalMatrix> findByModuleCodeOrderByLevelSequenceAsc(String moduleCode);
+
+    List<ApprovalMatrix> findAllByOrderByModuleCodeAscLevelSequenceAsc();
 }

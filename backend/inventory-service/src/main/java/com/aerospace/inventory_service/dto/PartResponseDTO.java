@@ -57,6 +57,11 @@ public class PartResponseDTO {
     // Set only on GRN receipt responses (GRN-FR-001: system-generated, never user-typed)
     private String grnNumber;
 
+    // Set only on issue-to-production responses — lets the frontend immediately open
+    // the printable Material Issue Receipt after a successful issue.
+    private Long materialIssueRecordId;
+    private String issueNumber;
+
     // Item-master reference pricing — shown when adding this part to a Work
     // Order; distinct from a PO's own negotiated unitPrice.
     private BigDecimal unitPrice;

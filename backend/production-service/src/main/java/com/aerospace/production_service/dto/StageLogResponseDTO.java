@@ -1,5 +1,6 @@
 package com.aerospace.production_service.dto;
 
+import com.aerospace.production_service.entity.OperationType;
 import com.aerospace.production_service.entity.ProductionStageLog.StageStatus;
 import lombok.*;
 
@@ -12,6 +13,11 @@ import java.time.LocalDateTime;
 public class StageLogResponseDTO {
 
     private Long id;
+    private Long productionMaterialId; // null for the order-level Final Assembly stage
+    private Integer sequenceNumber;
+    private Integer attemptNumber;
+    private Long routingOperationId;
+    private OperationType operationType;
     private String stageName;
     private String stageCode;
     private StageStatus status;

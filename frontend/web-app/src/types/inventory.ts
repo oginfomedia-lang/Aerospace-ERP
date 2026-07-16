@@ -47,6 +47,11 @@ export interface Part {
   // Set only on GRN receipt responses (system-generated, GRN-FR-001)
   grnNumber?: string | null;
 
+  // Set only on issue-to-production responses — open the printable Material Issue
+  // Receipt immediately after a successful issue.
+  materialIssueRecordId?: number | null;
+  issueNumber?: string | null;
+
   // Authoritative per-batch/status breakdown — a part can have APPROVED, PENDING_QA,
   // RESERVED and REJECTED stock at the same time, across different batches. The
   // fields above (batchNumber/quantity/status/location/expiryDate) are only ever an
@@ -64,6 +69,7 @@ export interface StockBalance {
   quantity: number;
   location: string | null;
   expiryDate: string | null;
+  poNumber: string | null;
 }
 
 // ============================================================
@@ -210,6 +216,34 @@ export interface MaterialReceipt {
   grnFormedAt?: string | null;
   status: 'RECEIVED_AT_GATE' | 'GRN_FORMED';
   items: MaterialReceiptItem[];
+}
+
+// ============================================================
+// Matches: MaterialIssueRecordResponse / MaterialIssueRecordLineResponse (inventory-service)
+// The outbound counterpart to MaterialReceipt — which batches fed a single
+// issue-to-production call.
+// ============================================================
+export interface MaterialIssueRecordLine {
+  id: number;
+  batchNumber: string | null;
+  quantityTaken: number | null;
+  location: string | null;
+  expiryDate: string | null;
+}
+
+export interface MaterialIssueRecord {
+  id: number;
+  issueNumber: string;
+  partId: number;
+  partName: string | null;
+  totalQuantityIssued: number | null;
+  workOrderId: number | null;
+  woNumber: string | null;
+  lineItemId: number | null;
+  issuedTo: string | null;
+  issuedBy: string | null;
+  issuedAt: string;
+  lines: MaterialIssueRecordLine[];
 }
 
 // ============================================================

@@ -12,4 +12,9 @@ public class KafkaTopics {
     // ── Topics this service CONSUMES (from inventory-service) ─────────────────
     public static final String MATERIAL_ISSUED            = "material-issued-events";
     public static final String STOCK_LOW                  = "stock-low-events";
+
+    // ── Topics this service CONSUMES (from order-service) ─────────────────────
+    // OPEN→IN_PROGRESS transitions carry a materialLineItems snapshot, used to
+    // auto-create a ProductionOrder + BOM (see WorkOrderConsumer).
+    public static final String WORK_ORDER_UPDATED          = "work-order-updated-events";
 }

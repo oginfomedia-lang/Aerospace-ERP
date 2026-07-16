@@ -7,13 +7,19 @@ import {
 } from 'lucide-react';
 import workOrderApi from '../api/workOrderAxios';
 import procurementApi from '../api/procurementAxios';
-import { PurchaseOrderResponse } from '../types/procurement';
+import productionApi from '../api/productionAxios';
+import { OrganizationProfile, PurchaseOrderResponse } from '../types/procurement';
+import { MaterialIssueRecord, Part as PartType } from '../types/inventory';
+import { ProductionOrder } from '../types/production';
 import {
   WorkOrder, WorkOrderStatus, StatusTransitionRequest,
-  StatusHistoryEntry, ApiResponse
+  StatusHistoryEntry, ApiResponse, MaterialLineItem
 } from '../types/workOrder';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
+import { ReceiptModal } from './ReceiptModal';
+import { MaterialIssueReceiptDocument } from './MaterialIssueReceiptDocument';
+import { IssueMaterialPickerModal } from './IssueMaterialPickerModal';
 
 interface Props {
   workOrder: WorkOrder | null;
@@ -74,10 +80,29 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
   const [activeTab, setActiveTab] = useState<'details' | 'material' | 'history'>('details');
   const [transitioning, setTransitioning] = useState(false);
   const [transitionRemarks, setTransitionRemarks] = useState('');
-  const [issueForm, setIssueForm] = useState<{ [lineId: number]: { qty: string; batch: string } }>({});
   const [inventoryLevels, setInventoryLevels] = useState<{ [partId: number]: { qty: number; batch: string; skuCode: string; pendingQa: number } }>({});
-  const [issuing, setIssuing] = useState<number | null>(null);
+  const [partsByPartId, setPartsByPartId] = useState<Record<number, PartType>>({});
+  const [issuePickerLine, setIssuePickerLine] = useState<MaterialLineItem | null>(null);
   const [linkedPOs, setLinkedPOs] = useState<PurchaseOrderResponse[]>([]);
+  const [orgProfile, setOrgProfile] = useState<OrganizationProfile | null>(null);
+  const [issueReceipt, setIssueReceipt] = useState<MaterialIssueRecord | null>(null);
+  const [linkedProductionOrders, setLinkedProductionOrders] = useState<ProductionOrder[]>([]);
+  const [pastIssuesByLine, setPastIssuesByLine] = useState<Record<number, MaterialIssueRecord[]>>({});
+
+  useEffect(() => {
+    if (isOpen) {
+      procurementApi.get<OrganizationProfile>('/organization-profile')
+        .then(res => setOrgProfile(res.data)).catch(() => setOrgProfile(null));
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (workOrder && isOpen) {
+      productionApi.get(`/production/by-work-order/${workOrder.id}`)
+        .then(res => setLinkedProductionOrders(res.data.data || []))
+        .catch(() => setLinkedProductionOrders([]));
+    }
+  }, [workOrder, isOpen]);
 
   useEffect(() => {
     if (workOrder && isOpen) {
@@ -100,12 +125,25 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                 pendingQa: data.pendingQaQuantity || 0,
               }
             }));
+            setPartsByPartId(prev => ({ ...prev, [line.partId]: data }));
             // Batch field is intentionally left blank — issuing with no batch triggers
             // FIFO (oldest APPROVED batch first, split across as many as needed) on
             // inventory-service. Pre-filling it here would silently pin every issue
             // to a single batch and defeat that.
           }).catch(() => {});
         }
+      });
+    }
+  }, [workOrder, activeTab]);
+
+  useEffect(() => {
+    if (workOrder && activeTab === 'material') {
+      // Lets a past issue's printable receipt be reopened after its initial popup is
+      // closed — previously there was no way back to it once dismissed.
+      workOrder.materialLineItems.forEach(line => {
+        api.get<ApiResponse<MaterialIssueRecord[]>>('/inventory/material-issue-records', { params: { lineItemId: line.id } })
+          .then(res => setPastIssuesByLine(prev => ({ ...prev, [line.id]: res.data.data })))
+          .catch(() => {});
       });
     }
   }, [workOrder, activeTab]);
@@ -147,51 +185,36 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
     finally { setTransitioning(false); }
   };
 
-  const handleIssueMaterial = async (lineItemId: number) => {
-    const f = issueForm[lineItemId];
-    if (!f?.qty || Number(f.qty) <= 0) {
-      toast.error('Enter a valid quantity.');
-      return;
-    }
-    const line = wo.materialLineItems.find(l => l.id === lineItemId);
-    if (!line?.partId) {
-      toast.error('This line has no linked inventory part.');
-      return;
+  // Called once the IssueMaterialPickerModal successfully deducts stock. Passing
+  // workOrderId/lineItemId (via the modal's props) lets inventory-service publish a
+  // MaterialIssuedEvent carrying this WO context — order-service consumes that event
+  // and updates this line's quantityIssued/status itself, so the work order stays in
+  // sync even if this browser tab closes right after.
+  const handleMaterialIssued = (response: PartType) => {
+    const issueRecordId = response.materialIssueRecordId;
+    toast.success(`Issued from batch(es) ${response.batchNumber || 'Unknown'} — deducted from inventory. Work order will update momentarily.`);
+
+    // Pop the printable Issue Receipt immediately — the caller shouldn't have to
+    // hunt for it later to know exactly which batches this issue came from.
+    if (issueRecordId) {
+      api.get(`/inventory/material-issue-records/${issueRecordId}`)
+        .then(r => {
+          const record = r.data.data;
+          setIssueReceipt(record);
+          // Also add it to "Past Issues" for its line, so it's reachable again
+          // without waiting for the next material-tab refetch.
+          if (record.lineItemId) {
+            setPastIssuesByLine(prev => ({
+              ...prev,
+              [record.lineItemId!]: [record, ...(prev[record.lineItemId!] || [])],
+            }));
+          }
+        }).catch(() => {});
     }
 
-    setIssuing(lineItemId);
-    try {
-      // Deduct from inventory — this is the single source of truth for stock
-      // (INV-BR-001/002). If there isn't enough APPROVED stock, this throws and
-      // nothing else happens. Leaving batch blank triggers FIFO (oldest APPROVED
-      // batch first, split across as many as needed); a manually typed batch pins
-      // the issue to just that one.
-      //
-      // Passing workOrderId/lineItemId lets inventory-service publish a
-      // MaterialIssuedEvent carrying this WO context — order-service consumes
-      // that event and updates this line's quantityIssued/status itself, so the
-      // work order stays in sync even if this browser tab closes right after.
-      const res = await api.post(`/inventory/${line.partId}/issue-to-production`, null, {
-        params: {
-          qty: Number(f.qty),
-          ...(f.batch ? { batchNumber: f.batch } : {}),
-          workOrderId: wo.id,
-          woNumber: wo.woNumber,
-          lineItemId,
-        },
-      });
-      const batchesUsed: string = res.data?.data?.batchNumber || f.batch || 'Unknown';
-
-      toast.success(`Issued ${f.qty} units from batch(es) ${batchesUsed} — deducted from inventory. Work order will update momentarily.`);
-      setIssueForm(prev => ({ ...prev, [lineItemId]: { qty: '', batch: '' } }));
-      // Small delay so the async Kafka round-trip to order-service has time to
-      // land before we refetch — the WO line update isn't part of this request.
-      setTimeout(onSuccess, 800);
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || 'Issue failed — stock was not deducted.');
-    } finally {
-      setIssuing(null);
-    }
+    // Small delay so the async Kafka round-trip to order-service has time to
+    // land before we refetch — the WO line update isn't part of this request.
+    setTimeout(onSuccess, 800);
   };
 
   const isOverdue = wo.dueDate && new Date(wo.dueDate) < new Date()
@@ -214,6 +237,12 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                   <AlertTriangle size={9} /> OVERDUE
                 </span>
               )}
+              {linkedProductionOrders.map(po => (
+                <button key={po.id} onClick={() => navigate('/production')}
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-400/40 hover:bg-indigo-500/30 transition-colors">
+                  Production: {po.poNumber} · {po.status.replace(/_/g, ' ')}
+                </button>
+              ))}
             </div>
             <p className="text-slate-300 text-sm font-medium">{wo.taskDescription}</p>
             <div className="flex items-center gap-4 mt-2 flex-wrap">
@@ -467,44 +496,37 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
                     </div>
                   )}
 
-                  {/* Issue / Issue-Remaining form — shown for PENDING or PARTIALLY_ISSUED lines */}
+                  {/* Past Issues — reopen a previously-closed printable receipt */}
+                  {(pastIssuesByLine[line.id]?.length || 0) > 0 && (
+                    <div className="pt-3 border-t border-slate-200">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-1.5">
+                        Past Issues
+                      </span>
+                      <div className="space-y-1">
+                        {pastIssuesByLine[line.id].map(record => (
+                          <button
+                            key={record.id}
+                            onClick={() => setIssueReceipt(record)}
+                            className="w-full flex items-center justify-between gap-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 transition text-left"
+                          >
+                            <span className="font-mono text-[11px] font-bold text-slate-700">{record.issueNumber}</span>
+                            <span className="text-[11px] text-slate-500">{record.totalQuantityIssued} units · {new Date(record.issuedAt).toLocaleDateString()}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Issue / Issue-Remaining — opens the batch picker showing real availability */}
                   {(line.status === 'PENDING' || line.status === 'PARTIALLY_ISSUED') &&
                     wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
-                    <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
-                      <input
-                        type="number"
-                        min={1}
-                        max={line.quantityRequired - line.quantityIssued}
-                        placeholder={
-                          line.status === 'PARTIALLY_ISSUED'
-                            ? `Remaining: ${line.quantityRequired - line.quantityIssued}`
-                            : 'Qty to issue'
-                        }
-                        value={issueForm[line.id]?.qty ?? ''}
-                        onChange={e => setIssueForm(prev => ({
-                          ...prev,
-                          [line.id]: { ...prev[line.id], qty: e.target.value }
-                        }))}
-                        className="w-28 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Blank = FIFO (oldest batch first)"
-                        title="Leave blank to auto-issue from the oldest APPROVED batch(es) first. Type a batch number to pin the issue to that one batch only."
-                        value={issueForm[line.id]?.batch ?? ''}
-                        onChange={e => setIssueForm(prev => ({
-                          ...prev,
-                          [line.id]: { ...prev[line.id], batch: e.target.value }
-                        }))}
-                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
+                    <div className="flex items-center justify-end pt-3 border-t border-slate-200">
                       <button
-                        onClick={() => handleIssueMaterial(line.id)}
-                        disabled={issuing === line.id}
+                        onClick={() => setIssuePickerLine(line)}
+                        disabled={!line.partId}
                         className="px-4 py-1.5 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-200 whitespace-nowrap disabled:opacity-50 flex items-center gap-1.5"
                       >
-                        {issuing === line.id && <Loader2 size={12} className="animate-spin" />}
-                        {line.status === 'PARTIALLY_ISSUED' ? 'Issue Remaining' : 'Issue'}
+                        {line.status === 'PARTIALLY_ISSUED' ? 'Issue Remaining' : 'Issue Material'}
                       </button>
                     </div>
                   )}
@@ -599,6 +621,28 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
           )}
         </div>
       </div>
+
+      {issueReceipt && (
+        <ReceiptModal
+          isOpen={!!issueReceipt}
+          onClose={() => setIssueReceipt(null)}
+          title="Material Issue Receipt"
+          documentNumber={issueReceipt.issueNumber}
+        >
+          <MaterialIssueReceiptDocument record={issueReceipt} org={orgProfile} />
+        </ReceiptModal>
+      )}
+
+      <IssueMaterialPickerModal
+        isOpen={!!issuePickerLine}
+        onClose={() => setIssuePickerLine(null)}
+        part={issuePickerLine ? partsByPartId[issuePickerLine.partId] || null : null}
+        workOrderId={wo.id}
+        woNumber={wo.woNumber}
+        lineItemId={issuePickerLine?.id}
+        suggestedQuantity={issuePickerLine ? issuePickerLine.quantityRequired - issuePickerLine.quantityIssued : 0}
+        onIssued={(response) => { handleMaterialIssued(response); setIssuePickerLine(null); }}
+      />
     </div>
   );
 };

@@ -17,23 +17,27 @@ import toast from 'react-hot-toast';
 // ── Style maps ────────────────────────────────────────────────────────────────
 
 const statusStyle: Record<ProductionOrderStatus, string> = {
-  PLANNED:      'bg-slate-100  text-slate-600  border-slate-200',
-  RELEASED:     'bg-blue-50    text-blue-700   border-blue-200',
-  IN_PRODUCTION:  'bg-amber-50   text-amber-700  border-amber-200',
-  QUALITY_CHECK: 'bg-indigo-50  text-indigo-700 border-indigo-200',
-  COMPLETED:    'bg-emerald-50 text-emerald-700 border-emerald-200',
-  ON_HOLD:      'bg-orange-50  text-orange-700 border-orange-200',
-  CANCELLED:    'bg-red-50     text-red-700    border-red-200',
+  PLANNED:            'bg-slate-100  text-slate-600  border-slate-200',
+  RELEASED:           'bg-blue-50    text-blue-700   border-blue-200',
+  IN_PRODUCTION:      'bg-amber-50   text-amber-700  border-amber-200',
+  READY_FOR_ASSEMBLY: 'bg-teal-50    text-teal-700   border-teal-200',
+  IN_ASSEMBLY:        'bg-violet-50  text-violet-700 border-violet-200',
+  QUALITY_CHECK:      'bg-indigo-50  text-indigo-700 border-indigo-200',
+  COMPLETED:          'bg-emerald-50 text-emerald-700 border-emerald-200',
+  ON_HOLD:            'bg-orange-50  text-orange-700 border-orange-200',
+  CANCELLED:          'bg-red-50     text-red-700    border-red-200',
 };
 
 const statusIcon: Record<ProductionOrderStatus, React.ReactNode> = {
-  PLANNED:      <Clock size={12} />,
-  RELEASED:     <PlayCircle size={12} />,
-  IN_PRODUCTION:  <Activity size={12} />,
-  QUALITY_CHECK: <ClipboardCheck size={12} />,
-  COMPLETED:    <CheckCircle2 size={12} />,
-  ON_HOLD:      <PauseCircle size={12} />,
-  CANCELLED:    <XCircle size={12} />,
+  PLANNED:            <Clock size={12} />,
+  RELEASED:           <PlayCircle size={12} />,
+  IN_PRODUCTION:      <Activity size={12} />,
+  READY_FOR_ASSEMBLY: <Package size={12} />,
+  IN_ASSEMBLY:        <Settings size={12} />,
+  QUALITY_CHECK:      <ClipboardCheck size={12} />,
+  COMPLETED:          <CheckCircle2 size={12} />,
+  ON_HOLD:            <PauseCircle size={12} />,
+  CANCELLED:          <XCircle size={12} />,
 };
 
 const priorityStyle: Record<ProductionPriority, string> = {

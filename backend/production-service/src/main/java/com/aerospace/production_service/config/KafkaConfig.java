@@ -1,6 +1,7 @@
 package com.aerospace.production_service.config;
 
 import com.aerospace.production_service.event.MaterialIssuedEvent;
+import com.aerospace.production_service.event.WorkOrderStatusChangedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,6 +51,30 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, MaterialIssuedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(materialIssuedConsumerFactory());
+        return factory;
+    }
+
+    // Listens to work-order-updated-events from order-service — the OPEN→IN_PROGRESS
+    // transition carries a materialLineItems snapshot used to auto-create a
+    // ProductionOrder + BOM (see WorkOrderConsumer).
+    @Bean
+    public ConsumerFactory<String, WorkOrderStatusChangedEvent> workOrderStatusChangedConsumerFactory() {
+        JsonDeserializer<WorkOrderStatusChangedEvent> deserializer =
+                new JsonDeserializer<>(WorkOrderStatusChangedEvent.class);
+        deserializer.setUseTypeHeaders(false);
+        deserializer.addTrustedPackages("*");
+        ErrorHandlingDeserializer<WorkOrderStatusChangedEvent> errorHandling =
+                new ErrorHandlingDeserializer<>(deserializer);
+        return new DefaultKafkaConsumerFactory<>(baseConsumerProps(),
+                new StringDeserializer(), errorHandling);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, WorkOrderStatusChangedEvent>
+            workOrderStatusChangedKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, WorkOrderStatusChangedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(workOrderStatusChangedConsumerFactory());
         return factory;
     }
 }

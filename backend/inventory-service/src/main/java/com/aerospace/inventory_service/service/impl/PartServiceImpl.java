@@ -36,6 +36,7 @@ public class PartServiceImpl implements PartService {
     private final DocumentSequenceService documentSequenceService;
     private final NcrRepository ncrRepository;
     private final LocationService locationService;
+    private final MaterialIssueRecordRepository materialIssueRecordRepository;
 
     // ── CREATE PART ──────────────────────────────────────────────────────────
     // Kafka: PART_CREATED → notification-service logs "New Part Registered"
@@ -101,7 +102,7 @@ public class PartServiceImpl implements PartService {
     @Override
     @Transactional
     @CacheEvict(value = "dashboardStats", allEntries = true)
-    public PartResponseDTO addStock(Long id, int quantity, String batch, String loc,
+    public PartResponseDTO addStock(Long id, int quantity, String ignoredManualBatchNumber, String loc,
                                     LocalDateTime expiryDate,
                                     String ignoredManualGrnNumber, String challanNumber,
                                     String supplierName, String transportName,
@@ -112,9 +113,6 @@ public class PartServiceImpl implements PartService {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Received quantity must be greater than zero.");
         }
-        if (part.isBatchRequired() && (batch == null || batch.isBlank())) {
-            throw new IllegalArgumentException("INV-BR-004: Batch number is required for this item.");
-        }
         if (part.isExpiryTracking() && expiryDate == null) {
             throw new IllegalArgumentException("ITM-BR-003: Expiry date is required for this item (expiry tracking enabled).");
         }
@@ -124,18 +122,21 @@ public class PartServiceImpl implements PartService {
 
         // GRN-FR-001: the GRN number is always system-generated — manual/free-text numbers are ignored.
         String systemGrnNumber = documentSequenceService.generate("GRN");
+        // GRN-FR-004: batch number is always system-generated too — every physical receipt
+        // (whether from a PO/GRN or a manual stock intake) becomes its own distinct lot.
+        // Manual/free-text batch numbers are never accepted, same philosophy as the GRN number above.
+        String batch = documentSequenceService.generate("BATCH");
 
         // GRN-FR-003: route to the QC bucket only when the item actually requires inspection;
         // otherwise the received stock is available immediately.
         StockStatus targetStatus = part.isQcRequired() ? StockStatus.PENDING_QA : StockStatus.APPROVED;
 
-        StockBalance balance = balanceRepository
-                .findByPartIdAndBatchNumberAndStatus(id, batch, targetStatus)
-                .orElse(StockBalance.builder()
-                        .partId(id).batchNumber(batch)
-                        .status(targetStatus).quantity(0).build());
-
-        balance.setQuantity(balance.getQuantity() + quantity);
+        // The batch number is freshly generated above, so every receipt always becomes its
+        // own new StockBalance row — no merge-lookup against an existing batch is needed.
+        StockBalance balance = StockBalance.builder()
+                .partId(id).batchNumber(batch)
+                .status(targetStatus).quantity(quantity)
+                .build();
         balance.setLocation(loc);
         balance.setExpiryDate(expiryDate);
         if (poNumber != null && !poNumber.isBlank()) {
@@ -217,25 +218,117 @@ public class PartServiceImpl implements PartService {
         }
 
         int remainingToIssue = quantity;
-        StringBuilder batchSummary = new StringBuilder();
-        String lastLocation = null;
-
+        List<java.util.Map.Entry<StockBalance, Integer>> allocations = new java.util.ArrayList<>();
         for (StockBalance b : candidates) {
             if (remainingToIssue <= 0) break;
             int take = Math.min(remainingToIssue, b.getQuantity());
+            allocations.add(java.util.Map.entry(b, take));
+            remainingToIssue -= take;
+        }
+
+        IssueLoopResult result = deductAndBuildLines(id, allocations,
+                candidates.size() > 1 ? "FIFO — part of a " + quantity + "-unit issue" : "Material Issued");
+
+        return finalizeIssuance(id, part, quantity, result, workOrderId, woNumber, lineItemId,
+                "Production", "System");
+    }
+
+    // Explicit multi-batch allocation — shares the deduct/log/record loop and the
+    // MaterialIssueRecord/Kafka/response tail with issueToProduction above; only how
+    // the (StockBalance, quantity) pairs are resolved differs.
+    @Override
+    @Transactional
+    public PartResponseDTO issueToProductionWithAllocation(Long id, List<BatchAllocationRequest> requestedAllocations,
+                                                            Long workOrderId, String woNumber, Long lineItemId,
+                                                            String issuedTo, String issuedBy) {
+        Part part = partRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
+
+        if (requestedAllocations == null || requestedAllocations.isEmpty()) {
+            throw new IllegalArgumentException("At least one batch allocation is required.");
+        }
+
+        List<java.util.Map.Entry<StockBalance, Integer>> allocations = new java.util.ArrayList<>();
+        int totalQuantity = 0;
+        for (BatchAllocationRequest alloc : requestedAllocations) {
+            if (alloc.getQuantity() == null || alloc.getQuantity() <= 0) {
+                throw new IllegalArgumentException(
+                        "Allocation quantity must be greater than zero for batch " + alloc.getBatchNumber());
+            }
+            StockBalance balance = balanceRepository
+                    .findByPartIdAndBatchNumberAndStatus(id, alloc.getBatchNumber(), StockStatus.APPROVED)
+                    .orElseThrow(() -> new RuntimeException("No APPROVED stock for batch: " + alloc.getBatchNumber()));
+            if (balance.getQuantity() < alloc.getQuantity()) {
+                throw new RuntimeException("Requested " + alloc.getQuantity() + " from batch "
+                        + alloc.getBatchNumber() + " but only " + balance.getQuantity() + " is APPROVED and available.");
+            }
+            allocations.add(java.util.Map.entry(balance, alloc.getQuantity()));
+            totalQuantity += alloc.getQuantity();
+        }
+
+        IssueLoopResult result = deductAndBuildLines(id, allocations, "Manual multi-batch allocation");
+
+        return finalizeIssuance(id, part, totalQuantity, result, workOrderId, woNumber, lineItemId,
+                issuedTo != null && !issuedTo.isBlank() ? issuedTo : "Production",
+                issuedBy != null && !issuedBy.isBlank() ? issuedBy : "System");
+    }
+
+    // Shared by both issuance paths: deducts each (balance, amount) pair, logs a
+    // PRODUCTION_ISSUE transaction per batch touched, and builds the structured
+    // MaterialIssueRecordLine rows for the printable receipt.
+    private record IssueLoopResult(String batchSummary, String lastLocation, List<MaterialIssueRecordLine> issueLines) {}
+
+    private IssueLoopResult deductAndBuildLines(Long partId, List<java.util.Map.Entry<StockBalance, Integer>> allocations,
+                                                 String multiBatchTransactionLabel) {
+        StringBuilder batchSummary = new StringBuilder();
+        String lastLocation = null;
+        List<MaterialIssueRecordLine> issueLines = new java.util.ArrayList<>();
+        boolean multiBatch = allocations.size() > 1;
+
+        for (java.util.Map.Entry<StockBalance, Integer> alloc : allocations) {
+            StockBalance b = alloc.getKey();
+            int take = alloc.getValue();
             b.setQuantity(b.getQuantity() - take);
             balanceRepository.save(b);
-            remainingToIssue -= take;
             lastLocation = b.getLocation();
 
-            transactionService.logTransaction(id, b.getBatchNumber(), "PRODUCTION_ISSUE", -take, null,
-                    candidates.size() > 1
-                            ? "Material Issued (FIFO — part of a " + quantity + "-unit issue)"
-                            : "Material Issued");
+            transactionService.logTransaction(partId, b.getBatchNumber(), "PRODUCTION_ISSUE", -take, null,
+                    multiBatch ? "Material Issued (" + multiBatchTransactionLabel + ")" : "Material Issued");
 
             if (batchSummary.length() > 0) batchSummary.append(", ");
             batchSummary.append(b.getBatchNumber()).append(":").append(take);
+
+            issueLines.add(MaterialIssueRecordLine.builder()
+                    .batchNumber(b.getBatchNumber())
+                    .quantityTaken(take)
+                    .location(b.getLocation())
+                    .expiryDate(b.getExpiryDate())
+                    .build());
         }
+        return new IssueLoopResult(batchSummary.toString(), lastLocation, issueLines);
+    }
+
+    // Shared tail: persist the MaterialIssueRecord, publish MaterialIssuedEvent +
+    // (optionally) StockLowEvent, and build the response DTO.
+    private PartResponseDTO finalizeIssuance(Long id, Part part, int totalQuantity, IssueLoopResult result,
+                                              Long workOrderId, String woNumber, Long lineItemId,
+                                              String issuedTo, String issuedBy) {
+        MaterialIssueRecord issueRecord = MaterialIssueRecord.builder()
+                .issueNumber(documentSequenceService.generate("ISS"))
+                .partId(id)
+                .partName(part.getName())
+                .totalQuantityIssued(totalQuantity)
+                .workOrderId(workOrderId)
+                .woNumber(woNumber)
+                .lineItemId(lineItemId)
+                .issuedTo(issuedTo)
+                .issuedBy(issuedBy)
+                .build();
+        for (MaterialIssueRecordLine line : result.issueLines()) {
+            line.setMaterialIssueRecord(issueRecord);
+        }
+        issueRecord.setLines(result.issueLines());
+        final MaterialIssueRecord savedIssueRecord = materialIssueRecordRepository.save(issueRecord);
 
         // Total remaining APPROVED stock across ALL batches for this part — low-stock
         // and the reported "on hand" quantity must reflect the whole part, not just
@@ -253,12 +346,12 @@ public class PartServiceImpl implements PartService {
                     .lineItemId(lineItemId)
                     .partId(id)
                     .partName(part.getName())
-                    .batchNumber(batchSummary.toString())
-                    .quantityIssued(quantity)
+                    .batchNumber(result.batchSummary())
+                    .quantityIssued(totalQuantity)
                     .remainingQuantity(totalRemainingApproved)
-                    .issuedTo("Production")
-                    .issuedBy("System")
-                    .location(lastLocation != null ? lastLocation : "")
+                    .issuedTo(issuedTo)
+                    .issuedBy(issuedBy)
+                    .location(result.lastLocation() != null ? result.lastLocation() : "")
                     .build()
             );
         } catch (Exception ex) {
@@ -273,10 +366,10 @@ public class PartServiceImpl implements PartService {
                         .partId(id)
                         .partName(part.getName())
                         .skuCode(part.getSkuCode())
-                        .batchNumber(batchSummary.toString())
+                        .batchNumber(result.batchSummary())
                         .currentQuantity(totalRemainingApproved)
                         .reorderLevel(part.getReorderLevel())
-                        .location(lastLocation != null ? lastLocation : "")
+                        .location(result.lastLocation() != null ? result.lastLocation() : "")
                         .build()
                 );
             } catch (Exception ex) {
@@ -286,8 +379,10 @@ public class PartServiceImpl implements PartService {
 
         PartResponseDTO response = mapper.toDTO(part);
         response.setQuantity(totalRemainingApproved);
-        response.setBatchNumber(batchSummary.toString());
+        response.setBatchNumber(result.batchSummary());
         response.setStatus(StockStatus.APPROVED.name());
+        response.setMaterialIssueRecordId(savedIssueRecord.getId());
+        response.setIssueNumber(savedIssueRecord.getIssueNumber());
         return response;
     }
 
@@ -631,6 +726,7 @@ public class PartServiceImpl implements PartService {
                         .quantity(b.getQuantity())
                         .location(b.getLocation())
                         .expiryDate(b.getExpiryDate())
+                        .poNumber(b.getPoNumber())
                         .build())
                 .toList());
 
@@ -703,4 +799,5 @@ public class PartServiceImpl implements PartService {
 
         return dto;
     }
+
 }

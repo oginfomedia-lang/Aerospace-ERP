@@ -52,7 +52,6 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
   // FIX 1: expiryDate moved here to Step 2 state — it is a batch/stock property,
   // NOT a part master property. Part master has no expiry, a specific received batch does.
   const [stockData, setStockData] = useState({
-    batchNumber: '',
     quantity: 0,
     location: '',
     expiryDate: '',
@@ -70,7 +69,7 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
       shelfLifeDays: 0, preferredSupplierId: '',
       unitPrice: '', taxRatePercent: '', hsnCode: '', description: '',
     });
-    setStockData({ batchNumber: '', quantity: 0, location: '', expiryDate: '' });
+    setStockData({ quantity: 0, location: '', expiryDate: '' });
   };
 
   const handleClose = () => {
@@ -140,10 +139,6 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
     e.preventDefault();
     if (!createdPart) return;
 
-    if (!stockData.batchNumber.trim()) {
-      toast.error('Batch number is required for aerospace traceability.');
-      return;
-    }
     if (stockData.quantity <= 0) {
       toast.error('Quantity must be greater than zero.');
       return;
@@ -151,7 +146,6 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
 
     const params = new URLSearchParams({
       qty: String(stockData.quantity),
-      batchNumber: stockData.batchNumber,
       location: stockData.location,
     });
 
@@ -162,15 +156,16 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
     }
 
     try {
-      const res = await toast.promise(
+      await toast.promise(
         api.post<ApiResponse<Part>>(`/inventory/${createdPart.id}/inward-from-grn?${params}`),
         {
           loading: 'Receiving stock and generating GRN...',
           success: (r) => {
+            const batch = r.data.data.batchNumber;
             const grn = r.data.data.grnNumber ? ` GRN ${r.data.data.grnNumber} generated.` : '';
             return createdPart.qcRequired
-              ? `Batch ${stockData.batchNumber} received.${grn} Awaiting QA approval.`
-              : `Batch ${stockData.batchNumber} received.${grn} Available immediately (no QC required).`;
+              ? `Batch ${batch} received.${grn} Awaiting QA approval.`
+              : `Batch ${batch} received.${grn} Available immediately (no QC required).`;
           },
           error: (err) => err.response?.data?.message || 'Stock inward failed.',
         }
@@ -391,12 +386,6 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Batch Number *</label>
-                <input type="text" placeholder="e.g. BATCH-2024-001" required value={stockData.batchNumber}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-mono"
-                  onChange={e => setStockData({ ...stockData, batchNumber: e.target.value })} />
-              </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Quantity *</label>
                 <input type="number" min={1} required value={stockData.quantity || ''}

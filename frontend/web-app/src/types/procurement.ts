@@ -252,3 +252,27 @@ export interface DebitNoteResponse {
   createdAt: string;
   settledAt: string | null;
 }
+
+// ============================================================
+// Matches: ApprovalMatrix.java / ApprovalMatrixRequest.java (procurement-service)
+// Amount-banded approval configuration — previously only seedable via a hardcoded
+// ApprovalMatrixSeeder; now admin-manageable via /api/approval-matrix.
+// ============================================================
+export interface ApprovalMatrix {
+  id: number;
+  moduleCode: string;
+  amountFrom: number;
+  amountTo: number;
+  approverRole: string;
+  levelSequence: number;
+  isActive: boolean;
+}
+
+export interface ApprovalMatrixRequest {
+  moduleCode: string;
+  amountFrom: number;
+  amountTo: number;
+  approverRole: string;
+  levelSequence: number;
+  isActive?: boolean;
+}

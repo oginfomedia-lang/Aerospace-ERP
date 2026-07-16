@@ -93,6 +93,15 @@ public class ProductionOrderController {
                 productionOrderService.getOverdueOrders()));
     }
 
+    // WO<->Production visibility — lets the Work Order UI show a link/badge to
+    // whatever ProductionOrder(s) were auto-created from it.
+    @GetMapping("/by-work-order/{workOrderId}")
+    public ResponseEntity<ApiResponse<List<ProductionOrderResponseDTO>>> byWorkOrder(
+            @PathVariable Long workOrderId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                productionOrderService.getByWorkOrderId(workOrderId)));
+    }
+
     // ── LIFECYCLE TRANSITIONS ─────────────────────────────────────────────────
 
     @PostMapping("/{id}/release")
@@ -104,9 +113,17 @@ public class ProductionOrderController {
 
     @PostMapping("/{id}/start")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> start(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @RequestParam(required = false) List<Long> skipRoutingForMaterialIds) {
         return ResponseEntity.ok(new ApiResponse<>("PRODUCTION_STARTED",
-                productionOrderService.startProduction(id)));
+                productionOrderService.startProduction(id, skipRoutingForMaterialIds)));
+    }
+
+    @PostMapping("/{id}/start-assembly")
+    public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> startAssembly(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(new ApiResponse<>("ASSEMBLY_STARTED",
+                productionOrderService.startAssembly(id)));
     }
 
     @PostMapping("/{id}/quality-check")
@@ -177,5 +194,54 @@ public class ProductionOrderController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ApiResponse<>("STAGE_LOGGED",
                         productionOrderService.addStageLog(id, dto)));
+    }
+
+    // ── ROUTING-DRIVEN PER-BOM-LINE STAGES ────────────────────────────────────
+
+    @GetMapping("/{orderId}/materials/{materialId}/stages")
+    public ResponseEntity<ApiResponse<List<StageLogResponseDTO>>> getStagesForMaterial(
+            @PathVariable Long orderId, @PathVariable Long materialId) {
+        return ResponseEntity.ok(new ApiResponse<>("SUCCESS",
+                productionOrderService.getStagesForMaterial(orderId, materialId)));
+    }
+
+    @PostMapping("/{orderId}/materials/{materialId}/stages/{stageId}/start")
+    public ResponseEntity<ApiResponse<StageLogResponseDTO>> startStage(
+            @PathVariable Long orderId, @PathVariable Long materialId, @PathVariable Long stageId,
+            @RequestBody StartStageRequestDTO dto) {
+        return ResponseEntity.ok(new ApiResponse<>("STAGE_STARTED",
+                productionOrderService.startStage(orderId, materialId, stageId, dto)));
+    }
+
+    @PostMapping("/{orderId}/materials/{materialId}/stages/{stageId}/complete-production")
+    public ResponseEntity<ApiResponse<StageLogResponseDTO>> completeProductionStage(
+            @PathVariable Long orderId, @PathVariable Long materialId, @PathVariable Long stageId,
+            @Valid @RequestBody CompleteProductionStageRequestDTO dto) {
+        return ResponseEntity.ok(new ApiResponse<>("STAGE_COMPLETED",
+                productionOrderService.completeProductionStage(orderId, materialId, stageId, dto)));
+    }
+
+    @PostMapping("/{orderId}/materials/{materialId}/stages/{stageId}/complete-inspection")
+    public ResponseEntity<ApiResponse<StageLogResponseDTO>> completeInspectionStage(
+            @PathVariable Long orderId, @PathVariable Long materialId, @PathVariable Long stageId,
+            @Valid @RequestBody CompleteStageRequestDTO dto) {
+        return ResponseEntity.ok(new ApiResponse<>("STAGE_COMPLETED",
+                productionOrderService.completeInspectionStage(orderId, materialId, stageId, dto)));
+    }
+
+    // ── SHOP-FLOOR NCRs ────────────────────────────────────────────────────────
+
+    @GetMapping("/{orderId}/ncrs")
+    public ResponseEntity<ApiResponse<List<ShopFloorNcrResponseDTO>>> getNcrsForOrder(
+            @PathVariable Long orderId) {
+        return ResponseEntity.ok(new ApiResponse<>("SUCCESS",
+                productionOrderService.getNcrsForOrder(orderId)));
+    }
+
+    @GetMapping("/materials/{materialId}/ncrs")
+    public ResponseEntity<ApiResponse<List<ShopFloorNcrResponseDTO>>> getNcrsForMaterial(
+            @PathVariable Long materialId) {
+        return ResponseEntity.ok(new ApiResponse<>("SUCCESS",
+                productionOrderService.getNcrsForMaterial(materialId)));
     }
 }

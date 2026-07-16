@@ -19,6 +19,13 @@ public interface WorkOrderService {
 
     // ── Material Management ───────────────────────────────────────────────────
     WorkOrderResponse issueMaterial(Long workOrderId, IssueMaterialRequest request);
+
+    // Bookkeeping-only counterpart to issueMaterial — updates the line's
+    // quantityIssued/status/batchNumber and the WO auto-transition check, WITHOUT
+    // re-calling inventory-service. Used by WorkOrderConsumer.onMaterialIssued, since
+    // inventory-service already performed the real stock deduction that triggered
+    // this event — calling issueMaterial there would deduct a second time.
+    WorkOrderResponse recordMaterialIssued(Long workOrderId, Long lineItemId, int quantityIssued, String batchNumber);
     WorkOrderResponse addMaterialLineItem(Long workOrderId, MaterialLineItemRequest request);
 
     // ── Queries ───────────────────────────────────────────────────────────────

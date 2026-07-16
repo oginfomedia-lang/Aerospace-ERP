@@ -18,12 +18,22 @@ public interface PartService {
     void deletePart(Long id);
 
     // Standard ERP Core Operations (Step 1+2: GRN Inward)
+    // GRN-FR-004: batchNumber is accepted for signature/backward-compat only and always
+    // ignored — the batch number is generated internally (system-assigned, like grnNumber)
+    // so every receipt, whatever its source, becomes its own distinct, uniformly-formatted lot.
     PartResponseDTO addStock(Long id, int quantity, String batchNumber, String location,
                              LocalDateTime expiryDate, String grnNumber, String challanNumber,
                              String supplierName, String transportName, Integer inspectionQty,
                              String poNumber);
     PartResponseDTO issueToProduction(Long id, int quantity, String batchNumber,
                                        Long workOrderId, String woNumber, Long lineItemId);
+
+    // Explicit multi-batch allocation — caller specifies exactly which batches and how
+    // much from each (e.g. a picker form showing real availability), instead of the
+    // server computing a FIFO split.
+    PartResponseDTO issueToProductionWithAllocation(Long id, List<BatchAllocationRequest> allocations,
+                                                     Long workOrderId, String woNumber, Long lineItemId,
+                                                     String issuedTo, String issuedBy);
     // Splits the batch's pending quantity between APPROVED and REJECTED stock — either side
     // can be 0 for the old all-or-nothing behavior, or both > 0 for a genuine partial split.
     PartResponseDTO processQADecision(Long id, String batchNumber, Integer approvedQty, Integer rejectedQty,

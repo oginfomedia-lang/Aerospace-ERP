@@ -1,6 +1,5 @@
 package com.aerospace.order_service.event.consumer;
 
-import com.aerospace.order_service.dto.WorkOrderDTOs.IssueMaterialRequest;
 import com.aerospace.order_service.entity.WorkOrderStatus;
 import com.aerospace.order_service.repository.WorkOrderRepository;
 import com.aerospace.order_service.repository.WorkOrderStatusHistoryRepository;
@@ -97,12 +96,10 @@ public class WorkOrderConsumer {
             String batchNumber = String.valueOf(event.getOrDefault("batchNumber", ""));
             String issuedBy = String.valueOf(event.getOrDefault("issuedBy", "System"));
 
-            workOrderService.issueMaterial(workOrderId, IssueMaterialRequest.builder()
-                    .lineItemId(lineItemId)
-                    .quantityIssued(quantityIssued)
-                    .batchNumber(batchNumber)
-                    .issuedBy(issuedBy)
-                    .build());
+            // Bookkeeping only — inventory-service already performed the real stock
+            // deduction that triggered this event (that's why it exists). Calling
+            // issueMaterial here would re-deduct a second time.
+            workOrderService.recordMaterialIssued(workOrderId, lineItemId, quantityIssued, batchNumber);
 
             log.info("[CONSUMER] MATERIAL_ISSUED → WO={} lineItemId={} qty={} batch={} — line updated",
                     workOrderId, lineItemId, quantityIssued, batchNumber);

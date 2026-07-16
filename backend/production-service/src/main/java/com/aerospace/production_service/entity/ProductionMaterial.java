@@ -38,6 +38,13 @@ public class ProductionMaterial {
 
     private String remarks;
 
+    // Set true once this BOM line's LAST routing stage (latest attempt) completes with
+    // quantityOut > 0 — kept separate from MaterialStatus so it doesn't overload the
+    // "has it been issued/consumed" semantics that enum already carries. Drives the
+    // final-assembly gate (see ProductionOrderServiceImpl.checkFinalAssemblyGate).
+    @Builder.Default
+    private Boolean readyForAssembly = false;
+
     public enum MaterialStatus {
         PENDING,    // not yet drawn from inventory
         CONSUMED,   // used in production

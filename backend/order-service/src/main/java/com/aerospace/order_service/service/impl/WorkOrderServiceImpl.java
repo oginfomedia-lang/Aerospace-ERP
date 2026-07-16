@@ -179,13 +179,29 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                     .workOrderId(wo.getId())
                     .woNumber(wo.getWoNumber())
                     .aircraftId(wo.getAircraftId())
+                    .aircraftType(wo.getAircraftType())
                     .taskDescription(wo.getTaskDescription())
+                    .taskCode(wo.getTaskCode())
                     .priority(wo.getPriority().name())
                     .fromStatus(from.name())
                     .toStatus(to.name())
                     .changedBy(req.getChangedBy())
                     .remarks(req.getRemarks())
                     .changedAt(LocalDateTime.now())
+                    // Auto-BOM trigger for production-service — only carry the material
+                    // snapshot on the transition where every line has just been issued.
+                    .materialLineItems(to == WorkOrderStatus.IN_PROGRESS
+                            ? wo.getMaterialLineItems().stream()
+                                    .map(l -> MaterialLineSnapshot.builder()
+                                            .partId(l.getPartId())
+                                            .partName(l.getPartName())
+                                            .partNumber(l.getPartNumber())
+                                            .batchNumber(l.getBatchNumber())
+                                            .quantityRequired(l.getQuantityRequired())
+                                            .quantityIssued(l.getQuantityIssued())
+                                            .build())
+                                    .toList()
+                            : null)
                     .build();
 
             if (to == WorkOrderStatus.COMPLETED) {
@@ -247,12 +263,28 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                     "Inventory rejected this issue: " + ex.getResponseBodyAsString());
         }
 
-        // ── Accumulate quantity (don't overwrite) — only reached once inventory confirms ─
+        // Inventory confirmed the deduction — now just record the bookkeeping.
+        return recordMaterialIssued(workOrderId, req.getLineItemId(), req.getQuantityIssued(), req.getBatchNumber());
+    }
+
+    // ── RECORD MATERIAL ISSUED (bookkeeping only) ───────────────────────────────
+    // No call to inventory-service here — this is invoked either right after
+    // issueMaterial's own successful deduction above, or by WorkOrderConsumer.onMaterialIssued
+    // once inventory-service has ALREADY deducted stock and published the event. Calling
+    // inventory again in that second case would double-deduct.
+    @Override
+    @Transactional
+    public WorkOrderResponse recordMaterialIssued(Long workOrderId, Long lineItemId, int quantityIssued, String batchNumber) {
+        WorkOrder wo = findById(workOrderId);
+        MaterialLineItem line = lineItemRepository.findById(lineItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Line item not found: " + lineItemId));
+
+        // ── Accumulate quantity (don't overwrite) ───────────────────────────────
         int alreadyIssued = line.getQuantityIssued() != null ? line.getQuantityIssued() : 0;
-        int newTotalIssued = alreadyIssued + req.getQuantityIssued();
+        int newTotalIssued = alreadyIssued + quantityIssued;
 
         line.setQuantityIssued(newTotalIssued);
-        line.setBatchNumber(req.getBatchNumber());
+        line.setBatchNumber(batchNumber);
 
         // ── Set status based on whether fully or partially fulfilled ───────────
         if (newTotalIssued >= line.getQuantityRequired()) {
@@ -277,8 +309,8 @@ public class WorkOrderServiceImpl implements WorkOrderService {
             }
         }
 
-        log.info("[WO] Material issued → WO={} partId={} qtyThisTime={} totalIssued={} batch={}",
-                wo.getWoNumber(), line.getPartId(), req.getQuantityIssued(), newTotalIssued, req.getBatchNumber());
+        log.info("[WO] Material recorded → WO={} partId={} qtyThisTime={} totalIssued={} batch={}",
+                wo.getWoNumber(), line.getPartId(), quantityIssued, newTotalIssued, batchNumber);
         return toResponse(workOrderRepository.findById(workOrderId).orElse(wo));
     }
 

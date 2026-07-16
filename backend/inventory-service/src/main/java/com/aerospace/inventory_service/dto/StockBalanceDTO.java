@@ -21,4 +21,5 @@ public class StockBalanceDTO {
     private Integer quantity;
     private String location;
     private LocalDateTime expiryDate;
+    private String poNumber; // null if this batch wasn't received against a PO
 }

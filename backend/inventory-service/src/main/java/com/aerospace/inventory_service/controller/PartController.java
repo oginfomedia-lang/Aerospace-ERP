@@ -2,6 +2,7 @@ package com.aerospace.inventory_service.controller;
 
 import com.aerospace.inventory_service.dto.PartRequestDTO;
 import com.aerospace.inventory_service.dto.PartResponseDTO;
+import com.aerospace.inventory_service.dto.IssueToProductionAllocatedRequest;
 import com.aerospace.inventory_service.service.PartService;
 import com.aerospace.inventory_service.service.TransactionService;
 import com.aerospace.inventory_service.common.ApiResponse;
@@ -69,7 +70,9 @@ public class PartController {
     public ResponseEntity<ApiResponse<PartResponseDTO>> inwardStock(
             @PathVariable Long id,
             @RequestParam int qty,
-            @RequestParam String batchNumber,
+            // GRN-FR-004: accepted only for backward compatibility with older callers —
+            // always ignored. The batch number is system-generated, see addStock.
+            @RequestParam(required = false) String batchNumber,
             @RequestParam String location,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -104,6 +107,19 @@ public class PartController {
             @RequestParam(required = false) Long lineItemId) {
         return ResponseEntity.ok(new ApiResponse<>("MATERIAL_ISSUED_TO_PRODUCTION",
                 partService.issueToProduction(id, qty, batchNumber, workOrderId, woNumber, lineItemId)));
+    }
+
+    // ERP Step: Issue to Production — explicit multi-batch allocation. The caller
+    // (a picker form showing real batch availability) decides exactly which batches
+    // and how much from each, instead of the server computing a FIFO split.
+    @PostMapping("/{id}/issue-to-production/allocated")
+    public ResponseEntity<ApiResponse<PartResponseDTO>> issueMaterialAllocated(
+            @PathVariable Long id,
+            @RequestBody IssueToProductionAllocatedRequest request) {
+        return ResponseEntity.ok(new ApiResponse<>("MATERIAL_ISSUED_TO_PRODUCTION",
+                partService.issueToProductionWithAllocation(id, request.getAllocations(),
+                        request.getWorkOrderId(), request.getWoNumber(), request.getLineItemId(),
+                        request.getIssuedTo(), request.getIssuedBy())));
     }
 
     // ERP Step: QA Lifecycle

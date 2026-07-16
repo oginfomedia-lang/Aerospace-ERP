@@ -19,6 +19,22 @@ public class WorkOrderEvents {
         private Integer quantityRequired;
     }
 
+    /**
+     * Snapshot of one fully/partially-issued material line, carried ONLY on the
+     * OPEN→IN_PROGRESS WorkOrderStatusChangedEvent — lets production-service auto-create
+     * a ProductionOrder + its BOM (ProductionMaterial rows) without a synchronous
+     * callback back into order-service (this repo is Kafka-only cross-service).
+     */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class MaterialLineSnapshot {
+        private Long partId;
+        private String partName;
+        private String partNumber;
+        private String batchNumber;
+        private Integer quantityRequired;
+        private Integer quantityIssued;
+    }
+
     /** Published when a new work order is created */
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class WorkOrderCreatedEvent {
@@ -42,13 +58,19 @@ public class WorkOrderEvents {
         private Long workOrderId;
         private String woNumber;
         private String aircraftId;
+        private String aircraftType;
         private String taskDescription;
+        private String taskCode;
         private String priority;
         private String fromStatus;
         private String toStatus;
         private String changedBy;
         private String remarks;
         private LocalDateTime changedAt;
+
+        // Populated ONLY when toStatus == IN_PROGRESS (all material lines issued) —
+        // null/empty on every other transition. See MaterialLineSnapshot.
+        private List<MaterialLineSnapshot> materialLineItems;
     }
 
     /** Published when WO is completed */

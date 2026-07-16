@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
 import { X, SlidersHorizontal, ArrowDownToLine, ShieldCheck, Bookmark, ArrowLeftRight } from 'lucide-react';
-import { Part, Location } from '../types/inventory';
+import { ApiResponse, Part, Location } from '../types/inventory';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -25,7 +25,6 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
   // Inward fields (F-36 GRN form)
   const [inwardData, setInwardData] = useState({
     qty: 0,
-    batchNumber: '',
     location: '',
     grnNumber: '',
     challanNumber: '',
@@ -56,7 +55,7 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
 
   const handleClose = () => {
     setOperation('INWARD');
-    setInwardData({ qty: 0, batchNumber: '', location: '', grnNumber: '', challanNumber: '',
+    setInwardData({ qty: 0, location: '', grnNumber: '', challanNumber: '',
       supplierName: '', transportName: '', invoiceQty: 0, inspectionQty: 0, inwardRemarks: '', expiryDate: '' });
     setQaData({ batchNumber: part?.batchNumber || '', status: 'APPROVED', remarks: '' });
     setReserveData({ batchNumber: part?.batchNumber || '', qty: 0 });
@@ -67,12 +66,10 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
   // POST /inventory/{id}/inward-from-grn — Step 1+2: Receive & Prepare GRN
   const handleInward = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inwardData.batchNumber.trim()) { toast.error('Batch number required.'); return; }
     if (inwardData.qty <= 0) { toast.error('Received Quantity must be > 0.'); return; }
 
     const params = new URLSearchParams({
       qty: String(inwardData.qty),
-      batchNumber: inwardData.batchNumber,
       location: inwardData.location,
     });
     if (inwardData.grnNumber)     params.append('grnNumber',     inwardData.grnNumber);
@@ -84,10 +81,10 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
 
     try {
       await toast.promise(
-        api.post(`/inventory/${part.id}/inward-from-grn?${params}`),
+        api.post<ApiResponse<Part>>(`/inventory/${part.id}/inward-from-grn?${params}`),
         {
           loading: 'Submitting GRN...',
-          success: `GRN submitted for batch ${inwardData.batchNumber}. Awaiting concern dept approval (PENDING_QA).`,
+          success: (r) => `GRN submitted, batch ${r.data.data.batchNumber} assigned. Awaiting concern dept approval (PENDING_QA).`,
           error: (err) => err.response?.data?.message || 'GRN inward failed.',
         }
       );
@@ -259,15 +256,7 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
                 </div>
               </div>
 
-              {/* Row 3: Batch Number (required) */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Batch Number *</label>
-                <input type="text" required placeholder="e.g. BATCH-2024-001"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 font-mono text-sm"
-                  onChange={e => setInwardData({ ...inwardData, batchNumber: e.target.value })} />
-              </div>
-
-              {/* Row 4: Invoice Qty | Received Qty | Inspection (OK) Qty */}
+              {/* Row 3: Invoice Qty | Received Qty | Inspection (OK) Qty */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Invoice Qty</label>
@@ -289,7 +278,7 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
                 </div>
               </div>
 
-              {/* Row 5: Bin Location + Expiry Date */}
+              {/* Row 4: Bin Location + Expiry Date */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Store / Bin Location</label>

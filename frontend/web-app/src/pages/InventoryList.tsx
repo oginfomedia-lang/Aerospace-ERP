@@ -6,13 +6,15 @@ import {
   Edit3, Search, Loader2, Clock, MinusCircle, PlusCircle,
   Layers, MapPin, SlidersHorizontal, CalendarX2, Ban, RotateCcw, Printer
 } from 'lucide-react';
-import { Part, ApiResponse } from '../types/inventory';
+import { Part, ApiResponse, MaterialIssueRecord } from '../types/inventory';
 import { OrganizationProfile } from '../types/procurement';
 import { AddPartModal } from '../components/AddPartModal';
 import { EditPartModal } from '../components/EditPartModal';
 import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { ItemRegisterDocument } from '../components/ItemRegisterDocument';
+import { MaterialIssueReceiptDocument } from '../components/MaterialIssueReceiptDocument';
+import { IssueMaterialPickerModal } from '../components/IssueMaterialPickerModal';
 import toast from 'react-hot-toast';
 
 const statusStyle: Record<string, string> = {
@@ -57,6 +59,8 @@ const InventoryList = () => {
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const [showRegister, setShowRegister] = useState(false);
   const [orgProfile, setOrgProfile] = useState<OrganizationProfile | null>(null);
+  const [issueReceipt, setIssueReceipt] = useState<MaterialIssueRecord | null>(null);
+  const [issuePickerPart, setIssuePickerPart] = useState<Part | null>(null);
 
   const fetchParts = async (query = '') => {
     setLoading(true);
@@ -83,43 +87,21 @@ const InventoryList = () => {
     return () => clearTimeout(delay);
   }, [searchTerm]);
 
-  const handleIssue = async (part: Part) => {
+  const handleIssue = (part: Part) => {
     if (!part.quantity || part.quantity <= 0) {
       toast.error('No approved stock available to issue for this part.');
       return;
     }
+    setIssuePickerPart(part);
+  };
 
-    // Warn if any APPROVED batch is expired — FIFO may draw from it
-    const expiredBatch = (part.balances || []).find(
-      b => b.status === 'APPROVED' && b.expiryDate && new Date(b.expiryDate) < new Date()
-    );
-    if (expiredBatch) {
-      const proceed = window.confirm(
-        `⚠️ WARNING: Approved batch ${expiredBatch.batchNumber} is EXPIRED.\nAre you sure you want to issue this stock to production?`
-      );
-      if (!proceed) return;
+  const handleIssued = (response: Part) => {
+    const issueRecordId = response.materialIssueRecordId;
+    if (issueRecordId) {
+      api.get(`/inventory/material-issue-records/${issueRecordId}`)
+        .then(r => setIssueReceipt(r.data.data)).catch(() => {});
     }
-
-    const qtyStr = window.prompt(
-      `Issue material based on user requirement.\nStep 5: Material will issue and stock will update (oldest batch first — FIFO).\n\nAvailable (Approved, all batches): ${part.quantity} units\n\nEnter quantity to issue:`
-    );
-    if (!qtyStr || isNaN(Number(qtyStr)) || Number(qtyStr) <= 0) return;
-
-    // No batchNumber passed — backend auto-consumes the oldest APPROVED batch(es)
-    // first (FIFO), splitting across as many as needed to cover the quantity.
-    const params = new URLSearchParams({ qty: qtyStr });
-
-    try {
-      await toast.promise(
-        api.post(`/inventory/${part.id}/issue-to-production?${params}`),
-        {
-          loading: `Issuing ${qtyStr} units (FIFO — oldest batch first)...`,
-          success: (res) => `Material issued from batch(es) ${res.data.data.batchNumber}. Stock updated.`,
-          error: (err) => err.response?.data?.message || 'Issue failed — check batch approval status.',
-        }
-      );
-      fetchParts(searchTerm);
-    } catch {}
+    fetchParts(searchTerm);
   };
 
   const handleOpenEdit = (part: Part) => { setSelectedPart(part); setIsEditModalOpen(true); };
@@ -157,6 +139,147 @@ const InventoryList = () => {
     } catch {}
   };
 
+  // Rejected stock and deactivated items are kept out of the main "what can I issue"
+  // table and shown in their own section below instead, so they don't clutter the
+  // day-to-day view while staying visible on the same page for traceability.
+  const activeParts = parts.filter(p => p.status !== 'REJECTED' && p.itemStatus !== 'INACTIVE');
+  const flaggedParts = parts.filter(p => p.status === 'REJECTED' || p.itemStatus === 'INACTIVE');
+
+  const renderPartRow = (part: Part) => {
+    const expiry = getExpiryDisplay(part.expiryDate);
+    const isExpired = part.expiryDate && new Date(part.expiryDate) < new Date();
+
+    return (
+      <tr key={part.id} className={`hover:bg-slate-50/50 transition group ${isExpired ? 'bg-red-50/30' : ''}`}>
+
+        {/* Material Details */}
+        <td className="p-6">
+          <div className="font-black text-slate-900">{part.name}</div>
+          <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+            SKU: {part.serialNumber}
+          </div>
+          {part.balances && part.balances.filter(b => b.status === 'APPROVED' && b.quantity > 0).length > 0 ? (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {part.balances
+                .filter(b => b.status === 'APPROVED' && b.quantity > 0)
+                .map((b, idx) => (
+                  <span key={`${b.batchNumber}-${idx}`}
+                    className="inline-block bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-blue-100">
+                    {b.batchNumber} · {b.quantity}
+                    {b.poNumber && <span className="ml-1 text-slate-400 font-normal">· via {b.poNumber}</span>}
+                  </span>
+                ))}
+            </div>
+          ) : (
+            <span className="mt-1.5 inline-block text-[10px] text-red-400 italic font-bold">
+              No Batch — Add stock to assign
+            </span>
+          )}
+        </td>
+
+        {/* Classification */}
+        <td className="p-6">
+          <div className="text-xs text-slate-500 font-medium">{part.partType || '—'}</div>
+          {part.criticality && (
+            <span className={`mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-black ${criticalityStyle[part.criticality] || 'text-slate-500 bg-slate-50'}`}>
+              {part.criticality}
+            </span>
+          )}
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {part.qcRequired && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-50 text-purple-600 border border-purple-100">QC</span>
+            )}
+            {part.serialRequired && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-sky-50 text-sky-600 border border-sky-100">SERIAL</span>
+            )}
+            {part.itemStatus && part.itemStatus !== 'ACTIVE' && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-500 border border-slate-200">{part.itemStatus}</span>
+            )}
+          </div>
+        </td>
+
+        {/* Stock Status */}
+        <td className="p-6">
+          <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${statusStyle[part.status || 'EMPTY'] || statusStyle['EMPTY']}`}>
+            {part.status || 'EMPTY'}
+          </span>
+        </td>
+
+        {/* Stock Balance + Expiry */}
+        <td className="p-6">
+          <div className={`font-black text-lg ${
+            (part.quantity ?? 0) <= (part.reorderLevel ?? 0) && part.quantity !== null
+              ? 'text-red-500' : 'text-slate-900'
+          }`}>
+            {part.quantity ?? 0} <span className="text-xs font-bold text-slate-400">UNITS</span>
+          </div>
+
+          {part.reorderLevel !== null && (
+            <div className="text-[10px] text-slate-400 font-bold">
+              Reorder at: {part.reorderLevel}
+            </div>
+          )}
+
+          {part.location && (
+            <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1 mt-0.5">
+              <MapPin size={10} /> {part.location}
+            </div>
+          )}
+
+          {/* FIX: Expiry badge — shows for any part that has an expiryDate set */}
+          {/* Color: red=expired, orange=≤30d, amber=≤90d, slate=safe */}
+          {expiry && (
+            <div className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black border ${expiry.style}`}>
+              <CalendarX2 size={10} />
+              {expiry.label}
+            </div>
+          )}
+        </td>
+
+        {/* Operations */}
+        <td className="p-6">
+          <div className="flex justify-center items-center gap-1">
+            <Link to={`/inventory/${part.id}/transactions`}
+              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
+              title="Ledger History">
+              <Clock size={18} />
+            </Link>
+            <button
+              onClick={() => handleIssue(part)}
+              className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition"
+              title="Issue Material (User Requirement)"
+              disabled={part.status !== 'APPROVED'}
+            >
+              <MinusCircle size={18} className={part.status !== 'APPROVED' ? 'opacity-30' : ''} />
+            </button>
+            <button
+              onClick={() => handleOpenAdjust(part)}
+              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition"
+              title="Stock Adjustment"
+            >
+              <SlidersHorizontal size={18} />
+            </button>
+            <button
+              onClick={() => handleOpenEdit(part)}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              title="Edit Material Master"
+            >
+              <Edit3 size={18} />
+            </button>
+            <button
+              onClick={() => handleToggleActive(part)}
+              className={`p-2 rounded-xl transition ${part.itemStatus === 'INACTIVE' ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+              title={part.itemStatus === 'INACTIVE' ? 'Reactivate Item' : 'Deactivate Item'}
+            >
+              {part.itemStatus === 'INACTIVE' ? <RotateCcw size={18} /> : <Ban size={18} />}
+            </button>
+          </div>
+        </td>
+
+      </tr>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <AddPartModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={() => fetchParts(searchTerm)} />
@@ -191,7 +314,7 @@ const InventoryList = () => {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Active / usable inventory */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -209,143 +332,48 @@ const InventoryList = () => {
                 <tr><td colSpan={5} className="p-20 text-center">
                   <Loader2 className="animate-spin text-blue-500 mx-auto" size={32} />
                 </td></tr>
-              ) : parts.length === 0 ? (
+              ) : activeParts.length === 0 ? (
                 <tr><td colSpan={5} className="p-20 text-center text-slate-300">
                   <div className="flex flex-col items-center gap-2">
                     <Layers size={48} className="opacity-20 mb-2" />
-                    <p className="font-bold uppercase tracking-widest text-xs">No materials found</p>
+                    <p className="font-bold uppercase tracking-widest text-xs">
+                      {parts.length === 0 ? 'No materials found' : 'All matching items are rejected or deactivated — see below'}
+                    </p>
                   </div>
                 </td></tr>
-              ) : parts.map(part => {
-                const expiry = getExpiryDisplay(part.expiryDate);
-                const isExpired = part.expiryDate && new Date(part.expiryDate) < new Date();
-
-                return (
-                  <tr key={part.id} className={`hover:bg-slate-50/50 transition group ${isExpired ? 'bg-red-50/30' : ''}`}>
-
-                    {/* Material Details */}
-                    <td className="p-6">
-                      <div className="font-black text-slate-900">{part.name}</div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">
-                        SKU: {part.serialNumber}
-                      </div>
-                      {part.batchNumber ? (
-                        <span className="mt-1.5 inline-block bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-blue-100">
-                          BATCH: {part.batchNumber}
-                        </span>
-                      ) : (
-                        <span className="mt-1.5 inline-block text-[10px] text-red-400 italic font-bold">
-                          No Batch — Add stock to assign
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Classification */}
-                    <td className="p-6">
-                      <div className="text-xs text-slate-500 font-medium">{part.partType || '—'}</div>
-                      {part.criticality && (
-                        <span className={`mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-black ${criticalityStyle[part.criticality] || 'text-slate-500 bg-slate-50'}`}>
-                          {part.criticality}
-                        </span>
-                      )}
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {part.qcRequired && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-50 text-purple-600 border border-purple-100">QC</span>
-                        )}
-                        {part.serialRequired && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-sky-50 text-sky-600 border border-sky-100">SERIAL</span>
-                        )}
-                        {part.itemStatus && part.itemStatus !== 'ACTIVE' && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-500 border border-slate-200">{part.itemStatus}</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Stock Status */}
-                    <td className="p-6">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${statusStyle[part.status || 'EMPTY'] || statusStyle['EMPTY']}`}>
-                        {part.status || 'EMPTY'}
-                      </span>
-                    </td>
-
-                    {/* Stock Balance + Expiry */}
-                    <td className="p-6">
-                      <div className={`font-black text-lg ${
-                        (part.quantity ?? 0) <= (part.reorderLevel ?? 0) && part.quantity !== null
-                          ? 'text-red-500' : 'text-slate-900'
-                      }`}>
-                        {part.quantity ?? 0} <span className="text-xs font-bold text-slate-400">UNITS</span>
-                      </div>
-
-                      {part.reorderLevel !== null && (
-                        <div className="text-[10px] text-slate-400 font-bold">
-                          Reorder at: {part.reorderLevel}
-                        </div>
-                      )}
-
-                      {part.location && (
-                        <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1 mt-0.5">
-                          <MapPin size={10} /> {part.location}
-                        </div>
-                      )}
-
-                      {/* FIX: Expiry badge — shows for any part that has an expiryDate set */}
-                      {/* Color: red=expired, orange=≤30d, amber=≤90d, slate=safe */}
-                      {expiry && (
-                        <div className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black border ${expiry.style}`}>
-                          <CalendarX2 size={10} />
-                          {expiry.label}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Operations */}
-                    <td className="p-6">
-                      <div className="flex justify-center items-center gap-1">
-                        <Link to={`/inventory/${part.id}/transactions`}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
-                          title="Ledger History">
-                          <Clock size={18} />
-                        </Link>
-                        <button
-                          onClick={() => handleIssue(part)}
-                          className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition"
-                          title="Issue Material (User Requirement)"
-                          disabled={part.status !== 'APPROVED'}
-                        >
-                          <MinusCircle size={18} className={part.status !== 'APPROVED' ? 'opacity-30' : ''} />
-                        </button>
-                        <button
-                          onClick={() => handleOpenAdjust(part)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition"
-                          title="Stock Adjustment"
-                        >
-                          <SlidersHorizontal size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleOpenEdit(part)}
-                          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
-                          title="Edit Material Master"
-                        >
-                          <Edit3 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleToggleActive(part)}
-                          className={`p-2 rounded-xl transition ${part.itemStatus === 'INACTIVE' ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
-                          title={part.itemStatus === 'INACTIVE' ? 'Reactivate Item' : 'Deactivate Item'}
-                        >
-                          {part.itemStatus === 'INACTIVE' ? <RotateCcw size={18} /> : <Ban size={18} />}
-                        </button>
-                      </div>
-                    </td>
-
-                  </tr>
-                );
-              })}
+              ) : activeParts.map(renderPartRow)}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Rejected / Deactivated — kept out of the main table, still on the same page */}
+      {!loading && flaggedParts.length > 0 && (
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden opacity-90">
+          <div className="px-6 pt-5 pb-1 flex items-center gap-2">
+            <Ban size={16} className="text-slate-400" />
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">
+              Rejected &amp; Deactivated ({flaggedParts.length})
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-[0.2em] font-black">
+                  <th className="p-6">Material Details & Batch</th>
+                  <th className="p-6">Classification</th>
+                  <th className="p-6">Stock Status</th>
+                  <th className="p-6">Stock Balance</th>
+                  <th className="p-6 text-center">ERP Operations</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {flaggedParts.map(renderPartRow)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {showRegister && (
         <ReceiptModal
@@ -358,6 +386,25 @@ const InventoryList = () => {
           <ItemRegisterDocument parts={parts} org={orgProfile} />
         </ReceiptModal>
       )}
+
+      {issueReceipt && (
+        <ReceiptModal
+          isOpen={!!issueReceipt}
+          onClose={() => setIssueReceipt(null)}
+          title="Material Issue Receipt"
+          documentNumber={issueReceipt.issueNumber}
+        >
+          <MaterialIssueReceiptDocument record={issueReceipt} org={orgProfile} />
+        </ReceiptModal>
+      )}
+
+      <IssueMaterialPickerModal
+        isOpen={!!issuePickerPart}
+        onClose={() => setIssuePickerPart(null)}
+        part={issuePickerPart}
+        suggestedQuantity={issuePickerPart?.quantity || 0}
+        onIssued={handleIssued}
+      />
     </div>
   );
 };

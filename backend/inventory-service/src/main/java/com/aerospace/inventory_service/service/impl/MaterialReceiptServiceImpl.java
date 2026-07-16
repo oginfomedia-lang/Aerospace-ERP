@@ -88,9 +88,6 @@ public class MaterialReceiptServiceImpl implements MaterialReceiptService {
             throw new IllegalStateException("GRN has already been formed from Material Receipt " + receipt.getMrNumber() + ".");
         }
 
-        // Batch defaults to the PO number, same convention the old direct-from-PO GRN form used.
-        String defaultBatch = receipt.getPoNumber() != null ? receipt.getPoNumber() : receipt.getMrNumber();
-
         for (MaterialReceiptItem item : receipt.getItems()) {
             Part part = partRepository.findBySkuCode(item.getSkuCode())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -100,7 +97,7 @@ public class MaterialReceiptServiceImpl implements MaterialReceiptService {
             PartResponseDTO result = partService.addStock(
                     part.getId(),
                     item.getQuantity(),
-                    defaultBatch,
+                    null, // GRN-FR-004: ignored — addStock always generates its own batch number
                     request.getLocation(),
                     request.getExpiryDate(),
                     null, // GRN-FR-001: always system-generated, never passed in
@@ -111,7 +108,7 @@ public class MaterialReceiptServiceImpl implements MaterialReceiptService {
                     receipt.getPoNumber()
             );
             item.setGrnNumber(result.getGrnNumber());
-            item.setBatchNumber(defaultBatch);
+            item.setBatchNumber(result.getBatchNumber());
             item.setLocation(request.getLocation());
             item.setExpiryDate(request.getExpiryDate());
             item.setInspectionQty(request.getInspectionQty());
@@ -128,4 +125,6 @@ public class MaterialReceiptServiceImpl implements MaterialReceiptService {
         return receiptRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Material Receipt not found: " + id));
     }
+
+
 }

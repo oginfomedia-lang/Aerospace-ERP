@@ -91,6 +91,7 @@ public class ProductionOrderMapper {
                 .quantityWasted(m.getQuantityWasted())
                 .status(m.getStatus())
                 .remarks(m.getRemarks())
+                .readyForAssembly(m.getReadyForAssembly())
                 .build();
     }
 
@@ -98,6 +99,11 @@ public class ProductionOrderMapper {
         if (log == null) return null;
         return StageLogResponseDTO.builder()
                 .id(log.getId())
+                .productionMaterialId(log.getProductionMaterial() != null ? log.getProductionMaterial().getId() : null)
+                .sequenceNumber(log.getSequenceNumber())
+                .attemptNumber(log.getAttemptNumber())
+                .routingOperationId(log.getRoutingOperationId())
+                .operationType(log.getOperationType())
                 .stageName(log.getStageName())
                 .stageCode(log.getStageCode())
                 .status(log.getStatus())

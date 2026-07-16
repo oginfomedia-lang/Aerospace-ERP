@@ -3,7 +3,7 @@ import { NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
-  Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt
+  Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -97,6 +97,13 @@ const navItems = [
     roles: ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
   },
   {
+    path: '/routing-templates',
+    label: 'Routing Templates',
+    icon: <Route size={18} />,
+    description: 'Per-part operation sequences',
+    roles: ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
+  },
+  {
     path: '/notifications',
     label: 'Notifications',
     icon: <Bell size={18} />,
@@ -108,6 +115,13 @@ const navItems = [
     label: 'Org Settings',
     icon: <Building2 size={18} />,
     description: 'Letterhead & PO defaults',
+    roles: ['MANAGER', 'ADMIN']
+  },
+  {
+    path: '/approval-matrix',
+    label: 'Approval Matrix',
+    icon: <ShieldCheck size={18} />,
+    description: 'PO approval bands & roles',
     roles: ['MANAGER', 'ADMIN']
   }
 ];
@@ -159,7 +173,7 @@ const Layout = ({ children }: Props) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 space-y-1">
           {visibleNavItems.map(item => (
             <NavLink
               key={item.path}
@@ -233,12 +247,14 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/qa' && 'QA Inspection'}
               {location.pathname === '/notifications' && 'Notifications'}
               {location.pathname === '/production' && 'Production'}
+              {location.pathname === '/routing-templates' && 'Routing Templates'}
               {location.pathname === '/suppliers' && 'Suppliers'}
               {location.pathname === '/purchase-orders' && 'Purchase Orders'}
               {location.pathname === '/locations' && 'Locations'}
               {location.pathname === '/material-receipts' && 'Material Receipts'}
               {location.pathname === '/ncr' && 'Non-Conformance Reports'}
               {location.pathname === '/org-settings' && 'Organization Settings'}
+              {location.pathname === '/approval-matrix' && 'Approval Matrix'}
               {location.pathname === '/vendor-invoices' && 'Vendor Invoices'}
               {location.pathname === '/debit-notes' && 'Debit Notes'}
               {location.pathname.includes('/transactions') && 'Transaction History'}

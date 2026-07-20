@@ -60,6 +60,8 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
   const [activeTab, setActiveTab] = useState<'details' | 'materials' | 'stages'>('details');
   const [loading, setLoading] = useState(false);
   const [actionRemarks, setActionRemarks] = useState('');
+  const [qaProducedQty, setQaProducedQty] = useState('');
+  const [qaRejectedQty, setQaRejectedQty] = useState('0');
   const [ncrs, setNcrs] = useState<ShopFloorNcr[]>([]);
   const [openStageId, setOpenStageId] = useState<number | null>(null);
   const [forms, setForms] = useState<Record<number, StageForm>>({});
@@ -69,6 +71,13 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
     if (order && isOpen) {
       productionApi.get<ApiResponse<ShopFloorNcr[]>>(`/production/${order.id}/ncrs`)
         .then(res => setNcrs(res.data.data)).catch(() => setNcrs([]));
+    }
+  }, [order, isOpen]);
+ 
+  useEffect(() => {
+    if(order && isOpen) {
+      setQaProducedQty(String(order.producedQuantity ?? ''));
+      setQaRejectedQty('0');
     }
   }, [order, isOpen]);
 
@@ -201,11 +210,20 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
             <Activity size={14} /> Start Production
           </button>
         );
-      case ProductionOrderStatus.IN_PRODUCTION:
+        case ProductionOrderStatus.IN_PRODUCTION:
         return (
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
+            <input type="number" min={0} value={qaProducedQty} onChange={e => setQaProducedQty(e.target.value)}
+              placeholder="Produced qty"
+              className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
+            <input type="number" min={0} value={qaRejectedQty} onChange={e => setQaRejectedQty(e.target.value)}
+              placeholder="Rejected qty"
+              className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
             <button
-              onClick={() => handleAction('Moved to QA', 'quality-check')}
+              onClick={() => handleAction('Moved to QA', 'quality-check', {
+                producedQty: Number(qaProducedQty) || 0,
+                rejectedQty: Number(qaRejectedQty) || 0,
+              })}
               disabled={loading}
               className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 disabled:opacity-60"
               title="For orders with no BOM routing — skips the per-item operations flow"
@@ -221,7 +239,7 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
             </button>
           </div>
         );
-      case ProductionOrderStatus.READY_FOR_ASSEMBLY:
+        case ProductionOrderStatus.READY_FOR_ASSEMBLY:
         return (
           <button
             onClick={() => handleAction('Assembly Started', 'start-assembly')}
@@ -233,13 +251,24 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
         );
       case ProductionOrderStatus.IN_ASSEMBLY:
         return (
-          <button
-            onClick={() => handleAction('Moved to QA', 'quality-check')}
-            disabled={loading}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 disabled:opacity-60"
-          >
-            <ClipboardCheck size={14} /> Send to QA
-          </button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <input type="number" min={0} value={qaProducedQty} onChange={e => setQaProducedQty(e.target.value)}
+              placeholder="Produced qty"
+              className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
+            <input type="number" min={0} value={qaRejectedQty} onChange={e => setQaRejectedQty(e.target.value)}
+              placeholder="Rejected qty"
+              className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
+            <button
+              onClick={() => handleAction('Moved to QA', 'quality-check', {
+                producedQty: Number(qaProducedQty) || 0,
+                rejectedQty: Number(qaRejectedQty) || 0,
+              })}
+              disabled={loading}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 disabled:opacity-60"
+            >
+              <ClipboardCheck size={14} /> Send to QA
+            </button>
+          </div>
         );
       case ProductionOrderStatus.QUALITY_CHECK:
         return (

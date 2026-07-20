@@ -28,6 +28,10 @@ export const IssueMaterialPickerModal: React.FC<Props> = ({
   const [desiredQty, setDesiredQty] = useState('');
   const [rows, setRows] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  // No Work Order to explain the destination/purpose of this issue — require the
+  // user to say why, instead of it silently defaulting to an anonymous "Production".
+  const [purpose, setPurpose] = useState('');
+  const requiresPurpose = !workOrderId;
 
   const approvedBatches = useMemo(() => {
     if (!part) return [];
@@ -38,6 +42,7 @@ export const IssueMaterialPickerModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (isOpen && part) {
+      setPurpose('');
       const initialQty = suggestedQuantity ?? 0;
       setDesiredQty(initialQty > 0 ? String(initialQty) : '');
       // Pre-fill oldest-batch-first up to the desired total.
@@ -62,7 +67,8 @@ export const IssueMaterialPickerModal: React.FC<Props> = ({
   const totalAllocated = Object.values(rows).reduce((sum, v) => sum + (Number(v) || 0), 0);
   const desired = Number(desiredQty) || 0;
   const isValid = desired > 0 && totalAllocated === desired
-    && approvedBatches.every(b => (Number(rows[b.batchNumber || '']) || 0) <= (b.quantity || 0));
+    && approvedBatches.every(b => (Number(rows[b.batchNumber || '']) || 0) <= (b.quantity || 0))
+    && (!requiresPurpose || purpose.trim().length > 0);
 
   const applyFifoToTotal = (total: number) => {
     let remaining = total;
@@ -89,6 +95,10 @@ export const IssueMaterialPickerModal: React.FC<Props> = ({
   };
 
   const handleSubmit = async () => {
+    if (requiresPurpose && !purpose.trim()) {
+      toast.error('Issued To / Purpose is required when there is no Work Order.');
+      return;
+    }
     if (!isValid) {
       toast.error(`Allocated quantities must sum to exactly ${desired} (currently ${totalAllocated}).`);
       return;
@@ -101,7 +111,9 @@ export const IssueMaterialPickerModal: React.FC<Props> = ({
     try {
       const res = await toast.promise(
         api.post(`/inventory/${part.id}/issue-to-production/allocated`, {
-          allocations, workOrderId, woNumber, lineItemId, issuedTo, issuedBy,
+          allocations, workOrderId, woNumber, lineItemId,
+          issuedTo: requiresPurpose ? purpose.trim() : issuedTo,
+          issuedBy,
         }),
         {
           loading: `Issuing ${desired} units across ${allocations.length} batch(es)...`,
@@ -136,6 +148,18 @@ export const IssueMaterialPickerModal: React.FC<Props> = ({
             <input type="number" value={desiredQty} onChange={e => handleDesiredQtyChange(e.target.value)}
               className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
+
+          {requiresPurpose && (
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Issued To / Purpose *</label>
+              <input type="text" value={purpose} onChange={e => setPurpose(e.target.value)}
+                placeholder="e.g. Maintenance, R&D Sample, Shop Floor Consumption"
+                className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <p className="text-[10px] text-slate-400 mt-1">
+                No Work Order is linked to this issue — record why this material is leaving stock.
+              </p>
+            </div>
+          )}
 
           {approvedBatches.length === 0 ? (
             <div className="text-center py-10 text-slate-300">

@@ -4,7 +4,7 @@ import procurementApi from '../api/procurementAxios';
 import { Link } from 'react-router-dom';
 import {
   Edit3, Search, Loader2, Clock, MinusCircle, PlusCircle,
-  Layers, MapPin, SlidersHorizontal, CalendarX2, Ban, RotateCcw, Printer
+  Layers, MapPin, SlidersHorizontal, CalendarX2, Ban, RotateCcw, Printer, History, X
 } from 'lucide-react';
 import { Part, ApiResponse, MaterialIssueRecord } from '../types/inventory';
 import { OrganizationProfile } from '../types/procurement';
@@ -15,6 +15,7 @@ import { ReceiptModal } from '../components/ReceiptModal';
 import { ItemRegisterDocument } from '../components/ItemRegisterDocument';
 import { MaterialIssueReceiptDocument } from '../components/MaterialIssueReceiptDocument';
 import { IssueMaterialPickerModal } from '../components/IssueMaterialPickerModal';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const statusStyle: Record<string, string> = {
@@ -49,6 +50,7 @@ const getExpiryDisplay = (expiryDate: string | null) => {
 };
 
 const InventoryList = () => {
+  const { user } = useAuth();
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,6 +63,9 @@ const InventoryList = () => {
   const [orgProfile, setOrgProfile] = useState<OrganizationProfile | null>(null);
   const [issueReceipt, setIssueReceipt] = useState<MaterialIssueRecord | null>(null);
   const [issuePickerPart, setIssuePickerPart] = useState<Part | null>(null);
+  const [pastIssuesPart, setPastIssuesPart] = useState<Part | null>(null);
+  const [pastIssues, setPastIssues] = useState<MaterialIssueRecord[]>([]);
+  const [pastIssuesLoading, setPastIssuesLoading] = useState(false);
 
   const fetchParts = async (query = '') => {
     setLoading(true);
@@ -106,6 +111,17 @@ const InventoryList = () => {
 
   const handleOpenEdit = (part: Part) => { setSelectedPart(part); setIsEditModalOpen(true); };
   const handleOpenAdjust = (part: Part) => { setSelectedPart(part); setIsAdjustModalOpen(true); };
+
+  // Reopens the exact same receipt modal shown right after issuing — the only way back
+  // to a past issue once its initial popup is closed, previously there was none at all.
+  const handleViewPastIssues = (part: Part) => {
+    setPastIssuesPart(part);
+    setPastIssuesLoading(true);
+    api.get<ApiResponse<MaterialIssueRecord[]>>('/inventory/material-issue-records', { params: { partId: part.id } })
+      .then(res => setPastIssues(res.data.data))
+      .catch(() => setPastIssues([]))
+      .finally(() => setPastIssuesLoading(false));
+  };
 
   // Items are never hard-deleted — ledger/transaction history references them by ID, and a
   // real DELETE would silently orphan that traceability. Deactivating (ITM lifecycle status)
@@ -244,6 +260,13 @@ const InventoryList = () => {
               title="Ledger History">
               <Clock size={18} />
             </Link>
+            <button
+              onClick={() => handleViewPastIssues(part)}
+              className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition"
+              title="Past Issue Receipts"
+            >
+              <History size={18} />
+            </button>
             <button
               onClick={() => handleIssue(part)}
               className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition"
@@ -403,8 +426,46 @@ const InventoryList = () => {
         onClose={() => setIssuePickerPart(null)}
         part={issuePickerPart}
         suggestedQuantity={issuePickerPart?.quantity || 0}
+        issuedBy={user?.username}
         onIssued={handleIssued}
       />
+
+      {pastIssuesPart && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 flex flex-col max-h-[80vh]">
+            <div className="bg-slate-50 px-6 py-4 border-b flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Past Issues</h2>
+                <p className="text-xs font-bold text-slate-400">{pastIssuesPart.name}</p>
+              </div>
+              <button onClick={() => setPastIssuesPart(null)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1 space-y-1.5">
+              {pastIssuesLoading ? (
+                <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-blue-500" size={24} /></div>
+              ) : pastIssues.length === 0 ? (
+                <p className="text-center py-10 text-xs font-bold uppercase tracking-widest text-slate-300">No issues recorded for this part</p>
+              ) : (
+                pastIssues.map(record => (
+                  <button
+                    key={record.id}
+                    onClick={() => { setIssueReceipt(record); setPastIssuesPart(null); }}
+                    className="w-full flex items-center justify-between gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 transition text-left"
+                  >
+                    <div>
+                      <span className="font-mono text-xs font-bold text-slate-700 block">{record.issueNumber}</span>
+                      <span className="text-[10px] text-slate-400">{record.woNumber ? `WO ${record.woNumber}` : record.issuedTo || 'Ad-hoc issue'}</span>
+                    </div>
+                    <span className="text-[11px] text-slate-500 text-right">{record.totalQuantityIssued} units<br />{new Date(record.issuedAt).toLocaleDateString()}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

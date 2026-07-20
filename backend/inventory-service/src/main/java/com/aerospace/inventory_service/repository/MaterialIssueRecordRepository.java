@@ -10,4 +10,5 @@ import java.util.List;
 public interface MaterialIssueRecordRepository extends JpaRepository<MaterialIssueRecord, Long> {
     List<MaterialIssueRecord> findByWorkOrderId(Long workOrderId);
     List<MaterialIssueRecord> findByLineItemId(Long lineItemId);
+    List<MaterialIssueRecord> findByPartId(Long partId);
 }

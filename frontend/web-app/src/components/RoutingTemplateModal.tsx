@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { X, Plus, Trash2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../api/axios';
 import productionApi from '../api/productionAxios';
 import { ApiResponse, RoutingOperation, RoutingTemplate, RoutingTemplateRequest } from '../types/production';
+import { Part } from '../types/inventory';
 
 interface Props {
   isOpen: boolean;
@@ -23,9 +25,11 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
   const [isActive, setIsActive] = useState(true);
   const [operations, setOperations] = useState<RoutingOperation[]>([emptyOperation(1)]);
   const [saving, setSaving] = useState(false);
+  const [parts, setParts] = useState<Part[]>([]);
 
   useEffect(() => {
     if (isOpen) {
+      api.get('/inventory').then(res => setParts(res.data.data)).catch(() => {});
       if (template) {
         setPartNumber(template.partNumber);
         setName(template.name);
@@ -38,6 +42,17 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
       }
     }
   }, [isOpen, template]);
+
+  // Picking a part fills in Name/Description for you — remembering exact part numbers
+  // by hand is error-prone, and the routing template is naturally "about" that part.
+  const handlePartSelect = (skuCode: string) => {
+    setPartNumber(skuCode);
+    const part = parts.find(p => p.serialNumber === skuCode);
+    if (part) {
+      setName(part.name);
+      setDescription(part.description || '');
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -108,8 +123,13 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Part Number *</label>
-              <input value={partNumber} onChange={e => setPartNumber(e.target.value)}
-                className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-indigo-500" />
+              <select value={partNumber} onChange={e => handlePartSelect(e.target.value)}
+                className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="">— Select a part —</option>
+                {parts.map(p => (
+                  <option key={p.id} value={p.serialNumber}>{p.serialNumber} — {p.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Name *</label>

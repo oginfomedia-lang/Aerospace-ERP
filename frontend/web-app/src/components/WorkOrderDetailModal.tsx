@@ -17,6 +17,7 @@ import {
 } from '../types/workOrder';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 import { ReceiptModal } from './ReceiptModal';
 import { MaterialIssueReceiptDocument } from './MaterialIssueReceiptDocument';
 import { IssueMaterialPickerModal } from './IssueMaterialPickerModal';
@@ -76,6 +77,7 @@ const lineStatusStyle: Record<string, string> = {
 
 export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClose, onSuccess, onEdit, onDelete }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'details' | 'material' | 'history'>('details');
   const [transitioning, setTransitioning] = useState(false);
@@ -641,6 +643,7 @@ export const WorkOrderDetailModal: React.FC<Props> = ({ workOrder, isOpen, onClo
         woNumber={wo.woNumber}
         lineItemId={issuePickerLine?.id}
         suggestedQuantity={issuePickerLine ? issuePickerLine.quantityRequired - issuePickerLine.quantityIssued : 0}
+        issuedBy={user?.username}
         onIssued={(response) => { handleMaterialIssued(response); setIssuePickerLine(null); }}
       />
     </div>

@@ -51,6 +51,14 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
       .then(res => setLocations(res.data)).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if(isOpen && part) {
+      setQaData({ batchNumber: part.batchNumber || '', status:'APPROVED', remarks: ''});
+      setReserveData({ batchNumber: part.batchNumber || '', qty: 0 });
+      setTransferData({ batchNumber: part.batchNumber || '', fromBin: part.location || '', toBin: '', qty: 0 });
+    }
+  }, [isOpen, part]);
+
   if (!isOpen || !part) return null;
 
   const handleClose = () => {
@@ -137,6 +145,34 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
           loading: 'Reserving stock for work order...',
           success: `${reserveData.qty} units reserved from batch ${reserveData.batchNumber}.`,
           error: (err) => err.response?.data?.message || 'Reservation failed.',
+        }
+      );
+      onSuccess();
+      handleClose();
+    } catch {}
+  };
+
+  //POST /inventory/{id}/release-reservation?batch=&quantity= - reverses a reservation,
+  //eg. a cancelled work order that no longer needs the material it had set aside
+  const handleReleaseReservation = async () => {
+    if(!reserveData.batchNumber.trim()) {
+      toast.error('Batch number required.');
+      return;
+    }
+
+    if(reserveData.qty <= 0) {toast.error('Quantity must be > 0.'); return; }
+
+    const params = new URLSearchParams({
+      batch: reserveData.batchNumber,
+      quantity: String(reserveData.qty),
+    });
+
+    try{
+      await toast.promise(api.post(`/inventory/${part.id}/release-reservation?${params}`),
+        {
+          loading: 'Releasing reserved stock...',
+          success: `${reserveData.qty} units released from batch ${reserveData.batchNumber}.`,
+          error: (err) => err.response?.data?.message || 'Release failed.',
         }
       );
       onSuccess();
@@ -310,7 +346,7 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
             <form onSubmit={handleQADecision} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Batch Number *</label>
-                <input type="text" required defaultValue={part.batchNumber || ''}
+                <input type="text" required value={qaData.batchNumber || ''}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 font-mono"
                   onChange={e => setQaData({ ...qaData, batchNumber: e.target.value })} />
               </div>
@@ -343,7 +379,7 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Batch Number *</label>
-                <input type="text" required defaultValue={part.batchNumber || ''}
+                <input type="text" required value={reserveData.batchNumber || ''}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-violet-500 font-mono"
                   onChange={e => setReserveData({ ...reserveData, batchNumber: e.target.value })} />
               </div>
@@ -353,9 +389,14 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-violet-500"
                   onChange={e => setReserveData({ ...reserveData, qty: parseInt(e.target.value) || 0 })} />
               </div>
-              <button type="submit" className="w-full bg-violet-600 text-white py-3 rounded-xl font-bold hover:bg-violet-700 transition-all active:scale-95">
-                Reserve Stock
-              </button>
+              <div className="flex gap-3">
+                <button type="submit" className="flex-1 bg-violet-600 text-white py-3 rounded-xl font-bold hover:bg-violet-700 transition-all active:scale-95">
+                  Reserve Stock
+                </button>
+                <button type="button" onClick={handleReleaseReservation} className="flex-1 bg-white border border-violet-300 text-violet-700 py-3 rounded-xl font-bold hover:bg-violet-50 transition-all active:scale-95">
+                  Release Reservation
+                </button>
+              </div>
             </form>
           )}
 
@@ -364,14 +405,14 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
             <form onSubmit={handleTransfer} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Batch Number *</label>
-                <input type="text" required defaultValue={part.batchNumber || ''}
+                <input type="text" required value={transferData.batchNumber || ''}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 font-mono"
                   onChange={e => setTransferData({ ...transferData, batchNumber: e.target.value })} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">From Bin *</label>
-                  <select required defaultValue={part.location || ''}
+                  <select required value={transferData.fromBin || ''}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500"
                     onChange={e => setTransferData({ ...transferData, fromBin: e.target.value })}>
                     <option value="" disabled>Select a location...</option>
@@ -382,7 +423,7 @@ export const StockAdjustmentModal = ({ isOpen, part, onClose, onSuccess }: Props
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">To Bin *</label>
-                  <select required defaultValue=""
+                  <select required value={transferData.toBin || ''}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500"
                     onChange={e => setTransferData({ ...transferData, toBin: e.target.value })}>
                     <option value="" disabled>Select a location...</option>

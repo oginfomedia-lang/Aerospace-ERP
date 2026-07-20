@@ -48,6 +48,8 @@ public interface PartService {
     PartResponseDTO addStockWithConversion(Long id, int quantity, String inputUom,
                                            String batchNumber, String location);
     void transferStock(Long id, String batch, String fromBin, String toBin, int qty);
+    //reverses reserveStock - moves quantity from 'reserved' to 'approved'
+    void releaseReservation(Long partId, String batch, int quantity);
 
     // Search & History
     List<PartResponseDTO> searchByName(String name);

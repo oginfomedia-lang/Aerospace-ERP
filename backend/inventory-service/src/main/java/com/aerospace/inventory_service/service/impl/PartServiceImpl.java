@@ -591,6 +591,9 @@ public class PartServiceImpl implements PartService {
     @Transactional
     @CacheEvict(value = "dashboardStats", allEntries = true)
     public void reserveStock(Long partId, String batch, int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Reserve quantity must be greater than zero.");
+        }
         StockBalance approvedStock = balanceRepository
                 .findByPartIdAndBatchNumberAndStatus(partId, batch, StockStatus.APPROVED)
                 .orElseThrow(() -> new RuntimeException("Approved stock not found"));
@@ -620,6 +623,38 @@ public class PartServiceImpl implements PartService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "dashboardStats", allEntries = true)
+    public void releaseReservation(Long partId, String batch, int quantity){
+        if(quantity <= 0) {
+            throw new IllegalArgumentException("Release quantity must be greater than zero");
+        }
+        StockBalance reservedStock = balanceRepository
+                .findByPartIdAndBatchNumberAndStatus(partId, batch, StockStatus.RESERVED)
+                .orElseThrow(() -> new RuntimeException("Reserved stock not found for batch:" + batch));
+
+        if(reservedStock.getQuantity() < quantity) {
+            throw new RuntimeException("Cannot release " + quantity + " units - only" +  reservedStock.getQuantity() + " cirrently RESERVED for batch " + batch);
+        }
+
+        reservedStock.setQuantity(reservedStock.getQuantity() - quantity);
+        balanceRepository.save(reservedStock);
+
+        StockBalance approvedStock = balanceRepository.findByPartIdAndBatchNumberAndStatus(partId, batch, StockStatus.APPROVED)
+                                    .orElse(StockBalance.builder()
+                                            .partId(partId).batchNumber(batch)
+                                            .status(StockStatus.APPROVED).quantity(0).build());
+
+        approvedStock.setExpiryDate(reservedStock.getExpiryDate());
+        approvedStock.setQuantity(approvedStock.getQuantity() + quantity);
+        balanceRepository.save(approvedStock);
+
+        //netquantity unchanges - moving RESERVED -> APPROVED, same zero-log convention
+        transactionService.logTransaction(partId, batch, "STOCK_RESERVATION_RELEASE", 0, null, 
+                "Released reservation back to available stock (" + quantity + " units)");    
+    }
+
+    @Override
+    @Transactional
     public PartResponseDTO addStockWithConversion(Long id, int inputQty, String inputUom,
                                                    String batch, String loc) {
         Part part = partRepository.findById(id)
@@ -640,6 +675,10 @@ public class PartServiceImpl implements PartService {
     @Override
     @Transactional
     public void transferStock(Long id, String batch, String fromBin, String toBin, int qty) {
+        if(qty <= 0) throw new IllegalArgumentException("Transfer quantity must be greater than zero");
+        if(fromBin != null && fromBin.equals(toBin)) {
+            throw new IllegalArgumentException("Source and target bin locations must be different");
+        }
         locationService.assertActive(toBin);
 
         StockBalance source = balanceRepository

@@ -161,4 +161,38 @@ public class PartController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS",
                 partService.getAllParts(PageRequest.of(page, size))));
     }
+
+    //ERP Step: Stock reservation - locks APPROVED quantity into RESERVED so it can't be
+    //issued elsewjere. releaseReservation is the reverse (eg. A cancelled work order)
+    @PostMapping("/{id}/reserve")
+    public ResponseEntity<ApiResponse<String>> reserveStock(
+            @PathVariable Long id,
+            @RequestParam String batch,
+            @RequestParam int quantity) {
+        partService.reserveStock(id, batch, quantity);
+        return ResponseEntity.ok(new ApiResponse<>("RESERVED", quantity + " units of batch " + batch + " reserved."));
+    }
+
+    @PostMapping("/{id}/release-reservation")
+    public ResponseEntity<ApiResponse<String>> releaseReservation(
+            @PathVariable Long id,
+            @RequestParam String batch,
+            @RequestParam int quantity) {
+        partService.releaseReservation(id, batch, quantity);
+        return ResponseEntity.ok(new ApiResponse<>("RELEASED",
+                quantity + " units of batch " + batch + " released back to APPROVED."));
+    }
+
+     // ERP Step: Bin-to-bin transfer — same batch, same status bucket, different location.
+    @PostMapping("/{id}/transfer")
+    public ResponseEntity<ApiResponse<String>> transfer(
+            @PathVariable Long id,
+            @RequestParam String batch,
+            @RequestParam String fromBin,
+            @RequestParam String toBin,
+            @RequestParam int qty) {
+        partService.transferStock(id, batch, fromBin, toBin, qty);
+        return ResponseEntity.ok(new ApiResponse<>("TRANSFERRED",
+                qty + " units moved from " + fromBin + " to " + toBin + "."));
+    }
 }

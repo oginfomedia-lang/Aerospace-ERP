@@ -34,12 +34,15 @@ public class MaterialIssueRecordController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<MaterialIssueRecordResponse>>> search(
             @RequestParam(required = false) Long workOrderId,
-            @RequestParam(required = false) Long lineItemId) {
+            @RequestParam(required = false) Long lineItemId,
+            @RequestParam(required = false) Long partId) {
         List<MaterialIssueRecord> records;
         if (lineItemId != null) {
             records = repository.findByLineItemId(lineItemId);
         } else if (workOrderId != null) {
             records = repository.findByWorkOrderId(workOrderId);
+        } else if (partId != null) {
+            records = repository.findByPartId(partId);
         } else {
             records = repository.findAll();
         }

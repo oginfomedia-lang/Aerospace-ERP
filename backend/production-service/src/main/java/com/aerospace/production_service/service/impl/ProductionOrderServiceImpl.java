@@ -125,6 +125,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                 .productName(event.getTaskDescription())
                 .productCode(event.getTaskCode())
                 .aircraftType(event.getAircraftType())
+                .outputPartId(event.getOutputPartId())
+                .outputPartNumber(event.getOutputPartNumber())
                 .plannedQuantity(1) // WorkOrder has no finished-goods quantity field — see plan's open questions
                 .status(ProductionOrderStatus.RELEASED) // material's already committed — skip the manual "Release" step
                 .priority(ProductionPriority.MEDIUM)
@@ -236,6 +238,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
 
         order.setProductName(dto.getProductName());
         order.setProductCode(dto.getProductCode());
+        order.setOutputPartId(dto.getOutputPartId());
+        order.setOutputPartNumber(dto.getOutputPartNumber());
         order.setAircraftType(dto.getAircraftType());
         order.setPlannedQuantity(dto.getPlannedQuantity());
         order.setPriority(dto.getPriority());
@@ -359,6 +363,12 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                                                      String qualityNotes, String closureNotes) {
         ProductionOrder order = findOrThrow(id);
         assertStatus(order, ProductionOrderStatus.QUALITY_CHECK, "complete");
+        if(order.getOutputPartId() == null) {
+            throw new IllegalStateException(
+                "Cannot complete: no output part set on this order. Edit the order and select which " + 
+                "Part this run produces before completing."
+            );
+        }
         order.setStatus(ProductionOrderStatus.COMPLETED);
         order.setActualEndDate(LocalDateTime.now());
         order.setQualityPassed(qualityPassed);
@@ -373,6 +383,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                     .poNumber(order.getPoNumber())
                     .productName(order.getProductName())
                     .productCode(order.getProductCode())
+                    .outputPartId(order.getOutputPartId())
+                    .outputPartNumber(order.getOutputPartNumber())
                     .aircraftType(order.getAircraftType())
                     .plannedQuantity(order.getPlannedQuantity())
                     .producedQuantity(order.getProducedQuantity())

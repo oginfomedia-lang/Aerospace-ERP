@@ -63,6 +63,11 @@ public class WorkOrder {
     @Builder.Default
     private List<MaterialLineItem> materialLineItems = new ArrayList<>();
 
+    // What this task/job is expected to produce, if anything (optional — most WOs are pure
+    // maintenance tasks). Flows through to the auto-created ProductionOrder on issuance.
+    private Long outputPartId;
+    private String outputPartNumber;
+
     @PrePersist // Automatically sets timestamps before first save. Defensive default status ensures new work orders don't accidentally start in invalid state.
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

@@ -48,6 +48,8 @@ export interface WorkOrder {
   updatedAt: string | null;
   remarks: string | null;
   closureNotes: string | null;
+  outputPartId?: number | null;
+  outputPartNumber?: string | null;
   materialLineItems: MaterialLineItem[];
   totalPartsRequired: number;
   totalPartsIssued: number;
@@ -91,6 +93,8 @@ export interface CreateWorkOrderRequest {
   dueDate?: string;
   remarks?: string;
   materialItems?: MaterialLineItemRequest[];
+  outputPartId?: number | null;
+  outputPartNumber?: string;
 }
 
 export interface MaterialLineItemRequest {

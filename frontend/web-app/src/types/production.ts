@@ -93,6 +93,8 @@ export interface ProductionOrder {
   completionPercentage?: number;
   materials: ProductionMaterial[];
   stageLogs: ProductionStageLog[];
+  outputPartId?: number | null;
+  outputPartNumber?: string | null;
 }
 
 // ============================================================

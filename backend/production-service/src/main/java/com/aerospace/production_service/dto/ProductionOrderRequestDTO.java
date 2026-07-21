@@ -1,6 +1,5 @@
 package com.aerospace.production_service.dto;
 
-import com.aerospace.production_service.entity.ProductionOrderStatus;
 import com.aerospace.production_service.entity.ProductionPriority;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -43,4 +42,7 @@ public class ProductionOrderRequestDTO {
 
     // Materials to be consumed — provided at creation time (Bill of Materials)
     private List<ProductionMaterialDTO> materials;
+
+    private Long outputPartId;        // FK into inventory-service's Part — required before completion
+    private String outputPartNumber;  // denormalized Part.skuCode, for display without a cross-service call
 }

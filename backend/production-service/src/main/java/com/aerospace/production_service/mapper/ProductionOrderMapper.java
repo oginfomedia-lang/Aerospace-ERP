@@ -31,6 +31,8 @@ public class ProductionOrderMapper {
                 .batchNumber(dto.getBatchNumber())
                 .remarks(dto.getRemarks())
                 .status(ProductionOrderStatus.PLANNED)
+                .outputPartId(dto.getOutputPartId())
+                .outputPartNumber(dto.getOutputPartNumber())
                 .build();
     }
 
@@ -75,6 +77,8 @@ public class ProductionOrderMapper {
                 .completionPercentage(Math.min(completion, 100.0))
                 .materials(mapMaterials(order.getMaterials()))
                 .stageLogs(mapStageLogs(order.getStageLogs()))
+                .outputPartId(order.getOutputPartId())
+                .outputPartNumber(order.getOutputPartNumber())
                 .build();
     }
 

@@ -68,6 +68,11 @@ public class WorkOrderEvents {
         private String remarks;
         private LocalDateTime changedAt;
 
+        // What this WO is expected to produce, if anything — carried on every transition
+        // so production-service can set it on the auto-created ProductionOrder immediately.
+        private Long outputPartId;
+        private String outputPartNumber;
+
         // Populated ONLY when toStatus == IN_PROGRESS (all material lines issued) —
         // null/empty on every other transition. See MaterialLineSnapshot.
         private List<MaterialLineSnapshot> materialLineItems;

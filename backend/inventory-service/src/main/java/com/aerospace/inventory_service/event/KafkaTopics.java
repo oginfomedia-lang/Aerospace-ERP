@@ -20,4 +20,7 @@ public class KafkaTopics {
     // Published by inventory-service, consumed by procurement-service (auto-creates a Debit
     // Note against the supplier) and notification-service (alerts the team).
     public static final String VENDOR_RETURN = "vendor-return-events";
+
+    //consumed from production-service - must watch production-service's own kafka topics constant
+    public static final String PRODUCTION_ORDER_COMPLETED = "production-order-completed-events";
 }

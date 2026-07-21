@@ -55,4 +55,7 @@ public class ProductionOrderResponseDTO {
 
     private List<ProductionMaterialDTO> materials;
     private List<StageLogResponseDTO> stageLogs;
+
+    private Long outputPartId;        // FK into inventory-service's Part — required before completion
+    private String outputPartNumber;  // denormalized Part.skuCode, for display without a cross-service call
 }

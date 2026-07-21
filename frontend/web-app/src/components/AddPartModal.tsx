@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (part?: Part | null) => void;
 }
 
 type Step = 'master' | 'stock';
@@ -170,7 +170,7 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
           error: (err) => err.response?.data?.message || 'Stock inward failed.',
         }
       );
-      onSuccess();
+      onSuccess(createdPart);
       handleClose();
     } catch {
       // toast.promise handles display
@@ -178,7 +178,7 @@ export const AddPartModal = ({ isOpen, onClose, onSuccess }: Props) => {
   };
 
   const handleSkipStock = () => {
-    onSuccess();
+    onSuccess(createdPart);
     handleClose();
   };
 

@@ -41,6 +41,10 @@ public class WorkOrderDTOs {
 
         // Material line items to add at creation time
         private List<MaterialLineItemRequest> materialItems;
+
+        // What this task/job is expected to produce, if anything (optional).
+        private Long outputPartId;
+        private String outputPartNumber;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -73,6 +77,8 @@ public class WorkOrderDTOs {
         private String location;
         private LocalDateTime dueDate;
         private String remarks;
+        private Long outputPartId;
+        private String outputPartNumber;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -118,6 +124,8 @@ public class WorkOrderDTOs {
         private LocalDateTime updatedAt;
         private String remarks;
         private String closureNotes;
+        private Long outputPartId;
+        private String outputPartNumber;
         private List<MaterialLineItemResponse> materialLineItems;
         private int totalPartsRequired;
         private int totalPartsIssued;

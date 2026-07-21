@@ -71,6 +71,8 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                 .location(req.getLocation())
                 .dueDate(req.getDueDate())
                 .remarks(req.getRemarks())
+                .outputPartId(req.getOutputPartId())
+                .outputPartNumber(req.getOutputPartNumber())
                 .status(WorkOrderStatus.DRAFT)
                 .build();
 
@@ -188,6 +190,8 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                     .changedBy(req.getChangedBy())
                     .remarks(req.getRemarks())
                     .changedAt(LocalDateTime.now())
+                    .outputPartId(wo.getOutputPartId())
+                    .outputPartNumber(wo.getOutputPartNumber())
                     // Auto-BOM trigger for production-service — only carry the material
                     // snapshot on the transition where every line has just been issued.
                     .materialLineItems(to == WorkOrderStatus.IN_PROGRESS
@@ -397,6 +401,8 @@ public class WorkOrderServiceImpl implements WorkOrderService {
         if (req.getLocation()        != null) wo.setLocation(req.getLocation());
         if (req.getDueDate()         != null) wo.setDueDate(req.getDueDate());
         if (req.getRemarks()         != null) wo.setRemarks(req.getRemarks());
+        if (req.getOutputPartId()    != null) wo.setOutputPartId(req.getOutputPartId());
+        if (req.getOutputPartNumber() != null) wo.setOutputPartNumber(req.getOutputPartNumber());
         return toResponse(workOrderRepository.save(wo));
     }
 
@@ -516,6 +522,8 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                 .updatedAt(wo.getUpdatedAt())
                 .remarks(wo.getRemarks())
                 .closureNotes(wo.getClosureNotes())
+                .outputPartId(wo.getOutputPartId())
+                .outputPartNumber(wo.getOutputPartNumber())
                 .materialLineItems(lines)
                 .totalPartsRequired(totalRequired)
                 .totalPartsIssued(totalIssued)

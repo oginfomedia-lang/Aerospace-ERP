@@ -29,5 +29,7 @@ public class WorkOrderStatusChangedEvent {
     private String changedBy;
     private String remarks;
     private LocalDateTime changedAt;
+    private Long outputPartId;
+    private String outputPartNumber;
     private List<MaterialLineSnapshot> materialLineItems;
 }

@@ -3,6 +3,7 @@ import { X, PlusCircle, Trash2, Plane, Wrench, AlertTriangle, Package, CheckSqua
 import workOrderApi from '../api/workOrderAxios';
 import api from '../api/axios';
 import { CreateWorkOrderRequest, MaterialLineItemRequest, Priority, ApiResponse, WorkOrder, UpdateWorkOrderRequest } from '../types/workOrder';
+import { AddPartModal } from './AddPartModal';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -47,10 +48,13 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
     dueDate: '',
     remarks: '',
     materialItems: [],
+    outputPartId: null as number | null,
+    outputPartNumber: '',
   });
   const [parts, setParts] = useState<any[]>([]);
   const [showPartSelector, setShowPartSelector] = useState(false);
   const [selectedPartIds, setSelectedPartIds] = useState<number[]>([]);
+  const [showAddPart, setShowAddPart] = useState(false);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -75,6 +79,8 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
         dueDate: editingWorkOrder.dueDate ? new Date(editingWorkOrder.dueDate).toISOString().slice(0, 16) : '',
         remarks: editingWorkOrder.remarks || '',
         materialItems: [],
+        outputPartId: editingWorkOrder.outputPartId ?? null,
+        outputPartNumber: editingWorkOrder.outputPartNumber || '',
       });
     }
   }, [isOpen, editingWorkOrder]);
@@ -172,6 +178,7 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
     aircraftId: '', aircraftType: '', taskDescription: '', taskCode: '',
     priority: 'MEDIUM', assignedTo: '', createdBy: '', location: '',
     dueDate: '', remarks: '', materialItems: [],
+    outputPartId: null, outputPartNumber: '',
   });
 
   if (!isOpen) return null;
@@ -288,6 +295,39 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Expected Output Part */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                Expected Output Part (if this task produces one)
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowAddPart(true)}
+                className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 transition"
+              >
+                <PlusCircle size={14} /> Create New Part
+              </button>
+            </div>
+            <select
+              value={form.outputPartId ?? ''}
+              onChange={e => {
+                const selected = parts.find(p => p.id === Number(e.target.value));
+                setForm(f => ({
+                  ...f,
+                  outputPartId: selected ? selected.id : null,
+                  outputPartNumber: selected ? selected.serialNumber : '',
+                }));
+              }}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="">— Pure maintenance task, no manufactured output —</option>
+              {parts.map(part => (
+                <option key={part.id} value={part.id}>{part.serialNumber} — {part.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Assigned / Created / Location / Due */}
@@ -522,6 +562,18 @@ export const CreateWorkOrderModal: React.FC<Props> = ({ isOpen, onClose, onSucce
           </button>
         </div>
       </div>
+
+      <AddPartModal
+        isOpen={showAddPart}
+        onClose={() => setShowAddPart(false)}
+        onSuccess={(part) => {
+          setShowAddPart(false);
+          api.get('/inventory').then(res => {
+            setParts(res.data.data);
+            if (part) setForm(f => ({ ...f, outputPartId: part.id, outputPartNumber: part.serialNumber }));
+          }).catch(() => {});
+        }}
+      />
     </div>
   );
 };

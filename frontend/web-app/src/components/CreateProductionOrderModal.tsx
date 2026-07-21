@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, PlusCircle, Trash2, Factory, Settings, Users, Calendar, AlertTriangle } from 'lucide-react';
 import productionApi from '../api/productionAxios';
 import { ProductionPriority, ProductionOrder, ApiResponse } from '../types/production';
 import toast from 'react-hot-toast';
+import api from '../api/axios';
+import { Part } from '../types/inventory';
+import { AddPartModal } from './AddPartModal';
 
 interface Props {
   isOpen: boolean;
@@ -39,6 +42,8 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
   const [form, setForm] = useState({
     productName: '',
     productCode: '',
+    outputPartId: null as number | null,
+    outputPartNumber: '',
     aircraftType: '',
     plannedQuantity: 1,
     priority: ProductionPriority.MEDIUM,
@@ -49,6 +54,13 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
     remarks: '',
     materials: [] as MaterialInput[],
   });
+  const [parts, setParts] = useState<Part[]>([]);
+  const [showAddPart, setShowAddPart] = useState(false);
+
+  useEffect(() => {
+    if(isOpen) api.get('/inventory').then(res => setParts(res.data.data))
+      .catch(() => {});
+  }, [isOpen]);
 
   const set = (field: string, value: any) =>
     setForm(f => ({ ...f, [field]: value }));
@@ -58,6 +70,8 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
       setForm({
         productName: editingOrder.productName,
         productCode: editingOrder.productCode || '',
+        outputPartId: editingOrder.outputPartId ?? null,
+        outputPartNumber: editingOrder.outputPartNumber || '',
         aircraftType: editingOrder.aircraftType || '',
         plannedQuantity: editingOrder.plannedQuantity,
         priority: editingOrder.priority,
@@ -127,7 +141,8 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
   };
 
   const resetForm = () => setForm({
-    productName: '', productCode: '', aircraftType: '', plannedQuantity: 1,
+    productName: '', productCode: '', outputPartId: null, outputPartNumber: '',
+    aircraftType: '', plannedQuantity: 1,
     priority: ProductionPriority.MEDIUM, assignedTeam: '', supervisorName: '',
     plannedStartDate: '', plannedEndDate: '', remarks: '', materials: [],
   });
@@ -191,6 +206,43 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
                 />
               </div>
             </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                Finished Product (Output Part)
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowAddPart(true)}
+                className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 transition"
+              >
+                <PlusCircle size={14} /> Create New Part
+              </button>
+            </div>
+            <select
+              value={form.outputPartId ?? ''}
+              onChange={e => {
+                const selected = parts.find(p => p.id === Number(e.target.value));
+                setForm(f => ({
+                  ...f,
+                  outputPartId: selected ? selected.id : null,
+                  outputPartNumber: selected ? selected.serialNumber : '',
+                }));
+              }}
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+              <option value="">— Set later (e.g. for Work-Order-issued orders) —</option>
+              {parts.map(p => (
+                <option key={p.id} value={p.id}>{p.serialNumber} — {p.name}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">
+              Which inventory Part this order credits stock to when completed. Not required now —
+              orders created from a Work Order can have this set later via Edit, but it must be set
+              before the order can be marked complete.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -391,6 +443,18 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
           </button>
         </div>
       </div>
+
+      <AddPartModal
+        isOpen={showAddPart}
+        onClose={() => setShowAddPart(false)}
+        onSuccess={(part) => {
+          setShowAddPart(false);
+          api.get('/inventory').then(res => {
+            setParts(res.data.data);
+            if (part) setForm(f => ({ ...f, outputPartId: part.id, outputPartNumber: part.serialNumber }));
+          }).catch(() => {});
+        }}
+      />
     </div>
   );
 };

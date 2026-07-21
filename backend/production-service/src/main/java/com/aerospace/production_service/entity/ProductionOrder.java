@@ -80,6 +80,9 @@ public class ProductionOrder {
     @Builder.Default
     private List<ProductionMaterial> materials = new ArrayList<>();
 
+    private Long outputPartId; //refrence to inventory-service part
+    private String outputPartNumber; //denormalize part.skucode, for display withou a cross service call
+
     // Stage-by-stage progress log
     @OneToMany(mappedBy = "productionOrder", cascade = CascadeType.ALL,
                orphanRemoval = true, fetch = FetchType.LAZY)

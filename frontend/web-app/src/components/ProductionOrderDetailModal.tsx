@@ -4,9 +4,13 @@ import {
   CheckCircle2, PauseCircle, PlayCircle,
   Users, History, Package, Trash2,
   ChevronRight, Loader2, Edit3, Ban,
-  Wrench, ShieldAlert, Boxes
+  Wrench, ShieldAlert, Boxes, AlertTriangle
 } from 'lucide-react';
 import productionApi from '../api/productionAxios';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
+import { IssueMaterialPickerModal } from './IssueMaterialPickerModal';
+import { Part as PartType } from '../types/inventory';
 import {
   ProductionOrder, ProductionOrderStatus,
   ApiResponse, ProductionStageLog, ShopFloorNcr
@@ -57,6 +61,7 @@ const emptyForm: StageForm = {
 };
 
 export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onClose, onSuccess, onEdit, onDelete, onCancel }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'details' | 'materials' | 'stages'>('details');
   const [loading, setLoading] = useState(false);
   const [actionRemarks, setActionRemarks] = useState('');
@@ -66,6 +71,8 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
   const [openStageId, setOpenStageId] = useState<number | null>(null);
   const [forms, setForms] = useState<Record<number, StageForm>>({});
   const [stageBusy, setStageBusy] = useState<number | null>(null);
+  const [partsByPartId, setPartsByPartId] = useState<Record<number, PartType>>({});
+  const [issueMaterialId, setIssueMaterialId] = useState<number | null>(null);
 
   useEffect(() => {
     if (order && isOpen) {
@@ -81,7 +88,50 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
     }
   }, [order, isOpen]);
 
+  // Fetch each BOM line's full Part (with live balances) for the Issue Material picker —
+  // only meaningful for standalone orders, whose materials never got real stock issued.
+  useEffect(() => {
+    if (order && activeTab === 'materials' && !order.workOrderId) {
+      order.materials.forEach(m => {
+        if (m.partId) {
+          api.get(`/inventory/${m.partId}`).then(res => {
+            setPartsByPartId(prev => ({ ...prev, [m.partId]: res.data.data }));
+          }).catch(() => {});
+        }
+      });
+    }
+  }, [order, activeTab]);
+
   if (!isOpen || !order) return null;
+
+  const issueMaterialLine = order.materials.find(m => m.id === issueMaterialId) || null;
+
+  // Called once IssueMaterialPickerModal successfully deducts real stock from
+  // inventory-service. It only returns the updated Part, not the issued quantity, so
+  // look up the MaterialIssueRecord it just created to get the real total — then record
+  // that consumption on this BOM line via production-service's own (previously unwired)
+  // consume endpoint.
+  const handleMaterialIssued = async (response: PartType) => {
+    const currentLine = issueMaterialLine;
+    setIssueMaterialId(null);
+    if (!currentLine) return;
+    try {
+      let consumedQty = currentLine.quantityRequired - (currentLine.quantityConsumed ?? 0);
+      if (response.materialIssueRecordId) {
+        const rec = await api.get(`/inventory/material-issue-records/${response.materialIssueRecordId}`);
+        consumedQty = rec.data.data.totalQuantityIssued ?? consumedQty;
+      }
+      await productionApi.post(
+        `/production/${order.id}/materials/${currentLine.id}/consume`,
+        null,
+        { params: { consumed: (currentLine.quantityConsumed ?? 0) + consumedQty, wasted: currentLine.quantityWasted ?? 0 } }
+      );
+      toast.success(`Recorded ${consumedQty} units consumed for ${currentLine.partName}.`);
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Issued from inventory, but failed to record consumption on the order.');
+    }
+  };
 
   const handleAction = async (action: string, endpoint: string, params: Record<string, any> = {}) => {
     setLoading(true);
@@ -271,7 +321,7 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
           </div>
         );
       case ProductionOrderStatus.QUALITY_CHECK:
-        return (
+        return order.outputPartId ? (
           <button
             onClick={() => handleAction('Completed', 'complete', { qualityPassed: true })}
             disabled={loading}
@@ -279,6 +329,12 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
           >
             <CheckCircle2 size={14} /> Pass QA & Complete
           </button>
+        ) : (
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            <AlertTriangle size={14} />
+            No Output Part set — close this and click Edit on the order to select the finished-goods
+            Part before completing.
+          </div>
         );
       case ProductionOrderStatus.ON_HOLD:
         return (
@@ -464,6 +520,20 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
                         </div>
                         <span className="text-[10px] font-black px-2 py-1 bg-white border rounded-lg text-slate-600">{m.status}</span>
                       </div>
+
+                      {/* Real inventory issuance — only for standalone orders (no Work Order),
+                          which never get their materials physically issued anywhere else. */}
+                      {!order.workOrderId && (m.quantityRequired - (m.quantityConsumed ?? 0)) > 0 && (
+                        <div className="flex justify-end mb-3">
+                          <button
+                            onClick={() => setIssueMaterialId(m.id)}
+                            disabled={!m.partId}
+                            className="px-3 py-1.5 bg-blue-600 text-white text-[11px] font-black rounded-lg hover:bg-blue-700 transition shadow-lg shadow-blue-200 disabled:opacity-50"
+                          >
+                            Issue Material
+                          </button>
+                        </div>
+                      )}
 
                       {sequences.length === 0 ? (
                         <p className="text-[11px] text-slate-400 italic">No routing generated yet — click "Start Production" to expand this BOM line's operations.</p>
@@ -659,6 +729,15 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
           </button>
         </div>
       </div>
+
+      <IssueMaterialPickerModal
+        isOpen={!!issueMaterialId}
+        onClose={() => setIssueMaterialId(null)}
+        part={issueMaterialLine ? partsByPartId[issueMaterialLine.partId] || null : null}
+        suggestedQuantity={issueMaterialLine ? issueMaterialLine.quantityRequired - (issueMaterialLine.quantityConsumed ?? 0) : 0}
+        issuedBy={user?.username}
+        onIssued={handleMaterialIssued}
+      />
     </div>
   );
 };

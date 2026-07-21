@@ -1,6 +1,7 @@
 package com.aerospace.inventory_service.config;
 
 import com.aerospace.inventory_service.event.PartCreatedEvent;
+import com.aerospace.inventory_service.event.ProductionOrderCompletedEvent;
 import com.aerospace.inventory_service.event.QAStatusUpdatedEvent;
 import com.aerospace.inventory_service.event.WorkOrderCreatedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -13,6 +14,7 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
+
 
 import java.util.HashMap;
 import java.util.Map;
@@ -105,4 +107,25 @@ public class KafkaConfig {
         factory.setConsumerFactory(workOrderCreatedConsumerFactory());
         return factory;
     }
+
+    @Bean
+        public ConsumerFactory<String, ProductionOrderCompletedEvent> productionOrderCompletedConsumerFactory() {
+        Map<String, Object> props = baseConsumerProps();
+        JsonDeserializer<ProductionOrderCompletedEvent> deserializer =
+                new JsonDeserializer<>(ProductionOrderCompletedEvent.class);
+        deserializer.setUseTypeHeaders(false);
+        deserializer.addTrustedPackages("*");
+        ErrorHandlingDeserializer<ProductionOrderCompletedEvent> errorHandling =
+                new ErrorHandlingDeserializer<>(deserializer);
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), errorHandling);
+        }
+
+        @Bean
+        public ConcurrentKafkaListenerContainerFactory<String, ProductionOrderCompletedEvent> productionOrderCompletedKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, ProductionOrderCompletedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(productionOrderCompletedConsumerFactory());
+        return factory;
+        }
+
 }

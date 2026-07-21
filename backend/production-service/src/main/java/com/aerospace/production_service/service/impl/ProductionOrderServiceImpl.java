@@ -202,6 +202,25 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ProductionOrderNeedingPartResponse> findProductionOrdersNeedingPart(Long partId) {
+        return materialRepository.findByPartId(partId).stream()
+                .filter(m -> m.getStatus() == MaterialStatus.PENDING)
+                .filter(m -> m.getProductionOrder().getWorkOrderId() == null)
+                .filter(m -> m.getProductionOrder().getStatus() != ProductionOrderStatus.COMPLETED
+                        && m.getProductionOrder().getStatus() != ProductionOrderStatus.CANCELLED)
+                .map(m -> ProductionOrderNeedingPartResponse.builder()
+                        .productionOrderId(m.getProductionOrder().getId())
+                        .poNumber(m.getProductionOrder().getPoNumber())
+                        .materialId(m.getId())
+                        .partName(m.getPartName())
+                        .quantityRequired(m.getQuantityRequired())
+                        .quantityConsumed(m.getQuantityConsumed())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<ProductionOrderResponseDTO> getAllPaged(Pageable pageable) {
         return orderRepository.findAll(pageable).map(mapper::toDTO);
     }
@@ -360,7 +379,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     @Override
     @Transactional
     public ProductionOrderResponseDTO completeOrder(Long id, Boolean qualityPassed,
-                                                     String qualityNotes, String closureNotes) {
+                                                     String qualityNotes, String closureNotes,
+                                                     String outputLocationCode) {
         ProductionOrder order = findOrThrow(id);
         assertStatus(order, ProductionOrderStatus.QUALITY_CHECK, "complete");
         if(order.getOutputPartId() == null) {
@@ -385,6 +405,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                     .productCode(order.getProductCode())
                     .outputPartId(order.getOutputPartId())
                     .outputPartNumber(order.getOutputPartNumber())
+                    .outputLocationCode(outputLocationCode)
                     .aircraftType(order.getAircraftType())
                     .plannedQuantity(order.getPlannedQuantity())
                     .producedQuantity(order.getProducedQuantity())

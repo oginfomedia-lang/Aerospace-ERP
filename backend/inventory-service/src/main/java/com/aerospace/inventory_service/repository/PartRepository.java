@@ -20,8 +20,10 @@ public interface PartRepository extends JpaRepository<Part, Long> {
     @Query("SELECT p.partType, COUNT(p) FROM Part p GROUP BY p.partType")
     List<Object[]> countPartsByType();
 
-    // Used by DashboardService to compute low-stock count (same rule as the frontend's
-    // LowStockAlert: approved quantity <= reorderLevel, only for parts that set one).
-    @Query("SELECT p.id, p.reorderLevel FROM Part p WHERE p.reorderLevel IS NOT NULL")
+    // Deactivated parts are never candidates for reorder — excluding them stops a
+    // fully-rejected/deactivated item with 0 approved stock from double-counting as
+    // "Low Stock" too (that's a QA/lifecycle issue, not a supply shortage).
+    @Query("SELECT p.id, p.reorderLevel FROM Part p WHERE p.reorderLevel IS NOT NULL AND p.status <> 'INACTIVE'")
     List<Object[]> findIdAndReorderLevelWhereReorderLevelSet();
+
 }

@@ -22,4 +22,5 @@ public class ProductionOrderCompletedEvent {
     private String batchNumber;
     private Long outputPartId;        // FK into inventory-service's Part — required before completion
     private String outputPartNumber;  // denormalized Part.skuCode, for display
+    private String outputLocationCode; // Which warehouse Location to credit the stock at
 }

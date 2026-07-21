@@ -374,6 +374,24 @@ public class WorkOrderServiceImpl implements WorkOrderService {
     }
 
     @Override
+    public List<WorkOrderNeedingPartResponse> findWorkOrdersNeedingPart(Long partId) {
+        return lineItemRepository.findByPartId(partId).stream()
+                .filter(l -> l.getStatus() == MaterialLineItem.LineItemStatus.PENDING
+                        || l.getStatus() == MaterialLineItem.LineItemStatus.PARTIALLY_ISSUED)
+                .filter(l -> l.getWorkOrder().getStatus() != WorkOrderStatus.COMPLETED
+                        && l.getWorkOrder().getStatus() != WorkOrderStatus.CANCELLED)
+                .map(l -> WorkOrderNeedingPartResponse.builder()
+                        .workOrderId(l.getWorkOrder().getId())
+                        .woNumber(l.getWorkOrder().getWoNumber())
+                        .lineItemId(l.getId())
+                        .taskDescription(l.getWorkOrder().getTaskDescription())
+                        .quantityRequired(l.getQuantityRequired())
+                        .quantityIssued(l.getQuantityIssued())
+                        .build())
+                .toList();
+    }
+
+    @Override
     public List<StatusHistoryResponse> getStatusHistory(Long workOrderId) {
         return historyRepository.findByWorkOrderIdOrderByChangedAtDesc(workOrderId)
                 .stream().map(h -> StatusHistoryResponse.builder()

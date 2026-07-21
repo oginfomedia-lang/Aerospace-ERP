@@ -10,7 +10,7 @@ import productionApi from '../api/productionAxios';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { IssueMaterialPickerModal } from './IssueMaterialPickerModal';
-import { Part as PartType } from '../types/inventory';
+import { Part as PartType, Location } from '../types/inventory';
 import {
   ProductionOrder, ProductionOrderStatus,
   ApiResponse, ProductionStageLog, ShopFloorNcr
@@ -73,6 +73,15 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
   const [stageBusy, setStageBusy] = useState<number | null>(null);
   const [partsByPartId, setPartsByPartId] = useState<Record<number, PartType>>({});
   const [issueMaterialId, setIssueMaterialId] = useState<number | null>(null);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [outputLocationCode, setOutputLocationCode] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      api.get<Location[]>('/inventory/locations', { params: { activeOnly: true } })
+        .then(res => setLocations(res.data)).catch(() => {});
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (order && isOpen) {
@@ -270,10 +279,16 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
               placeholder="Rejected qty"
               className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
             <button
-              onClick={() => handleAction('Moved to QA', 'quality-check', {
-                producedQty: Number(qaProducedQty) || 0,
-                rejectedQty: Number(qaRejectedQty) || 0,
-              })}
+              onClick={() => {
+                if (Number(qaProducedQty) <= 0){
+                  toast.error('Enter the real produced quantity before sending to QA - it still shows the previous value (0) by default.');
+                  return;
+                }
+                handleAction('Moved to QA', 'quality-check', {
+                  producedQty: Number(qaProducedQty) || 0,
+                  rejectedQty: Number(qaRejectedQty) || 0,
+                });
+              }}
               disabled={loading}
               className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 disabled:opacity-60"
               title="For orders with no BOM routing — skips the per-item operations flow"
@@ -308,11 +323,17 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
             <input type="number" min={0} value={qaRejectedQty} onChange={e => setQaRejectedQty(e.target.value)}
               placeholder="Rejected qty"
               className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
-            <button
-              onClick={() => handleAction('Moved to QA', 'quality-check', {
-                producedQty: Number(qaProducedQty) || 0,
-                rejectedQty: Number(qaRejectedQty) || 0,
-              })}
+            <button 
+              onClick={() => {
+                if(Number(qaProducedQty) <= 0) {
+                  toast.error('Enter the real produced quantity before sending to QA - it still shows default (0)');
+                  return;
+                }
+                handleAction('Moved to QA', 'quality-check', {
+                  producedQty: Number(qaProducedQty) || 0,
+                  rejectedQty: Number(qaRejectedQty) || 0,
+                });
+              }}
               disabled={loading}
               className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 disabled:opacity-60"
             >
@@ -322,13 +343,31 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
         );
       case ProductionOrderStatus.QUALITY_CHECK:
         return order.outputPartId ? (
-          <button
-            onClick={() => handleAction('Completed', 'complete', { qualityPassed: true })}
-            disabled={loading}
-            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-200 disabled:opacity-60"
-          >
-            <CheckCircle2 size={14} /> Pass QA & Complete
-          </button>
+          <div className="flex gap-2 items-center flex-wrap">
+            <select
+              value={outputLocationCode}
+              onChange={e => setOutputLocationCode(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">— Select warehouse location —</option>
+              {locations.map(l => (
+                <option key={l.id} value={l.code}>{l.code} — {l.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => {
+                if (!outputLocationCode) {
+                  toast.error('Select which warehouse location the finished goods should be credited to.');
+                  return;
+                }
+                handleAction('Completed', 'complete', { qualityPassed: true, outputLocationCode });
+              }}
+              disabled={loading}
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-200 disabled:opacity-60"
+            >
+              <CheckCircle2 size={14} /> Pass QA & Complete
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-2 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
             <AlertTriangle size={14} />

@@ -102,6 +102,17 @@ public class ProductionOrderController {
                 productionOrderService.getByWorkOrderId(workOrderId)));
     }
 
+    // Open standalone (no Work Order) materials still needing this part — used to let
+    // Inventory's ad-hoc Issue flow attribute an issuance to a real Production Order
+    // instead of a free-text purpose. WO-derived materials are excluded here since
+    // they're already reachable via the Work Order's own needing-part endpoint.
+    @GetMapping("/needing-part/{partId}")
+    public ResponseEntity<ApiResponse<List<ProductionOrderNeedingPartResponse>>> needingPart(
+            @PathVariable Long partId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                productionOrderService.findProductionOrdersNeedingPart(partId)));
+    }
+
     // ── LIFECYCLE TRANSITIONS ─────────────────────────────────────────────────
 
     @PostMapping("/{id}/release")
@@ -140,10 +151,11 @@ public class ProductionOrderController {
             @PathVariable Long id,
             @RequestParam Boolean qualityPassed,
             @RequestParam(required = false) String qualityNotes,
-            @RequestParam(required = false) String closureNotes) {
+            @RequestParam(required = false) String closureNotes,
+            @RequestParam(required = false) String outputLocationCode) {
         return ResponseEntity.ok(new ApiResponse<>("ORDER_COMPLETED",
                 productionOrderService.completeOrder(id, qualityPassed,
-                        qualityNotes, closureNotes)));
+                        qualityNotes, closureNotes, outputLocationCode)));
     }
 
     @PostMapping("/{id}/hold")

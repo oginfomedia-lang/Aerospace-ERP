@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { Package, AlertTriangle, Database, Activity, ShieldAlert, Ban, TrendingUp, RefreshCw, UserCircle } from 'lucide-react';
 import { DashboardStats, ApiResponse, Part } from '../types/inventory';
@@ -13,6 +14,7 @@ const Dashboard = () => {
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
   const { user, hasRole } = useAuth();
+  const navigate = useNavigate();
 
   // Stable session terminal ID — generated once, never changes
   const terminalId = useRef(Math.random().toString(36).substring(2, 9).toUpperCase());
@@ -74,16 +76,18 @@ const Dashboard = () => {
       val: stats.rejectedItems.toLocaleString(),
       icon: <Ban size={20} />,
       color: 'from-red-600 to-red-700',
-      note: 'Quarantined stock',
-      roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
+      note: 'Quarantined stock — click to view',
+      roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN'],
+      navState: { filterStatus: 'REJECTED' },
     },
     {
       title: 'Low Stock Alerts',
       val: stats.lowStockItems.toLocaleString(),
       icon: <AlertTriangle size={20} />,
       color: 'from-orange-500 to-orange-600',
-      note: 'Below reorder level',
-      roles: ['STORE_KEEPER', 'PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
+      note: 'Below reorder level — click to view',
+      roles: ['STORE_KEEPER', 'PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN'],
+      navState: { filterLowStock: true },
     },
     {
       title: 'Inventory Value',
@@ -139,7 +143,11 @@ const Dashboard = () => {
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {visibleCards.map((card, i) => (
-            <div key={i} className="group bg-white rounded-3xl p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div
+              key={i}
+              onClick={() => { if ('navState' in card) navigate('/inventory', { state: card.navState }); }}
+              className={`group bg-white rounded-3xl p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 ${'navState' in card ? 'cursor-pointer' : ''}`}
+            >
               <div className="flex justify-between items-start">
                 <div className={`p-4 rounded-2xl bg-gradient-to-br ${card.color} text-white shadow-lg`}>
                   {card.icon}

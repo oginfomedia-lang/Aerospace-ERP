@@ -21,4 +21,5 @@ public class ProductionOrderCompletedEvent {
     private String batchNumber;
     private Long outputPartId;
     private String outputPartNumber;
-}   
+    private String outputLocationCode;
+}

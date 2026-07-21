@@ -177,6 +177,18 @@ public class WorkOrderController {
     }
 
     /**
+     * GET /api/v1/work-orders/needing-part/{partId}
+     * Open (not COMPLETED/CANCELLED) material lines for this part, still PENDING or
+     * PARTIALLY_ISSUED — used to let Inventory's ad-hoc Issue flow attribute an issuance
+     * to a real Work Order instead of a free-text purpose.
+     */
+    @GetMapping("/needing-part/{partId}")
+    public ResponseEntity<ApiResponse<List<WorkOrderNeedingPartResponse>>> needingPart(
+            @PathVariable Long partId) {
+        return ResponseEntity.ok(ApiResponse.success(workOrderService.findWorkOrdersNeedingPart(partId)));
+    }
+
+    /**
      * GET /api/v1/work-orders/{id}/history
      */
     @GetMapping("/{id}/history")

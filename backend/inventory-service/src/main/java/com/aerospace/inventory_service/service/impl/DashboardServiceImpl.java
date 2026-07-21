@@ -25,7 +25,7 @@ public class DashboardServiceImpl implements DashboardService { // FIX 2: was mi
         // fetch once into variable — was calling getTotalApprovedStock() twice (two DB hits)
         Long approvedRaw = balanceRepository.getTotalApprovedStock();
         Long pendingQARaw = balanceRepository.getTotalPendingQA();
-        Long rejectedRaw = balanceRepository.getTotalRejected();
+        Long rejectedRaw = balanceRepository.countRejectedLots();
 
         long totalApprovedStock = approvedRaw  != null ? approvedRaw  : 0L;
         long pendingQA          = pendingQARaw != null ? pendingQARaw : 0L;

@@ -23,6 +23,7 @@ public interface ProductionOrderService {
     // WO<->Production visibility: the ProductionOrder(s) auto-created from a given
     // WorkOrder (see WorkOrderConsumer) — usually 0 or 1, but not enforced unique.
     List<ProductionOrderResponseDTO> getByWorkOrderId(Long workOrderId);
+    List<ProductionOrderNeedingPartResponse> findProductionOrdersNeedingPart(Long partId);
     Page<ProductionOrderResponseDTO> getAllPaged(Pageable pageable);
     ProductionOrderResponseDTO updateOrder(Long id, ProductionOrderRequestDTO dto);
     void deleteOrder(Long id);
@@ -34,7 +35,8 @@ public interface ProductionOrderService {
     ProductionOrderResponseDTO startProduction(Long id, List<Long> skipRoutingForMaterialIds);
     ProductionOrderResponseDTO moveToQualityCheck(Long id, Integer producedQty, Integer rejectedQty);
     ProductionOrderResponseDTO completeOrder(Long id, Boolean qualityPassed,
-                                             String qualityNotes, String closureNotes);
+                                             String qualityNotes, String closureNotes,
+                                             String outputLocationCode);
     ProductionOrderResponseDTO putOnHold(Long id, String reason);
     ProductionOrderResponseDTO cancelOrder(Long id, String reason);
 

@@ -163,6 +163,16 @@ public class WorkOrderDTOs {
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class WorkOrderNeedingPartResponse {
+        private Long workOrderId;
+        private String woNumber;
+        private Long lineItemId;
+        private String taskDescription;
+        private Integer quantityRequired;
+        private Integer quantityIssued;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class DashboardStatsResponse {
         private long totalWorkOrders;
         private long draft;

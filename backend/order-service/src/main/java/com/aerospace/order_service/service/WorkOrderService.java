@@ -35,6 +35,7 @@ public interface WorkOrderService {
     List<WorkOrderResponse> getOverdue();
     List<WorkOrderResponse> search(String query);
     List<WorkOrderResponse> getRecent();
+    List<WorkOrderNeedingPartResponse> findWorkOrdersNeedingPart(Long partId);
     List<StatusHistoryResponse> getStatusHistory(Long workOrderId);
 
     // ── Dashboard ─────────────────────────────────────────────────────────────

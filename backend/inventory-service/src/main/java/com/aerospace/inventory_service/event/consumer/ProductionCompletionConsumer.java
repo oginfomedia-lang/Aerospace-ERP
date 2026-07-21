@@ -10,6 +10,7 @@ import com.aerospace.inventory_service.event.producer.InventoryProducer;
 import com.aerospace.inventory_service.repository.PartRepository;
 import com.aerospace.inventory_service.repository.StockBalanceRepository;
 import com.aerospace.inventory_service.service.DocumentSequenceService;
+import com.aerospace.inventory_service.service.LocationService;
 import com.aerospace.inventory_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,12 +28,11 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class ProductionCompletionConsumer {
 
-    private static final String FINISHED_GOODS_LOCATION = "FG-STORE";
-
     private final PartRepository partRepository;
     private final StockBalanceRepository balanceRepository;
     private final DocumentSequenceService documentSequenceService;
     private final TransactionService transactionService;
+    private final LocationService locationService;
     private final InventoryProducer inventoryProducer;
 
     @KafkaListener(
@@ -55,6 +55,18 @@ public class ProductionCompletionConsumer {
                     event.getPoNumber());
             return;
         }
+        if (event.getOutputLocationCode() == null || event.getOutputLocationCode().isBlank()) {
+            log.warn("[PRODUCTION-CREDIT] PO {} completed with no outputLocationCode — skipping stock credit",
+                    event.getPoNumber());
+            return;
+        }
+        try {
+            locationService.assertActive(event.getOutputLocationCode());
+        } catch (Exception ex) {
+            log.error("[PRODUCTION-CREDIT] PO {} references invalid/inactive location '{}' — skipping stock credit: {}",
+                    event.getPoNumber(), event.getOutputLocationCode(), ex.getMessage());
+            return;
+        }
 
         Part part = partRepository.findById(event.getOutputPartId()).orElse(null);
         if (part == null) {
@@ -70,7 +82,7 @@ public class ProductionCompletionConsumer {
                 .quantity(qty)
                 .status(StockStatus.APPROVED)
                 .uom(part.getUom())
-                .location(FINISHED_GOODS_LOCATION)
+                .location(event.getOutputLocationCode())
                 .lastUpdated(LocalDateTime.now())
                 .build();
         balanceRepository.save(balance);
@@ -88,7 +100,7 @@ public class ProductionCompletionConsumer {
                     .batchNumber(batch)
                     .quantityReceived(qty)
                     .supplier("PRODUCTION: " + event.getPoNumber())
-                    .location(FINISHED_GOODS_LOCATION)
+                    .location(event.getOutputLocationCode())
                     .receivedBy(event.getSupervisorName())
                     .build());
         } catch (Exception ex) {

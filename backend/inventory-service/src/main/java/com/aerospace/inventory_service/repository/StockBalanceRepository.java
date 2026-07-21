@@ -34,8 +34,8 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Long
     @Query("SELECT SUM(s.quantity) FROM StockBalance s WHERE s.status = 'PENDING_QA'")
     Long getTotalPendingQA();
 
-    @Query("SELECT SUM(s.quantity) FROM StockBalance s WHERE s.status = 'REJECTED'")
-    Long getTotalRejected();
+    @Query("SELECT COUNT(s) FROM StockBalance s WHERE s.status = 'REJECTED' AND s.quantity > 0")
+    Long countRejectedLots();
 
     // Per-part approved quantity, warehouse-wide — used by DashboardService to compute
     // low-stock count without an N+1 query per part.

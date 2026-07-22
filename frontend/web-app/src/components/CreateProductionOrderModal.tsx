@@ -33,6 +33,7 @@ const priorityStyle: Record<ProductionPriority, string> = {
 interface MaterialInput {
   partId: number;
   partName: string;
+  partNumber: string;
   quantityRequired: number;
 }
 
@@ -86,7 +87,7 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
   }, [isOpen, editingOrder]);
 
   const addMaterial = () =>
-    setForm(f => ({ ...f, materials: [...f.materials, { partId: 0, partName: '', quantityRequired: 1 }] }));
+    setForm(f => ({ ...f, materials: [...f.materials, { partId: 0, partName: '', partNumber: '', quantityRequired: 1 }] }));
 
   const removeMaterial = (i: number) =>
     setForm(f => ({ ...f, materials: f.materials.filter((_, idx) => idx !== i) }));
@@ -98,6 +99,18 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
         idx === i ? { ...m, [field]: value } : m
       ),
     }));
+
+  const selectMaterialPart = (i: number, partId: number) => {
+    const selected = parts.find(p => p.id === partId);
+    setForm(f => ({
+      ...f,
+      materials: f.materials.map((m, idx) =>
+        idx === i
+          ? { ...m, partId, partName: selected ? selected.name : '', partNumber: selected ? selected.serialNumber : '' }
+          : m
+      ),
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,6 +242,8 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
                   ...f,
                   outputPartId: selected ? selected.id : null,
                   outputPartNumber: selected ? selected.serialNumber : '',
+                  productName: selected ? selected.name : f.productName,
+                  productCode: selected ? selected.serialNumber : f.productCode,
                 }));
               }}
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -380,20 +395,16 @@ export const CreateProductionOrderModal: React.FC<Props> = ({ isOpen, onClose, o
               <div className="space-y-2">
                 {form.materials.map((m, i) => (
                   <div key={i} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                    <input
-                      type="number"
-                      placeholder="Part ID"
-                      className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
-                      value={m.partId || ''}
-                      onChange={e => updateMaterial(i, 'partId', Number(e.target.value))}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Material Name"
+                    <select
                       className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
-                      value={m.partName}
-                      onChange={e => updateMaterial(i, 'partName', e.target.value)}
-                    />
+                      value={m.partId || ''}
+                      onChange={e => selectMaterialPart(i, Number(e.target.value))}
+                    >
+                      <option value="">— Select material —</option>
+                      {parts.map(p => (
+                        <option key={p.id} value={p.id}>{p.serialNumber} — {p.name}</option>
+                      ))}
+                    </select>
                     <input
                       type="number"
                       placeholder="Qty"

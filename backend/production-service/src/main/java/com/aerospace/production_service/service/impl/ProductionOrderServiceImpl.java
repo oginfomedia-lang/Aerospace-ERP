@@ -282,9 +282,15 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         if (order.getStatus() == ProductionOrderStatus.IN_PRODUCTION) {
             throw new IllegalStateException("Cannot delete an order that is IN_PRODUCTION");
         }
+        if (!shopFloorNcrRepository.findByProductionOrderId(id).isEmpty()) {
+            throw new IllegalStateException(
+                "Cannot delete: this order has Non-Conformance Records (NCRs) that must be " +
+                "preserved for quality traceability. Cancel the order instead if it's no longer needed.");
+        }
         orderRepository.delete(order);
         log.info("ERP: Production order deleted — id={}", id);
     }
+
 
     // ── LIFECYCLE TRANSITIONS ─────────────────────────────────────────────────
 
@@ -369,9 +375,46 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             throw new IllegalStateException(
                     "Cannot move to QA. Order must be IN_PRODUCTION or IN_ASSEMBLY but is " + order.getStatus());
         }
+
+        // startAssembly() opens an order-level "Final Assembly" stage log (no
+        // productionMaterial — it isn't tied to any one BOM line) but nothing ever closed
+        // it out, so it sat IN_PROGRESS forever on the Stages tab even after the order
+        // itself completed. Close it here, since this is the point where assembly is done.
+        ProductionStageLog closedAssemblyStage = null;
+        if (order.getStatus() == ProductionOrderStatus.IN_ASSEMBLY) {
+            for (ProductionStageLog s : stageLogRepository.findByProductionOrderIdAndProductionMaterialIsNull(id)) {
+                if (s.getStatus() == StageStatus.IN_PROGRESS) {
+                    s.setStatus(StageStatus.COMPLETED);
+                    s.setCompletedAt(LocalDateTime.now());
+                    s.setQuantityOut(producedQty);
+                    closedAssemblyStage = stageLogRepository.save(s);
+                }
+            }
+        }
+
         order.setStatus(ProductionOrderStatus.QUALITY_CHECK);
         order.setProducedQuantity(producedQty != null ? producedQty : order.getProducedQuantity());
         order.setRejectedQuantity(rejectedQty != null ? rejectedQty : 0);
+
+        // Finished-goods reject — same traceability pattern as shop-floor scrap
+        // (completeInspectionStage), but not tied to any one BOM line, so
+        // productionMaterial stays null. Nothing to disposition here (no single
+        // material's quantityWasted applies to a whole-unit reject) — this is purely a
+        // record that N finished units didn't pass.
+        if (rejectedQty != null && rejectedQty > 0) {
+            shopFloorNcrRepository.save(ShopFloorNcr.builder()
+                    .productionOrderId(order.getId())
+                    .productionMaterial(null)
+                    .stageLog(closedAssemblyStage)
+                    .rejectedQuantity(rejectedQty)
+                    .disposition(ShopFloorDisposition.FINISHED_GOODS_REJECT)
+                    .description("Finished-goods reject recorded at Send to QA (produced "
+                            + (producedQty != null ? producedQty : 0) + ", rejected " + rejectedQty + ")")
+                    .reportedBy(order.getSupervisorName())
+                    .build());
+            log.info("[NCR] Finished-goods reject recorded — order={} qty={}", order.getPoNumber(), rejectedQty);
+        }
+
         log.info("ERP: Order moved to QUALITY_CHECK — poNumber={}", order.getPoNumber());
         return mapper.toDTO(orderRepository.save(order));
     }

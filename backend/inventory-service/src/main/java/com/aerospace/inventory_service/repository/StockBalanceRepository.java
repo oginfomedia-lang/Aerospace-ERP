@@ -54,4 +54,10 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Long
         return findByPartIdAndBatchNumberAndLocationAndStatus(
                 partId, batchNumber, location, StockStatus.APPROVED);
     }
+
+    List<StockBalance> findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(
+        Long partId, 
+        String batchNumber, 
+        StockStatus status
+        );
 }

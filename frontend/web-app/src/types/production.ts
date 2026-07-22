@@ -127,12 +127,12 @@ export interface CompleteStageRequest {
 export interface ShopFloorNcr {
   id: number;
   productionOrderId: number;
-  productionMaterialId: number;
+  productionMaterialId: number | null;
   partName?: string | null;
-  stageLogId: number;
+  stageLogId: number | null;
   stageName?: string | null;
   rejectedQuantity: number;
-  disposition: 'SCRAP' | 'REWORK';
+  disposition: 'SCRAP' | 'REWORK' | 'FINISHED_GOODS_REJECT';
   reasonCode?: string | null;
   description?: string | null;
   reportedBy?: string | null;

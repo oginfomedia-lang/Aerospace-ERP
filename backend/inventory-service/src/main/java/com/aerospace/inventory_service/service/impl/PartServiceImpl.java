@@ -193,9 +193,12 @@ public class PartServiceImpl implements PartService {
         if (batch != null && !batch.isBlank()) {
             // Explicit batch requested — issue only from that one batch, no FIFO
             // spillover (e.g. a traceability requirement pinned to a specific batch).
-            candidates = List.of(balanceRepository
-                    .findByPartIdAndBatchNumberAndStatus(id, batch, StockStatus.APPROVED)
-                    .orElseThrow(() -> new RuntimeException("No APPROVED stock for batch: " + batch)));
+            List<StockBalance> batchBalances = balanceRepository.findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(id, batch, StockStatus.APPROVED);
+            if(batchBalances.isEmpty()) {
+                throw new RuntimeException("No APPROVED stock for batch: "+ batch);
+            }
+            candidates = batchBalances;
+
         } else {
             // FIFO: consume the oldest APPROVED batches first. A StockBalance row is
             // only ever created once, on a batch's first receipt (later receipts of
@@ -255,14 +258,34 @@ public class PartServiceImpl implements PartService {
                 throw new IllegalArgumentException(
                         "Allocation quantity must be greater than zero for batch " + alloc.getBatchNumber());
             }
-            StockBalance balance = balanceRepository
-                    .findByPartIdAndBatchNumberAndStatus(id, alloc.getBatchNumber(), StockStatus.APPROVED)
-                    .orElseThrow(() -> new RuntimeException("No APPROVED stock for batch: " + alloc.getBatchNumber()));
-            if (balance.getQuantity() < alloc.getQuantity()) {
-                throw new RuntimeException("Requested " + alloc.getQuantity() + " from batch "
-                        + alloc.getBatchNumber() + " but only " + balance.getQuantity() + " is APPROVED and available.");
+            // A batch can legitimately hold APPROVED stock in more than one row (split across
+            // locations by a bin-to-bin transfer) — sum across all of them and spread the
+            // deduction across whichever rows actually have quantity, instead of assuming the
+            // first row found (which may be an emptied-out one) has enough on its own.
+            List<StockBalance> balances = balanceRepository
+                    .findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(id, alloc.getBatchNumber(), StockStatus.APPROVED);
+
+            if(balances.isEmpty()){
+                throw new RuntimeException("No APPROVED stock for batch: "+ alloc.getBatchNumber());
             }
-            allocations.add(java.util.Map.entry(balance, alloc.getQuantity()));
+
+            int availableForBatch = balances.stream()
+                    .mapToInt(b -> b.getQuantity() != null ? b.getQuantity() : 0)
+                    .sum();
+            if (availableForBatch < alloc.getQuantity()) {
+                throw new RuntimeException("Requested " + alloc.getQuantity() + " from batch "
+                        + alloc.getBatchNumber() + " but only " + availableForBatch + " is APPROVED and available.");
+            }
+
+            int remaining = alloc.getQuantity();
+            for (StockBalance b : balances) {
+                if (remaining <= 0) break;
+                int have = b.getQuantity() != null ? b.getQuantity() : 0;
+                if (have <= 0) continue;
+                int take = Math.min(remaining, have);
+                allocations.add(java.util.Map.entry(b, take));
+                remaining -= take;
+            }
             totalQuantity += alloc.getQuantity();
         }
 
@@ -485,11 +508,15 @@ public class PartServiceImpl implements PartService {
     // shared by both the approved and rejected sides of a (possibly partial) QA split.
     private void moveToStatus(Long partId, String batch, StockStatus status, int qty,
                               String location, LocalDateTime expiry, String poNumber) {
-        StockBalance target = balanceRepository
-                .findByPartIdAndBatchNumberAndStatus(partId, batch, status)
-                .orElse(StockBalance.builder()
+        // If this batch already has more than one row at this status (e.g. it was split
+        // across locations earlier), just add onto the first one rather than throwing —
+        // any existing bucket is a valid place to land this quantity.
+        List<StockBalance> existing = balanceRepository
+                .findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(partId, batch, status);
+        StockBalance target = !existing.isEmpty() ? existing.get(0)
+                : StockBalance.builder()
                         .partId(partId).batchNumber(batch)
-                        .status(status).quantity(0).build());
+                        .status(status).quantity(0).build();
         target.setQuantity(target.getQuantity() + qty);
         target.setLocation(location);
         target.setExpiryDate(expiry);
@@ -594,23 +621,39 @@ public class PartServiceImpl implements PartService {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Reserve quantity must be greater than zero.");
         }
-        StockBalance approvedStock = balanceRepository
-                .findByPartIdAndBatchNumberAndStatus(partId, batch, StockStatus.APPROVED)
-                .orElseThrow(() -> new RuntimeException("Approved stock not found"));
-
-        if (approvedStock.getQuantity() < quantity)
+        // Same multi-location caveat as issueToProductionWithAllocation — a batch's APPROVED
+        // stock can be spread across more than one StockBalance row (bin-to-bin transfer), so
+        // resolve against all of them rather than a single-result lookup that throws once a
+        // second row exists.
+        List<StockBalance> approvedBalances = balanceRepository
+                .findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(partId, batch, StockStatus.APPROVED);
+        int totalApproved = approvedBalances.stream()
+                .mapToInt(b -> b.getQuantity() != null ? b.getQuantity() : 0).sum();
+        if (approvedBalances.isEmpty()) {
+            throw new RuntimeException("Approved stock not found");
+        }
+        if (totalApproved < quantity)
             throw new RuntimeException("Insufficient stock to reserve");
 
-        approvedStock.setQuantity(approvedStock.getQuantity() - quantity);
-        balanceRepository.save(approvedStock);
+        int remaining = quantity;
+        for (StockBalance b : approvedBalances) {
+            if (remaining <= 0) break;
+            int have = b.getQuantity() != null ? b.getQuantity() : 0;
+            if (have <= 0) continue;
+            int take = Math.min(remaining, have);
+            b.setQuantity(have - take);
+            balanceRepository.save(b);
+            remaining -= take;
+        }
 
-        StockBalance reservedStock = balanceRepository
-                .findByPartIdAndBatchNumberAndStatus(partId, batch, StockStatus.RESERVED)
-                .orElse(StockBalance.builder()
+        List<StockBalance> reservedBalances = balanceRepository
+                .findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(partId, batch, StockStatus.RESERVED);
+        StockBalance reservedStock = !reservedBalances.isEmpty() ? reservedBalances.get(0)
+                : StockBalance.builder()
                         .partId(partId).batchNumber(batch)
-                        .status(StockStatus.RESERVED).quantity(0).build());
+                        .status(StockStatus.RESERVED).quantity(0).build();
 
-        reservedStock.setExpiryDate(approvedStock.getExpiryDate());
+        reservedStock.setExpiryDate(approvedBalances.get(0).getExpiryDate());
         reservedStock.setQuantity(reservedStock.getQuantity() + quantity);
         balanceRepository.save(reservedStock);
 
@@ -628,23 +671,37 @@ public class PartServiceImpl implements PartService {
         if(quantity <= 0) {
             throw new IllegalArgumentException("Release quantity must be greater than zero");
         }
-        StockBalance reservedStock = balanceRepository
-                .findByPartIdAndBatchNumberAndStatus(partId, batch, StockStatus.RESERVED)
-                .orElseThrow(() -> new RuntimeException("Reserved stock not found for batch:" + batch));
-
-        if(reservedStock.getQuantity() < quantity) {
-            throw new RuntimeException("Cannot release " + quantity + " units - only" +  reservedStock.getQuantity() + " cirrently RESERVED for batch " + batch);
+        // Same multi-location caveat as reserveStock/issueToProductionWithAllocation.
+        List<StockBalance> reservedBalances = balanceRepository
+                .findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(partId, batch, StockStatus.RESERVED);
+        int totalReserved = reservedBalances.stream()
+                .mapToInt(b -> b.getQuantity() != null ? b.getQuantity() : 0).sum();
+        if (reservedBalances.isEmpty()) {
+            throw new RuntimeException("Reserved stock not found for batch:" + batch);
+        }
+        if(totalReserved < quantity) {
+            throw new RuntimeException("Cannot release " + quantity + " units - only" +  totalReserved + " cirrently RESERVED for batch " + batch);
         }
 
-        reservedStock.setQuantity(reservedStock.getQuantity() - quantity);
-        balanceRepository.save(reservedStock);
+        int remaining = quantity;
+        for (StockBalance b : reservedBalances) {
+            if (remaining <= 0) break;
+            int have = b.getQuantity() != null ? b.getQuantity() : 0;
+            if (have <= 0) continue;
+            int take = Math.min(remaining, have);
+            b.setQuantity(have - take);
+            balanceRepository.save(b);
+            remaining -= take;
+        }
 
-        StockBalance approvedStock = balanceRepository.findByPartIdAndBatchNumberAndStatus(partId, batch, StockStatus.APPROVED)
-                                    .orElse(StockBalance.builder()
-                                            .partId(partId).batchNumber(batch)
-                                            .status(StockStatus.APPROVED).quantity(0).build());
+        List<StockBalance> approvedBalances = balanceRepository
+                .findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(partId, batch, StockStatus.APPROVED);
+        StockBalance approvedStock = !approvedBalances.isEmpty() ? approvedBalances.get(0)
+                : StockBalance.builder()
+                        .partId(partId).batchNumber(batch)
+                        .status(StockStatus.APPROVED).quantity(0).build();
 
-        approvedStock.setExpiryDate(reservedStock.getExpiryDate());
+        approvedStock.setExpiryDate(reservedBalances.get(0).getExpiryDate());
         approvedStock.setQuantity(approvedStock.getQuantity() + quantity);
         balanceRepository.save(approvedStock);
 
@@ -688,7 +745,11 @@ public class PartServiceImpl implements PartService {
         if (source.getQuantity() < qty) throw new RuntimeException("Not enough stock in source bin");
 
         source.setQuantity(source.getQuantity() - qty);
-        balanceRepository.save(source);
+        if(source.getQuantity() == 0) {
+            balanceRepository.delete(source);
+        } else {
+            balanceRepository.save(source);
+        }
 
         StockBalance target = balanceRepository
                 .findByPartIdAndBatchNumberAndLocation(id, batch, toBin)

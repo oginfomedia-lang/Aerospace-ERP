@@ -24,13 +24,17 @@ public class ShopFloorNcr {
 
     private Long productionOrderId;
 
+    // Null for a FINISHED_GOODS_REJECT — that disposition is order-level (recorded at
+    // "Send to QA"), not tied to any one BOM line.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "production_material_id", nullable = false)
+    @JoinColumn(name = "production_material_id", nullable = true)
     @ToString.Exclude
     private ProductionMaterial productionMaterial;
 
+    // Null for a FINISHED_GOODS_REJECT raised on the legacy no-routing IN_PRODUCTION path,
+    // where there's no order-level "Final Assembly" stage log to attach to.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "stage_log_id", nullable = false)
+    @JoinColumn(name = "stage_log_id", nullable = true)
     @ToString.Exclude
     private ProductionStageLog stageLog;
 

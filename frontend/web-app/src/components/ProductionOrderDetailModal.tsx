@@ -271,13 +271,19 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
         );
         case ProductionOrderStatus.IN_PRODUCTION:
         return (
-          <div className="flex gap-2 items-center flex-wrap">
-            <input type="number" min={0} value={qaProducedQty} onChange={e => setQaProducedQty(e.target.value)}
-              placeholder="Produced qty"
-              className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
-            <input type="number" min={0} value={qaRejectedQty} onChange={e => setQaRejectedQty(e.target.value)}
-              placeholder="Rejected qty"
-              className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
+          <div className="flex gap-2 items-end flex-wrap">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide px-0.5">Produced Qty</label>
+              <input type="number" min={0} value={qaProducedQty} onChange={e => setQaProducedQty(e.target.value)}
+                placeholder="0"
+                className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide px-0.5">Rejected Qty</label>
+              <input type="number" min={0} value={qaRejectedQty} onChange={e => setQaRejectedQty(e.target.value)}
+                placeholder="0"
+                className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
             <button
               onClick={() => {
                 if (Number(qaProducedQty) <= 0){
@@ -316,14 +322,20 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
         );
       case ProductionOrderStatus.IN_ASSEMBLY:
         return (
-          <div className="flex gap-2 items-center flex-wrap">
-            <input type="number" min={0} value={qaProducedQty} onChange={e => setQaProducedQty(e.target.value)}
-              placeholder="Produced qty"
-              className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
-            <input type="number" min={0} value={qaRejectedQty} onChange={e => setQaRejectedQty(e.target.value)}
-              placeholder="Rejected qty"
-              className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
-            <button 
+          <div className="flex gap-2 items-end flex-wrap">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide px-0.5">Produced Qty</label>
+              <input type="number" min={0} value={qaProducedQty} onChange={e => setQaProducedQty(e.target.value)}
+                placeholder="0"
+                className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wide px-0.5">Rejected Qty</label>
+              <input type="number" min={0} value={qaRejectedQty} onChange={e => setQaRejectedQty(e.target.value)}
+                placeholder="0"
+                className="w-28 px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <button
               onClick={() => {
                 if(Number(qaProducedQty) <= 0) {
                   toast.error('Enter the real produced quantity before sending to QA - it still shows default (0)');
@@ -457,16 +469,27 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
 
         {/* Action Bar */}
         {(order.status !== ProductionOrderStatus.COMPLETED && order.status !== ProductionOrderStatus.CANCELLED) && (
-          <div className="px-8 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-3 flex-wrap">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Available Actions:</span>
-            {renderStatusActions()}
-            <input
-              type="text"
-              placeholder="Action notes..."
-              className="ml-auto px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 flex-1 max-w-[200px]"
-              value={actionRemarks}
-              onChange={e => setActionRemarks(e.target.value)}
-            />
+          <div className="px-8 py-4 bg-slate-50 border-b border-slate-100 flex flex-col gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Available Actions:</span>
+              {renderStatusActions()}
+              <input
+                type="text"
+                placeholder="Action notes..."
+                className="ml-auto px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 flex-1 max-w-[200px]"
+                value={actionRemarks}
+                onChange={e => setActionRemarks(e.target.value)}
+              />
+            </div>
+            {(order.status === ProductionOrderStatus.IN_PRODUCTION || order.status === ProductionOrderStatus.IN_ASSEMBLY) && (
+              <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                <strong className="text-slate-500">Produced / Rejected Qty</strong> is the count of finished{' '}
+                <strong className="text-slate-500">{order.outputPartNumber || 'output-part'}</strong> units coming
+                out of {order.status === ProductionOrderStatus.IN_ASSEMBLY ? 'final assembly' : 'this stage'} —
+                it moves the order to QUALITY_CHECK and is separate from per-material scrap, which is recorded
+                per routing step via the Good / Rework / Scrap fields under the "BOM &amp; Routing" tab.
+              </p>
+            )}
           </div>
         )}
 
@@ -504,6 +527,12 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
                 <div key={item.label} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
                   <p className="text-sm font-bold text-slate-800">{item.value}</p>
+                </div>
+              ))}
+              {ncrs.filter(n => n.productionMaterialId == null).map(n => (
+                <div key={n.id} className="col-span-2 flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
+                  <ShieldAlert size={14} className="text-amber-600 flex-shrink-0" />
+                  <p className="text-xs text-amber-700 font-bold">{n.description || `Finished-goods reject: ${n.rejectedQuantity} units`}</p>
                 </div>
               ))}
             </div>
@@ -581,16 +610,29 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
                           {sequences.map((seq, idx) => {
                             const attempts = bySequence.get(seq)!;
                             const latest = attempts[attempts.length - 1];
+                            const isQA = latest.operationType === 'QA_INSPECTION';
                             return (
                               <React.Fragment key={seq}>
                                 <div className="flex flex-col items-center gap-1 min-w-[84px]">
                                   <div className={`w-full text-center px-1.5 py-1 rounded-lg border text-[9px] font-black uppercase flex items-center justify-center gap-1 ${stageStatusStyle[latest.status]}`}>
-                                    {latest.operationType === 'QA_INSPECTION' && <ShieldAlert size={10} />}
+                                    {isQA && <ShieldAlert size={10} />}
                                     {latest.stageName}
                                   </div>
                                   <span className="text-[8px] text-slate-400 font-bold">
                                     {latest.status}{attempts.length > 1 ? ` · attempt ${latest.attemptNumber}` : ''}
                                   </span>
+                                  {latest.status === 'COMPLETED' && (
+                                    <span className='text-[8px] font-black text-center leading-tight'>
+                                      {isQA ? (
+                                        <>
+                                          <span className='text-emreld-600'>Good {latest.quantityOut ?? 0}</span>
+                                          {(latest.scrapCount ?? 0) > 0 && <span className='text-red-500'> . Scrap {latest.scrapCount}</span>}
+                                        </>
+                                      ) : (
+                                        <span className='text-slate-500'>Produced {latest.quantityOut ?? 0} </span>
+                                      )}
+                                    </span>
+                                  )}
                                 </div>
                                 {idx < sequences.length - 1 && <ChevronRight size={14} className="text-slate-300 mt-2 shrink-0" />}
                               </React.Fragment>
@@ -749,6 +791,14 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
                       <div className="mt-1 flex gap-2">
                          <span className="text-[9px] font-black uppercase text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">Status: {log.status}</span>
                          {log.operatorName && <span className="text-[9px] font-black uppercase text-slate-400">By: {log.operatorName}</span>}
+                         {log.status === 'COMPLETED' && log.stageName === 'Final Assembly' && (
+                          <>
+                            <span className='text-[9px] font-black uppercase text-emreld-600 bg-emreld-50 px-1.5 py-0.5 rounded'>Produced: {order.producedQuantity ?? 0}</span>
+                            {(order.rejectedQuantity ?? 0) > 0 && (
+                              <span className='text-[9px] font-black uppercase text-red-500 bg-red-50 px-1.5 py-0.5 rounded'>Rejected: {order.rejectedQuantity}</span>
+                            )}
+                          </>
+                         )}
                       </div>
                     </div>
                   </div>

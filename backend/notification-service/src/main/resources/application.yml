@@ -42,7 +42,7 @@ spring:
 
 notification:
   email:
-    enabled: false                             # set true once Gmail app password is configured
+    enabled: true                            # set true once Gmail app password is configured
     from: noreply@aerospace.local
     recipients: admin@aerospace.local
   low-stock-threshold: 10

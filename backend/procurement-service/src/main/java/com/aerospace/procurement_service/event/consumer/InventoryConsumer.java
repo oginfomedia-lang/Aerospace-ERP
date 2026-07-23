@@ -10,6 +10,9 @@ import com.aerospace.procurement_service.event.QAStatusChangedEvent;
 import com.aerospace.procurement_service.event.StockLowEvent;
 import com.aerospace.procurement_service.event.VendorReturnEvent;
 import com.aerospace.procurement_service.service.DebitNoteService;
+import com.aerospace.procurement_service.service.PurchaseOrderService;
+import com.aerospace.procurement_service.service.PurchaseRequisitionService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,8 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class InventoryConsumer {
-    private final com.aerospace.procurement_service.service.PurchaseOrderService poService;
+    private final PurchaseRequisitionService prService;
     private final DebitNoteService debitNoteService;
+    private final PurchaseOrderService poService;
 
     // Topic string previously didn't match what inventory-service actually publishes
     // to ("inventory-stock-low" vs the real "stock-low-events"), so this listener
@@ -35,7 +39,7 @@ public class InventoryConsumer {
 
         //2. Automatically create draft PO
         try {
-            poService.createDraftPOFromStockLow(event);
+            prService.createFromStockLow(event);
         } catch (Exception e) {
             log.error("Failed to automatically create draft PO from stock low event", e);
         }
@@ -51,7 +55,7 @@ public class InventoryConsumer {
         log.warn("🚨 [PROCUREMENT ALERT] Material shortage for WO {} — part {} short by {} units",
                 event.getWoNumber(), event.getSkuCode(), event.getShortfallQty());
         try {
-            poService.createDraftPOFromShortage(event);
+            prService.createFromShortage(event);
         } catch (Exception e) {
             log.error("Failed to automatically create draft PO from shortage event", e);
         }

@@ -48,6 +48,10 @@ public class PurchaseOrder {
     private Long sourceWorkOrderId;
     private String sourceWoNumber;
 
+    private Long sourcePurchaseRequisitionId;
+    private Long sourceRfqId;
+    private Long sourceQuotationId;
+
     // Optional per-PO overrides for the printed document — null means "use the
     // Organization Profile default" at render time (see POReceiptDocument.tsx).
     private String shipToName;

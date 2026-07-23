@@ -5,6 +5,9 @@ import com.aerospace.procurement_service.dto.POApprovalActionRequest;
 import com.aerospace.procurement_service.dto.POApprovalHistoryDTO;
 import com.aerospace.procurement_service.dto.PurchaseOrderRequest;
 import com.aerospace.procurement_service.dto.PurchaseOrderResponse;
+import com.aerospace.procurement_service.entity.PurchaseRequisition;
+import com.aerospace.procurement_service.entity.Quotation;
+import com.aerospace.procurement_service.entity.RequestForQuotation;
 
 import java.util.List;
 
@@ -35,4 +38,6 @@ public interface PurchaseOrderService {
     PurchaseOrderResponse reject(Long id, POApprovalActionRequest request, String approverUsername, List<String> approverRoles);
 
     List<POApprovalHistoryDTO> getApprovalHistory(Long id);
+
+    void createFromAwardedQuotation(PurchaseRequisition pr, RequestForQuotation rfq, Quotation winner);
 }

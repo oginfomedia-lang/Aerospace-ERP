@@ -62,6 +62,25 @@ public class EmailService {
         }
     }
 
+    @Async
+    public void sendCustomEmail(String to, String subject, String html ) {
+      if(!emailEnabled) {
+        log.info("[Email] Disabled - skipping custom email to {}", to);
+        return;
+      }
+      try{
+        MimeMessage mime = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(mime, true, "UTF-8");
+        helper.setFrom(from);
+        helper.setTo(to);
+        helper.setSubject(subject);
+        helper.setText(html, true);
+        mailSender.send(mime);
+        log.info("[EMAIL] ✉️  Sent custom email to {} — subject: {}", to, subject);
+      } catch(Exception ex) {
+        log.error("[EMAIL] ❌ Failed sending to {}: {}", to, ex.getMessage(), ex);
+      }
+    }
     // ── Private ──────────────────────────────────────────────────────────────
 
     private String buildSubject(NotificationLog n) {

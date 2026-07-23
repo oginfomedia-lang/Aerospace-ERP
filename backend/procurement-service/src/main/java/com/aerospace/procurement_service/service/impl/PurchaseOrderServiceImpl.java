@@ -11,6 +11,9 @@ import com.aerospace.procurement_service.entity.POApprovalHistory;
 import com.aerospace.procurement_service.entity.POLineItem;
 import com.aerospace.procurement_service.entity.POStatus;
 import com.aerospace.procurement_service.entity.PurchaseOrder;
+import com.aerospace.procurement_service.entity.PurchaseRequisition;
+import com.aerospace.procurement_service.entity.Quotation;
+import com.aerospace.procurement_service.entity.RequestForQuotation;
 import com.aerospace.procurement_service.entity.Supplier;
 import com.aerospace.procurement_service.exception.ResourceNotFoundException;
 import com.aerospace.procurement_service.mapper.PurchaseOrderMapper;
@@ -522,5 +525,38 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 .filter(s -> "CERTIFIED".equalsIgnoreCase(s.getCertificationStatus()) && s.isActive())
                 .findFirst()
                 .orElse(null);
+    }
+
+    @Override
+    @Transactional
+    public void createFromAwardedQuotation(PurchaseRequisition pr, RequestForQuotation rfq, Quotation winner) {
+        PurchaseOrder po = new PurchaseOrder();
+        po.setSupplier(winner.getSupplier());
+        po.setOrderDate(LocalDateTime.now());
+        po.setDeliveryDate(LocalDateTime.now().plusDays(winner.getLeadTimeDays()));
+        po.setStatus(POStatus.DRAFT);
+        po.setPoNumber(documentSequenceService.generate("PO"));
+        po.setCurrency("USD");
+        po.setRemarks("Raised from awarded RFQ " + rfq.getRfqNumber());
+        po.setSourceWorkOrderId(pr.getSourceWorkOrderId());
+        po.setSourceWoNumber(pr.getSourceWoNumber());
+        po.setSourcePurchaseRequisitionId(pr.getId());
+        po.setSourceRfqId(rfq.getId());
+        po.setSourceQuotationId(winner.getId());
+
+        POLineItem item = new POLineItem();
+        item.setPurchaseOrder(po);
+        item.setSkuCode(pr.getSkuCode());
+        item.setQuantity(rfq.getQuantity());
+        item.setUnitPrice(winner.getUnitPrice());
+        item.setTotalPrice(winner.getTotalPrice());
+        item.setUom("PCS");
+
+        po.setItems(java.util.List.of(item));
+        po.setTotalAmount(item.getTotalPrice());
+
+        poRepository.save(po);
+        log.info("📢 [PROCUREMENT] Created real PO {} from awarded RFQ {} — supplier {}, price {}",
+                po.getPoNumber(), rfq.getRfqNumber(), winner.getSupplier().getName(), winner.getUnitPrice());
     }
 }

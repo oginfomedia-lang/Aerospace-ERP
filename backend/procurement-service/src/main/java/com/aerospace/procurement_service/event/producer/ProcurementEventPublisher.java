@@ -1,6 +1,10 @@
 package com.aerospace.procurement_service.event.producer;
 
+import com.aerospace.procurement_service.event.KafkaTopics;
 import com.aerospace.procurement_service.event.PurchaseOrderCreatedEvent;
+import com.aerospace.procurement_service.event.QuotationAwardedEvent;
+import com.aerospace.procurement_service.event.QuotationRejectedEvent;
+import com.aerospace.procurement_service.event.RfqCreatedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -33,5 +37,23 @@ public class ProcurementEventPublisher {
         } catch (JsonProcessingException e) {
             log.error("Failed to convert PurchaseOrderCreatedEvent to JSON", e);
         }
+    }
+
+    public void publishRfqCreated(RfqCreatedEvent event) {
+        kafkaTemplate.send(KafkaTopics.RFQ_CREATED, event);
+        log.info("📢 [PROCUREMENT EVENT] Published RFQ_CREATED — rfq={} supplier={}",
+                event.getRfqNumber(), event.getSupplierName());
+    }
+
+    public void publishQuotationAwarded(QuotationAwardedEvent event) {
+        kafkaTemplate.send(KafkaTopics.QUOTATION_AWARDED, event);
+        log.info("📢 [PROCUREMENT EVENT] Published QUOTATION_AWARDED — rfq={} supplier={}",
+                event.getRfqNumber(), event.getSupplierName());
+    }
+
+    public void publishQuotationRejected(QuotationRejectedEvent event) {
+        kafkaTemplate.send(KafkaTopics.QUOTATION_REJECTED, event);
+        log.info("📢 [PROCUREMENT EVENT] Published QUOTATION_REJECTED — rfq={} supplier={}",
+                event.getRfqNumber(), event.getSupplierName());
     }
 }

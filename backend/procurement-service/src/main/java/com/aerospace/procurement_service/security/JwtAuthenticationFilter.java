@@ -39,6 +39,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(username, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                // Only present for SUPPLIER logins — every supplier-portal endpoint reads
+                // this via @RequestAttribute, never a client-supplied ID.
+                Long supplierId = jwtUtil.extractSupplierId(token);
+                if (supplierId != null) {
+                    request.setAttribute("supplierId", supplierId);
+                }
             }
         } catch (Exception e) {
             logger.error("Cannot set user authentication: {}", e);

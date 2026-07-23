@@ -114,4 +114,28 @@ public class KafkaConfig {
     workOrderCompletedListenerFactory() {
         return factory(WorkOrderCompletedEvent.class);
     }
+
+     @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, RfqCreatedEvent>
+    rfqCreatedListenerFactory() {
+        return factory(RfqCreatedEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, QuotationAwardedEvent>
+    quotationAwardedListenerFactory() {
+        return factory(QuotationAwardedEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, QuotationRejectedEvent>
+    quotationRejectedListenerFactory() {
+        return factory(QuotationRejectedEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, SupplierInviteCreatedEvent>
+    supplierInviteListenerFactory() {
+        return factory(SupplierInviteCreatedEvent.class);
+    }
 }

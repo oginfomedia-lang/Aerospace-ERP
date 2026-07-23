@@ -44,4 +44,10 @@ public class JwtUtil {
                 .parseSignedClaims(token)
                 .getPayload();
     }
+
+    public Long extractSupplierId(String token){
+        Object raw = getAllClaims(token).get("supplierId");
+        if(raw == null) return null;
+        return raw instanceof Integer ? ((Integer) raw).longValue() : (Long) raw;
+    }
 }

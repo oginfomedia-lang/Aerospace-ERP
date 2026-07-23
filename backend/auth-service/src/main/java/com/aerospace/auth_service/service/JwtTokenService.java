@@ -3,8 +3,6 @@ package com.aerospace.auth_service.service;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-
-import org.apache.tomcat.util.net.openssl.ciphers.Authentication;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -34,19 +32,21 @@ public class JwtTokenService {
     }
 
     public String generateToken(String username, String email, Set<String> roles) {
+        return generateToken(username, email, roles, null);
+    }
+
+    // Overload used for SUPPLIER logins — bakes supplierId into the token so every
+    // downstream service can scope a request without trusting a client-supplied ID.
+    public String generateToken(String username, String email, Set<String> roles, Long supplierId) {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("email", email);
-        extraClaims.put("roles", roles);  // store as list
+        extraClaims.put("roles", roles);
+        if (supplierId != null) extraClaims.put("supplierId", supplierId);
         return buildToken(extraClaims, username, jwtExpiration);
     }
 
-    private String buildToken(
-            Map<String, Object> extraClaims,
-            String username,
-            long expiration
-    ) {
-        return Jwts
-                .builder()
+    private String buildToken(Map<String, Object> extraClaims, String username, long expiration) {
+        return Jwts.builder()
                 .claims(extraClaims)
                 .subject(username)
                 .issuedAt(new Date(System.currentTimeMillis()))
@@ -56,8 +56,7 @@ public class JwtTokenService {
     }
 
     public boolean isTokenValid(String token, String username) {
-        final String extractedUsername = extractUsername(token);
-        return (extractedUsername.equals(username)) && !isTokenExpired(token);
+        return extractUsername(token).equals(username) && !isTokenExpired(token);
     }
 
     public boolean isTokenExpired(String token) {
@@ -69,16 +68,10 @@ public class JwtTokenService {
     }
 
     public Claims extractAllClaims(String token) {
-        return Jwts
-                .parser()
-                .verifyWith(getSignInKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+        return Jwts.parser().verifyWith(getSignInKey()).build().parseSignedClaims(token).getPayload();
     }
 
     private SecretKey getSignInKey() {
         return Keys.hmacShaKeyFor(secretKey.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
-
 }

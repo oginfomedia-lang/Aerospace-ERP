@@ -6,5 +6,6 @@ public enum RoleName {
     PRODUCTION_ENGINEER,
     PROCUREMENT_OFFICER,
     MANAGER,
-    ADMIN
+    ADMIN,
+    SUPPLIER 
 }

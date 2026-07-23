@@ -99,7 +99,7 @@ public class AuthService {
                 .map(Role::getName)
                 .collect(Collectors.toSet());
 
-        String token = jwtService.generateToken(user.getUsername(), user.getEmail(), roleNames);
+        String token = jwtService.generateToken(user.getUsername(), user.getEmail(), roleNames, user.getSupplierId());
         String refreshToken = createRefreshToken(user);
         log.info("🔐 User logged in: {} with roles: {}", user.getUsername(), roleNames);
 

@@ -31,6 +31,11 @@ public class User {
     @Column(nullable = false)
     private Boolean enabled = true;
 
+    //set on.y for role 'supplier' - the procurement service supplier record this login
+    //belongs to. Plain long, no JPA relation: auth-service and procurement service are separate databases,
+    //same denormalized ID convention used everywhere else in this repo.
+    private Long supplierId;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

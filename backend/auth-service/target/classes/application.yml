@@ -39,3 +39,5 @@ app:
     expiration-ms: 86400000 # 24 hours
     refresh-expiration-ms: 604800000 # 7 days
 
+app.frontend.supplier-portal-base-url: http://localhost:3000
+

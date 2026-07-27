@@ -63,6 +63,8 @@ notification:
       work-order-created:   work-order-created-events
       work-order-updated:   work-order-updated-events
       work-order-completed: work-order-completed-events
+      # ── QA topics ─────────────────────────────────────────────────────────
+      calibration-due:      qa.calibration.due
 
 logging:
   level:

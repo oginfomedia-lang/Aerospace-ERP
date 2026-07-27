@@ -138,4 +138,24 @@ public class KafkaConfig {
     supplierInviteListenerFactory() {
         return factory(SupplierInviteCreatedEvent.class);
     }
+
+    // ── QA event factories ──────────────────────────────────────────────────
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, CalibrationDueEvent>
+    calibrationDueListenerFactory() {
+        return factory(CalibrationDueEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, FaiResultEvent>
+    faiResultListenerFactory() {
+        return factory(FaiResultEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, CapaEvent>
+    capaEventListenerFactory() {
+        return factory(CapaEvent.class);
+    }
 }

@@ -16,5 +16,10 @@ public enum NotificationType {
     WORK_ORDER_CREATED,   // new work order raised
     WORK_ORDER_UPDATED,   // work order status changed (non-terminal)
     WORK_ORDER_COMPLETED, // work order closed
-    VENDOR_RETURN         // NCR dispositioned RETURN_TO_VENDOR, auto-creates a Debit Note
+    VENDOR_RETURN,        // NCR dispositioned RETURN_TO_VENDOR, auto-creates a Debit Note
+
+    // ── QA events ────────────────────────────────────────────────────────────
+    CALIBRATION_DUE,      // gauge/tool is due or overdue for calibration
+    FAI_COMPLETED,        // First Article Inspection completed
+    CAPA_STATUS_CHANGED   // CAPA record stage updated
 }

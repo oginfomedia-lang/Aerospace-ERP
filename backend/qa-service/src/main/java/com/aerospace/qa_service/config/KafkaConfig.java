@@ -18,4 +18,12 @@ public class KafkaConfig {
                 .replicas(1)
                 .build();
     }
+
+    @Bean
+    public NewTopic calibrationDueTopic() {
+        return TopicBuilder.name("qa.calibration.due")
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
 }

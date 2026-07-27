@@ -3,7 +3,8 @@ import { NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
-  Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send
+  Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
+  FileCheck2, ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -97,11 +98,33 @@ const navItems = [
     roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
   },
   {
+    path: '/fai',
+    label: 'First Article',
+    icon: <FileCheck2 size={18} />,
+    description: 'AS9102-lite FAI records',
+    roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
+  },
+
+  {
     path: '/ncr',
     label: 'NCR',
     icon: <ShieldAlert size={18} />,
     description: 'Non-conformance disposition',
     roles: ['QA_INSPECTOR', 'STORE_KEEPER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/capa',
+    label: 'CAPA',
+    icon: <ClipboardList size={18} />,
+    description: 'Corrective & preventive actions',
+    roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/calibration',
+    label: 'Calibration',
+    icon: <Gauge size={18} />,
+    description: 'Gauge & tool due dates',
+    roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
   },
   {
     path: '/production',
@@ -259,6 +282,7 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/dashboard' && 'Dashboard'}
               {location.pathname === '/inventory' && 'Inventory'}
               {location.pathname === '/qa' && 'QA Inspection'}
+              {location.pathname === '/fai' && 'First Article Inspection'}
               {location.pathname === '/notifications' && 'Notifications'}
               {location.pathname === '/production' && 'Production'}
               {location.pathname === '/routing-templates' && 'Routing Templates'}
@@ -267,6 +291,8 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/locations' && 'Locations'}
               {location.pathname === '/material-receipts' && 'Material Receipts'}
               {location.pathname === '/ncr' && 'Non-Conformance Reports'}
+              {location.pathname === '/capa' && 'CAPA'}
+              {location.pathname === '/calibration' && 'Gauge & Tool Calibration'}
               {location.pathname === '/org-settings' && 'Organization Settings'}
               {location.pathname === '/approval-matrix' && 'Approval Matrix'}
               {location.pathname === '/vendor-invoices' && 'Vendor Invoices'}

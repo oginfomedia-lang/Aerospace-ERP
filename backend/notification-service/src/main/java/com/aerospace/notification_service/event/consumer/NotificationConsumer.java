@@ -146,4 +146,49 @@ public class NotificationConsumer {
             log.error("[CONSUMER] Failed VendorReturnEvent ncrNumber={}: {}", event.getNcrNumber(), ex.getMessage(), ex);
         }
     }
+
+    // ── 10. Calibration Due ───────────────────────────────────────────────────
+    @KafkaListener(
+        topics           = "${notification.kafka.topics.calibration-due}",
+        groupId          = "notification-group",
+        containerFactory = "calibrationDueListenerFactory"
+    )
+    public void onCalibrationDue(CalibrationDueEvent event) {
+        log.info("[CONSUMER] qa.calibration.due -> assetTag={}, overdue={}",
+                event.getAssetTag(), event.isOverdue());
+        try { notificationService.handleCalibrationDue(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed CalibrationDueEvent assetTag={}: {}", event.getAssetTag(), ex.getMessage(), ex);
+        }
+    }
+
+    // ── 11. FAI Completed ─────────────────────────────────────────────────────
+    @KafkaListener(
+        topics           = NotificationTopics.COMPLIANCE_FAI_COMPLETED,
+        groupId          = "notification-group",
+        containerFactory = "faiResultListenerFactory"
+    )
+    public void onFaiCompleted(FaiResultEvent event) {
+        log.info("[CONSUMER] compliance.fai.completed -> faiNumber={}, result={}",
+                event.getFaiNumber(), event.getOverallResult());
+        try { notificationService.handleFaiCompleted(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed FaiResultEvent faiNumber={}: {}", event.getFaiNumber(), ex.getMessage(), ex);
+        }
+    }
+
+    // ── 12. CAPA Event ────────────────────────────────────────────────────────
+    @KafkaListener(
+        topics           = NotificationTopics.CAPA_EVENT,
+        groupId          = "notification-group",
+        containerFactory = "capaEventListenerFactory"
+    )
+    public void onCapaEvent(CapaEvent event) {
+        log.info("[CONSUMER] inventory.capa.event -> capaNumber={} {} -> {}",
+                event.getCapaNumber(), event.getFromStatus(), event.getToStatus());
+        try { notificationService.handleCapaEvent(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed CapaEvent capaNumber={}: {}", event.getCapaNumber(), ex.getMessage(), ex);
+        }
+    }
 }

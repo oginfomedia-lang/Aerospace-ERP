@@ -8,4 +8,9 @@ public class NotificationTopics {
     public static final String STOCK_RECEIVED    = "inventory.created";
     public static final String PART_CREATED        = "part-created-events";
     public static final String VENDOR_RETURN     = "vendor-return-events";
+
+    // Published by qa-service
+    public static final String CALIBRATION_DUE  = "qa.calibration.due";
+    public static final String COMPLIANCE_FAI_COMPLETED = "compliance.fai.completed";
+    public static final String CAPA_EVENT       = "inventory.capa.event";
 }

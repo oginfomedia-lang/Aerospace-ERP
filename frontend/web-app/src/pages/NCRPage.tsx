@@ -3,14 +3,12 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import {
   ShieldAlert, Clock, CheckCircle2, FileWarning,
-  Loader2, ChevronRight, RotateCcw, Trash2, PackageCheck
+  Loader2, ChevronRight, RotateCcw, Trash2, PackageCheck,
+  ClipboardList, PlusCircle, X
 } from 'lucide-react';
 import { ApiResponse, NonConformanceReport, DispositionRequest } from '../types/inventory';
+import { Link, useNavigate } from 'react-router-dom';
 
-// Every QA rejection auto-creates an NCR here (PartServiceImpl.processQADecision).
-// A REJECTED batch stays blocked in the ledger until its NCR is dispositioned:
-// Return to Vendor / Scrap (removes it from the ledger for good) or Use As-Is
-// (moves it to APPROVED, under a named special approval).
 const dispositionOptions: { value: DispositionRequest['dispositionType']; label: string; icon: React.ReactNode }[] = [
   { value: 'RETURN_TO_VENDOR', label: 'Return to Vendor', icon: <RotateCcw size={16} /> },
   { value: 'SCRAP', label: 'Scrap', icon: <Trash2 size={16} /> },
@@ -18,10 +16,23 @@ const dispositionOptions: { value: DispositionRequest['dispositionType']; label:
 ];
 
 const NCRPage = () => {
+  const navigate = useNavigate();
   const [ncrs, setNcrs] = useState<NonConformanceReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<NonConformanceReport | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // CAPA Modal state
+  const [showCapaModal, setShowCapaModal] = useState(false);
+  const [capaTargetNcr, setCapaTargetNcr] = useState<NonConformanceReport | null>(null);
+  const [capaSubmitting, setCapaSubmitting] = useState(false);
+  const [capaForm, setCapaForm] = useState({
+    capaType: 'CORRECTIVE',
+    ownerName: '',
+    createdBy: '',
+    targetCloseDate: '',
+    remarks: ''
+  });
 
   const [form, setForm] = useState<DispositionRequest>({
     dispositionType: 'RETURN_TO_VENDOR',
@@ -46,6 +57,39 @@ const NCRPage = () => {
   const handleSelect = (ncr: NonConformanceReport) => {
     setSelected(ncr);
     setForm({ dispositionType: 'RETURN_TO_VENDOR', remarks: '', dispositionedBy: '' });
+  };
+
+  const handleOpenCapaModal = (ncr: NonConformanceReport, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setCapaTargetNcr(ncr);
+    setCapaForm({ capaType: 'CORRECTIVE', ownerName: '', createdBy: '', targetCloseDate: '', remarks: '' });
+    setShowCapaModal(true);
+  };
+
+  const handleCreateCapa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!capaTargetNcr) return;
+    if (!capaForm.ownerName.trim() || !capaForm.createdBy.trim()) {
+      toast.error('Owner Name and Created By are required');
+      return;
+    }
+
+    setCapaSubmitting(true);
+    try {
+      await toast.promise(
+        api.post(`/inventory/capa/ncr/${capaTargetNcr.id}`, capaForm),
+        {
+          loading: 'Initializing CAPA...',
+          success: `CAPA created for NCR ${capaTargetNcr.ncrNumber}`,
+          error: (err) => err.response?.data?.message || 'Failed to open CAPA'
+        }
+      );
+      setShowCapaModal(false);
+      navigate('/capa');
+    } catch {
+    } finally {
+      setCapaSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -130,7 +174,16 @@ const NCRPage = () => {
                         {ncr.partName} · Batch {ncr.batchNumber}
                       </div>
                     </div>
-                    <ChevronRight size={16} className="text-slate-300 group-hover:text-red-500 transition-colors" />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenCapaModal(ncr, e)}
+                        className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold border border-purple-200 transition-all flex items-center gap-1"
+                      >
+                        <ClipboardList size={12} /> Open CAPA
+                      </button>
+                      <ChevronRight size={16} className="text-slate-300 group-hover:text-red-500 transition-colors" />
+                    </div>
                   </div>
                   <div className="mt-2 text-[10px] text-slate-400 font-bold">
                     QTY: {ncr.quantity} units
@@ -158,14 +211,30 @@ const NCRPage = () => {
           ) : (
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <div className="font-black text-slate-900">{selected.partName}</div>
-                <div className="text-xs text-slate-500 font-medium mt-0.5">
-                  Batch: <span className="font-mono font-bold text-red-600">{selected.batchNumber}</span>
-                  {' · '} Qty: <span className="font-bold">{selected.quantity}</span>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-black text-slate-900">{selected.partName}</div>
+                    <div className="text-xs text-slate-500 font-medium mt-0.5">
+                      Batch: <span className="font-mono font-bold text-red-600">{selected.batchNumber}</span>
+                      {' · '} Qty: <span className="font-bold">{selected.quantity}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCapaModal(selected)}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <ClipboardList size={14} /> Open CAPA
+                  </button>
                 </div>
                 {selected.reason && (
                   <p className="mt-2 text-xs text-slate-600 italic">Rejection reason: {selected.reason}</p>
                 )}
+                <div className="pt-2">
+                  <Link to="/capa" className="text-xs font-bold text-purple-600 hover:text-purple-700">
+                    View CAPAs →
+                  </Link>
+                </div>
               </div>
 
               <div>
@@ -216,6 +285,109 @@ const NCRPage = () => {
           )}
         </div>
       </div>
+
+      {/* Modal for Opening a CAPA */}
+      {showCapaModal && capaTargetNcr && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 border border-slate-100">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-100 text-purple-700 rounded-xl">
+                  <ClipboardList size={20} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900">Initialize CAPA</h3>
+                  <p className="text-xs text-slate-400 font-bold">Against {capaTargetNcr.ncrNumber}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCapaModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCapa} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">CAPA Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCapaForm({ ...capaForm, capaType: 'CORRECTIVE' })}
+                    className={`py-2 rounded-xl text-xs font-bold border ${capaForm.capaType === 'CORRECTIVE' ? 'bg-purple-600 text-white border-purple-600' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                  >
+                    CORRECTIVE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCapaForm({ ...capaForm, capaType: 'PREVENTIVE' })}
+                    className={`py-2 rounded-xl text-xs font-bold border ${capaForm.capaType === 'PREVENTIVE' ? 'bg-purple-600 text-white border-purple-600' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                  >
+                    PREVENTIVE
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Owner Name *</label>
+                <input
+                  type="text" required
+                  placeholder="Responsible Quality Engineer"
+                  value={capaForm.ownerName}
+                  onChange={e => setCapaForm({ ...capaForm, ownerName: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Created By *</label>
+                <input
+                  type="text" required
+                  placeholder="Your Name"
+                  value={capaForm.createdBy}
+                  onChange={e => setCapaForm({ ...capaForm, createdBy: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Target Close Date</label>
+                <input
+                  type="date"
+                  value={capaForm.targetCloseDate}
+                  onChange={e => setCapaForm({ ...capaForm, targetCloseDate: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Initial Remarks</label>
+                <textarea
+                  rows={2}
+                  placeholder="Scope or initial guidance..."
+                  value={capaForm.remarks}
+                  onChange={e => setCapaForm({ ...capaForm, remarks: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button" onClick={() => setShowCapaModal(false)}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit" disabled={capaSubmitting}
+                  className="flex-1 py-2.5 rounded-xl font-black text-white bg-purple-600 hover:bg-purple-700 text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {capaSubmitting ? <Loader2 size={16} className="animate-spin" /> : <PlusCircle size={16} />}
+                  Start CAPA
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

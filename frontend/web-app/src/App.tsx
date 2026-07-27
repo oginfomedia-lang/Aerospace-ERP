@@ -15,6 +15,7 @@ import Locations from './pages/Locations';
 import ProcurementOrders from './pages/ProcurementOrders';
 import MaterialReceipts from './pages/MaterialReceipts';
 import NCRPage from './pages/NCRPage';
+import CalibrationPage from './pages/CalibrationPage';
 import OrgSettings from './pages/OrgSettings';
 import VendorInvoices from './pages/VendorInvoices';
 import { useAuth } from './context/AuthContext';
@@ -30,6 +31,8 @@ import SupplierLogin from './pages/supplier/SupplierLogin';
 import SupplierActivate from './pages/supplier/SupplierActivate';
 import SupplierDashboard from './pages/supplier/SupplierDashboard';
 import SupplierRfqDetail from './pages/supplier/SupplierRfqDetail';
+import FaiRecords from './pages/FaiRecords';
+import CapaPage from './pages/CapaPage';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -66,6 +69,7 @@ function App() {
             <Route path="/inventory" element={<InventoryList />} />
             <Route path="/inventory/:id/transactions" element={<TransactionHistory />} />
             <Route path="/qa" element={<QAInspection />} />
+            <Route path="/fai" element={<FaiRecords />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/work-orders" element={<WorkOrders />} />
             <Route path="/production" element={<ProductionOrders />} />
@@ -79,6 +83,8 @@ function App() {
             <Route path="/rfqs/:id" element={<RfqDetail />} />
             <Route path="/material-receipts" element={<MaterialReceipts />} />
             <Route path="/ncr" element={<NCRPage />} />
+            <Route path='/capa' element={<CapaPage />} />
+            <Route path="/calibration" element={<CalibrationPage />} />
             <Route path="/org-settings" element={<OrgSettings />} />
             <Route path="/debit-notes" element={<DebitNotes />} />
             <Route path="/approval-matrix" element={<ApprovalMatrix />} />

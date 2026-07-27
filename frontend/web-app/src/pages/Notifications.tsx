@@ -4,7 +4,7 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, Package,
   ShieldCheck, ShieldX, Inbox, ArrowDownToLine, PlusSquare,
   CalendarX2, Loader2, Mail, Radio, AlertCircle, Info,
-  Wrench, PlayCircle, ClipboardCheck,
+  Wrench, PlayCircle, ClipboardCheck, Gauge,
 } from 'lucide-react';
 import notificationApi from '../api/notificationAxios';
 import { useNotificationSocket } from '../hooks/useNotificationSocket';
@@ -37,6 +37,8 @@ const typeConfig: Record<NotificationType, { icon: React.ReactNode; iconBg: stri
   WORK_ORDER_CREATED:   { icon: <Wrench          size={16} />, iconBg: 'bg-blue-100    text-blue-600',    label: 'WO Created'   },
   WORK_ORDER_UPDATED:   { icon: <PlayCircle      size={16} />, iconBg: 'bg-amber-100   text-amber-600',   label: 'WO Updated'   },
   WORK_ORDER_COMPLETED: { icon: <ClipboardCheck  size={16} />, iconBg: 'bg-emerald-100 text-emerald-600', label: 'WO Completed' },
+  // QA
+  CALIBRATION_DUE: { icon: <Gauge size={16} />, iconBg: 'bg-orange-100 text-orange-600', label: 'Calibration Due' },
 };
 
 // ── Filter tabs ───────────────────────────────────────────────────────────────
@@ -64,6 +66,10 @@ const TYPE_GROUPS: { label: string; types: NotificationType[] }[] = [
   {
     label: 'Work Orders',
     types: ['WORK_ORDER_CREATED', 'WORK_ORDER_UPDATED', 'WORK_ORDER_COMPLETED'],
+  },
+  {
+    label: 'QA',
+    types: ['CALIBRATION_DUE'],
   },
 ];
 

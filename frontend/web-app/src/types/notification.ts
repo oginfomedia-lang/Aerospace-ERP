@@ -17,7 +17,9 @@ export type NotificationType =
   // ── Work order types ───────────────────────────────────────────────────────
   | 'WORK_ORDER_CREATED'
   | 'WORK_ORDER_UPDATED'
-  | 'WORK_ORDER_COMPLETED';
+  | 'WORK_ORDER_COMPLETED'
+  // ── QA types ───────────────────────────────────────────────────────────────
+  | 'CALIBRATION_DUE';
 
 export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED';
 

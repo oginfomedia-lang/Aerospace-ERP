@@ -83,4 +83,10 @@ public class InventoryProducer {
                 event.getPartId(), event.getNcrNumber(), event.getQuantity());
         kafkaTemplate.send(KafkaTopics.VENDOR_RETURN, String.valueOf(event.getPartId()), event);
     }
+
+    public void sendCapaEvent(CapaEvent event) {
+        log.info("[KAFKA] Publishing CAPA_EVENT for capaNumber={} {} -> {}",
+                event.getCapaNumber(), event.getFromStatus(), event.getToStatus());
+        kafkaTemplate.send(KafkaTopics.CAPA_EVENT, String.valueOf(event.getId()), event);
+    }
 }

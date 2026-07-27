@@ -146,6 +146,7 @@ export interface InspectionRequest {
   certificateNumber?: string;
   inspectorName?: string;
   location?: string;
+  equipmentAssetTag?: string;
 }
 
 // ============================================================
@@ -282,6 +283,62 @@ export interface DispositionRequest {
   remarks: string;
   dispositionedBy: string;
 }
+
+// ============================================================
+// Matches: CapaResponse.java / CapaHistoryDTO.java (inventory-service)
+// ============================================================
+export interface CapaHistoryEntry {
+  fromStatus: string | null;
+  toStatus: string;
+  actor: string | null;
+  remarks: string | null;
+  signatureHash: string | null;
+  occurredAt: string;
+}
+
+export type CapaStatus = 'OPEN' | 'ROOT_CAUSE_LOGGED' | 'ACTION_PLANNED' | 'IN_PROGRESS'
+  | 'PENDING_VERIFICATION' | 'CLOSED' | 'REJECTED';
+
+export interface CapaRecord {
+  id: number;
+  capaNumber: string;
+  ncrId: number;
+  ncrNumber: string;
+  ncrPartName: string;
+  ncrBatchNumber: string;
+  capaType: 'CORRECTIVE' | 'PREVENTIVE' | 'BOTH';
+  status: CapaStatus;
+  rootCause: string | null;
+  correctiveAction: string | null;
+  preventiveAction: string | null;
+  targetCloseDate: string | null;
+  ownerName: string | null;
+  verificationRemarks: string | null;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  closedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  history: CapaHistoryEntry[];
+}
+
+export interface CapaOpenRequest {
+  capaType: string;
+  ownerName?: string;
+  targetCloseDate?: string;
+  remarks?: string;
+  createdBy?: string;
+}
+
+export interface CapaTransitionRequest {
+  rootCause?: string;
+  correctiveAction?: string;
+  preventiveAction?: string;
+  verificationRemarks?: string;
+  remarks: string;
+  actor: string;
+}
+
 
 // ============================================================
 // Matches: Location.java / LocationRequest.java (inventory-service)

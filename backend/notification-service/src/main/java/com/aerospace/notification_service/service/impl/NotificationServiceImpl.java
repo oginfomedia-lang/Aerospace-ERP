@@ -193,6 +193,80 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
 
+    // ── QA Kafka Event Handlers ───────────────────────────────────────────────
+
+    @Override
+    public void handleCalibrationDue(CalibrationDueEvent event) {
+        log.info("[NOTIFY] CALIBRATION_DUE → assetTag={}, overdue={}, daysUntilDue={}",
+                event.getAssetTag(), event.isOverdue(), event.getDaysUntilDue());
+
+        String severity = event.isOverdue() ? "ERROR" : "WARNING";
+        String message = event.isOverdue()
+                ? String.format(
+                        "⏰ CALIBRATION OVERDUE: %s ('%s', %s) was due for calibration on %s. Location: %s",
+                        event.getAssetTag(), event.getEquipmentName(), event.getEquipmentType(),
+                        event.getNextCalibrationDueAt(), event.getLocation())
+                : String.format(
+                        "⏰ CALIBRATION DUE SOON: %s ('%s', %s) is due for calibration in %d day(s) (%s). Location: %s",
+                        event.getAssetTag(), event.getEquipmentName(), event.getEquipmentType(),
+                        event.getDaysUntilDue(), event.getNextCalibrationDueAt(), event.getLocation());
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.CALIBRATION_DUE)
+                .partName(event.getEquipmentName())    // reusing partName for equipment name
+                .batchNumber(event.getAssetTag())      // reusing batchNumber for asset tag
+                .message(message)
+                .location(event.getLocation())
+                .severity(severity)
+                .build(), message);
+    }
+
+    @Override
+    public void handleFaiCompleted(FaiResultEvent event) {
+        log.info("[NOTIFY] FAI_COMPLETED → faiNumber={}, result={}", event.getFaiNumber(), event.getOverallResult());
+
+        boolean isConforming = "CONFORMING".equalsIgnoreCase(event.getOverallResult());
+        String severity = isConforming ? "INFO" : "ERROR";
+        String message = String.format(
+                "📋 FIRST ARTICLE INSPECTION %s: FAI %s for Part '%s' (%s) resulted in %s by Inspector %s. Remarks: %s",
+                isConforming ? "PASSED" : "FAILED",
+                event.getFaiNumber(), event.getPartName(), event.getSkuCode() != null ? event.getSkuCode() : "N/A",
+                event.getOverallResult(), event.getInspectorName() != null ? event.getInspectorName() : "Inspector",
+                event.getRemarks() != null ? event.getRemarks() : "—");
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.FAI_COMPLETED)
+                .partId(event.getPartId())
+                .partName(event.getPartName())
+                .batchNumber(event.getBatchNumber())
+                .message(message)
+                .severity(severity)
+                .build(), message);
+    }
+
+    @Override
+    public void handleCapaEvent(CapaEvent event) {
+        log.info("[NOTIFY] CAPA_EVENT → capaNumber={}, status={} -> {}", event.getCapaNumber(), event.getFromStatus(), event.getToStatus());
+
+        String severity = "CLOSED".equalsIgnoreCase(event.getToStatus()) ? "INFO"
+                : "REJECTED".equalsIgnoreCase(event.getToStatus()) ? "WARNING"
+                : "INFO";
+
+        String message = String.format(
+                "🛡️ CAPA UPDATE: %s (%s) transitioned from %s to %s by %s. Remarks: %s",
+                event.getCapaNumber(), event.getPartName() != null ? event.getPartName() : "NCR " + event.getNcrNumber(),
+                event.getFromStatus() != null ? event.getFromStatus() : "OPEN", event.getToStatus(),
+                event.getActor() != null ? event.getActor() : "System",
+                event.getRemarks() != null ? event.getRemarks() : "—");
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.CAPA_STATUS_CHANGED)
+                .batchNumber(event.getBatchNumber())
+                .message(message)
+                .severity(severity)
+                .build(), message);
+    }
+
     // ── Work Order Kafka Event Handlers ───────────────────────────────────────
 
     @Override

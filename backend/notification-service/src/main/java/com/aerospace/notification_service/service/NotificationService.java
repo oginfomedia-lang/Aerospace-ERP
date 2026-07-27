@@ -15,6 +15,11 @@ public interface NotificationService {
     void handlePartCreated(PartCreatedEvent event);
     void handleVendorReturn(VendorReturnEvent event);
 
+    // ── Triggered by Kafka consumers — QA ─────────────────────────────────────
+    void handleCalibrationDue(CalibrationDueEvent event);
+    void handleFaiCompleted(FaiResultEvent event);
+    void handleCapaEvent(CapaEvent event);
+
     // ── Triggered by Kafka consumers — Work Orders ────────────────────────────
     void handleWorkOrderCreated(WorkOrderCreatedEvent event);
     void handleWorkOrderUpdated(WorkOrderStatusChangedEvent event);

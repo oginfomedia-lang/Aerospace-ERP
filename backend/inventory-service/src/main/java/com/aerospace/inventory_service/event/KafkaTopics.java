@@ -21,6 +21,9 @@ public class KafkaTopics {
     // Note against the supplier) and notification-service (alerts the team).
     public static final String VENDOR_RETURN = "vendor-return-events";
 
-    //consumed from production-service - must watch production-service's own kafka topics constant
+    // consumed from production-service - must watch production-service's own kafka topics constant
     public static final String PRODUCTION_ORDER_COMPLETED = "production-order-completed-events";
+
+    public static final String COMPLIANCE_FAI_COMPLETED = "compliance.fai.completed";
+    public static final String CAPA_EVENT = "inventory.capa.event";
 }

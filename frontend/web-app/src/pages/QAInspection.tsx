@@ -7,6 +7,9 @@ import {
 } from 'lucide-react';
 import { Part, StockBalance, ApiResponse, InspectionRequest, InspectionReport } from '../types/inventory';
 import toast from 'react-hot-toast';
+import { ReceiptModal } from '../components/ReceiptModal';
+import { CertificateOfConformanceDocument } from '../components/CertificateOfConformanceDocument';
+import { CertificateOfConformance } from '../types/qa';
 
 // This page talks to TWO services:
 // api      → inventory-service (localhost:8081) — fetch PENDING_QA batches
@@ -34,6 +37,9 @@ const QAInspection = () => {
   const [history, setHistory] = useState<InspectionReport[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [printCoc, setPrintCoc] = useState<CertificateOfConformance | null>(null);
+
+  const [equipmentList, setEquipmentList] = useState<{ id: number; assetTag: string; name: string; overdue: boolean }[]>([]);
 
   const [form, setForm] = useState<InspectionRequest>({
     partId: 0,
@@ -46,6 +52,7 @@ const QAInspection = () => {
     certificateNumber: '',
     inspectorName: '',
     location: '',
+    equipmentAssetTag: '',
   });
 
   // Fetch all parts and flatten every PENDING_QA batch across all of them
@@ -67,7 +74,12 @@ const QAInspection = () => {
     }
   };
 
-  useEffect(() => { fetchPending(); }, []);
+  useEffect(() => {
+    fetchPending();
+    qaApi.get<ApiResponse<{ id: number; assetTag: string; name: string; overdue: boolean }[]>>('/qa/calibration/equipment')
+      .then(res => setEquipmentList(res.data.data))
+      .catch(() => {});
+  }, []);
 
   // When user clicks a pending batch — populate form and fetch this part's QA history
   const handleSelectBatch = async (entry: PendingBatch) => {
@@ -85,6 +97,7 @@ const QAInspection = () => {
       certificateNumber: '',
       inspectorName: '',
       location: entry.balance.location || '',
+      equipmentAssetTag: '',
     });
 
     // Fetch inspection history for this part from qa-service
@@ -151,6 +164,23 @@ const QAInspection = () => {
       setSubmitting(false);
     }
   };
+
+  const handleGenerateCoc = async (report: InspectionReport) => {
+    if (!selected) return;
+    try {
+      const res = await toast.promise(
+        qaApi.post<ApiResponse<CertificateOfConformance>>('/qa/coc', {
+          inspectionReportId: report.id,
+          partName: selected.part.name,
+          skuCode: selected.part.serialNumber,
+          issuedBy: report.inspectorName || 'QA',
+        }),
+        { loading: 'Generating certificate...', success: 'Certificate ready', error: (err) => err.response?.data?.message || 'Failed to generate certificate' }
+      );
+      setPrintCoc(res.data.data);
+    } catch {}
+  };
+
 
   const isExpired = (expiryDate: string | null) =>
     expiryDate ? new Date(expiryDate) < new Date() : false;
@@ -369,7 +399,7 @@ const QAInspection = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">
                       Certificate No.
@@ -393,6 +423,23 @@ const QAInspection = () => {
                       className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-sm"
                       onChange={e => setForm({ ...form, inspectorName: e.target.value })}
                     />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block tracking-wider">
+                      Calibrated Tool
+                    </label>
+                    <select
+                      value={form.equipmentAssetTag || ''}
+                      onChange={e => setForm({ ...form, equipmentAssetTag: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-sm font-medium"
+                    >
+                      <option value="">Select Gauge / Tool...</option>
+                      {equipmentList.map(e => (
+                        <option key={e.id} value={e.assetTag}>
+                          {e.assetTag} - {e.name} {e.overdue ? '(CAL OVERDUE)' : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -469,6 +516,12 @@ const QAInspection = () => {
                           ) : (
                             <span className="text-[10px] text-amber-600 font-bold">⏳ Sync Pending</span>
                           )}
+                          {(report.decision === 'APPROVED' || report.decision === 'PARTIALLY_APPROVED') && (report.approvedQty ?? 0) > 0 && (
+                            <button onClick={() => handleGenerateCoc(report)}
+                             className='text-[10px] font-bold text-indigo-600 hover:text-indigo-700'>
+                              Generate / View CoC
+                             </button>
+                          )}
                         </div>
                       </div>
                       {report.criteria && (
@@ -492,6 +545,11 @@ const QAInspection = () => {
           )}
         </div>
       </div>
+      <ReceiptModal isOpen={!!printCoc} title="Certificate of Conformance"
+        documentNumber={printCoc?.cocNumber || ''} plain onClose={() => setPrintCoc(null)}>
+        {printCoc && <CertificateOfConformanceDocument coc={printCoc} />}
+      </ReceiptModal>
+
     </div>
   );
 };

@@ -51,4 +51,32 @@ public class QAProducer {
             return false;
         }
     }
+
+    public boolean publishFaiResult(com.aerospace.qa_service.event.FaiResultEvent event) {
+        try {
+            Message<com.aerospace.qa_service.event.FaiResultEvent> message = MessageBuilder
+                    .withPayload(event)
+                    .setHeader(KafkaHeaders.TOPIC, QAKafkaTopics.COMPLIANCE_FAI_COMPLETED)
+                    .setHeader("kafka_messageKey", String.valueOf(event.getPartId()))
+                    .build();
+
+            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(message);
+
+            future.whenComplete((result, ex) -> {
+                if (ex != null) {
+                    log.error("Failed to publish FAI result — faiNumber: {}, partId: {}, error: {}",
+                            event.getFaiNumber(), event.getPartId(), ex.getMessage());
+                } else {
+                    log.info("FAI result published — faiNumber: {}, partId: {}, result: {}, offset: {}",
+                            event.getFaiNumber(), event.getPartId(), event.getOverallResult(),
+                            result.getRecordMetadata().offset());
+                }
+            });
+
+            return true;
+        } catch (Exception e) {
+            log.error("Exception publishing FAI result: {}", e.getMessage());
+            return false;
+        }
+    }
 }

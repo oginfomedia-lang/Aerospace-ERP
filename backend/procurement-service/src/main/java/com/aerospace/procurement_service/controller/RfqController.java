@@ -1,6 +1,8 @@
 package com.aerospace.procurement_service.controller;
 
+import com.aerospace.procurement_service.dto.PurchaseOrderResponse;
 import com.aerospace.procurement_service.dto.RfqDTOs.*;
+import com.aerospace.procurement_service.service.PurchaseOrderService;
 import com.aerospace.procurement_service.service.RfqService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,7 @@ import java.util.List;
 public class RfqController {
 
     private final RfqService rfqService;
+    private final PurchaseOrderService purchaseOrderService;
 
     // ── Internal (Procurement Officer / Manager) ────────────────────────────
 
@@ -42,6 +45,13 @@ public class RfqController {
     @GetMapping("/api/rfqs/{id}/quotations")
     public ResponseEntity<List<QuotationResponse>> getQuotations(@PathVariable Long id) {
         return ResponseEntity.ok(rfqService.getQuotations(id));
+    }
+
+    @PreAuthorize("hasAnyRole('PROCUREMENT_OFFICER','MANAGER','ADMIN')")
+    @PostMapping("/api/rfqs/{id}/invite-suppliers")
+    public ResponseEntity<RfqResponse> inviteMoreSuppliers(@PathVariable Long id,
+                                                            @Valid @RequestBody InviteMoreSuppliersRequest request) {
+        return ResponseEntity.ok(rfqService.inviteMoreSuppliers(id, request));
     }
 
     // Award is the "top management approves the best quotation" business rule —
@@ -82,5 +92,12 @@ public class RfqController {
     @GetMapping("/api/supplier-portal/quotations")
     public ResponseEntity<List<QuotationResponse>> getMyQuotations(@RequestAttribute("supplierId") Long supplierId) {
         return ResponseEntity.ok(rfqService.getMyQuotations(supplierId));
+    }
+
+    // What happens after a supplier wins — their own POs, most recent first
+    @PreAuthorize("hasRole('SUPPLIER')")
+    @GetMapping("/api/supplier-portal/purchase-orders")
+    public ResponseEntity<List<PurchaseOrderResponse>> getMyPurchaseOrders(@RequestAttribute("supplierId") Long supplierId) {
+        return ResponseEntity.ok(purchaseOrderService.getForSupplier(supplierId));
     }
 }

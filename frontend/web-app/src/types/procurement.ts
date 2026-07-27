@@ -276,3 +276,62 @@ export interface ApprovalMatrixRequest {
   levelSequence: number;
   isActive?: boolean;
 }
+
+export type PRStatus = 'DRAFT' | 'RFQ_SENT' | 'QUOTES_RECEIVED' | 'SUPPLIER_SELECTED' | 'PO_RAISED' | 'CANCELLED';
+export type PRSourceType = 'WORK_ORDER_SHORTAGE' | 'STOCK_LOW' | 'MANUAL';
+export type RfqStatus = 'OPEN' | 'AWARDED' | 'CANCELLED';
+export type QuotationStatus = 'SUBMITTED' | 'SELECTED' | 'REJECTED';
+
+export interface PurchaseRequisition {
+  id: number;
+  prNumber: string;
+  partId: number;
+  partName: string;
+  skuCode: string;
+  quantityNeeded: number;
+  requiredByDate?: string | null;
+  sourceType: PRSourceType;
+  sourceWorkOrderId?: number | null;
+  sourceWoNumber?: string | null;
+  status: PRStatus;
+  remarks?: string | null;
+  createdAt: string;
+  latestRfqId?: number | null;
+  latestRfqNumber?: string | null;
+}
+
+export interface InvitedSupplierSummary {
+  supplierId: number;
+  supplierName: string;
+  hasQuoted: boolean;
+}
+
+export interface Rfq {
+  id: number;
+  rfqNumber: string;
+  purchaseRequisitionId: number;
+  partName: string;
+  skuCode: string;
+  invitedSuppliers: InvitedSupplierSummary[];
+  quantity: number;
+  specification?: string | null;
+  dueDate: string;
+  status: RfqStatus;
+  createdAt: string;
+}
+
+export interface Quotation {
+  id: number;
+  rfqId: number;
+  rfqNumber?: string;
+  partName?: string;
+  supplierId: number;
+  supplierName: string;
+  unitPrice: number;
+  totalPrice: number;
+  leadTimeDays: number;
+  validityDate?: string | null;
+  remarks?: string | null;
+  status: QuotationStatus;
+  submittedAt: string;
+}

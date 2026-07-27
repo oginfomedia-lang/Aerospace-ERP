@@ -11,5 +11,7 @@ public interface RequestForQuotationRepository extends JpaRepository<RequestForQ
     List<RequestForQuotation> findAllByOrderByCreatedAtDesc();
     //for the supplier portal - RFQs a given supplier was invited to
     List<RequestForQuotation> findByInvitedSuppliers_Id(Long supplierId);
+    //for linking a PR row straight to its RFQ
+    List<RequestForQuotation> findByPurchaseRequisition_IdOrderByCreatedAtDesc(Long purchaseRequisitionId);
 
 }

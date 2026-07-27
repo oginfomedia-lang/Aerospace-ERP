@@ -2,6 +2,7 @@ package com.aerospace.auth_service.service;
 
 import com.aerospace.auth_service.dto.SupplierAuthDTOs.SupplierActivateRequest;
 import com.aerospace.auth_service.dto.SupplierAuthDTOs.SupplierInviteRequest;
+import com.aerospace.auth_service.dto.SupplierAuthDTOs.SupplierResendInviteRequest;
 import com.aerospace.auth_service.entity.Role;
 import com.aerospace.auth_service.entity.SupplierInvite;
 import com.aerospace.auth_service.entity.User;
@@ -17,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -94,5 +98,43 @@ public class SupplierAuthService {
 
         invite.setUsed(true);
         inviteRepository.save(invite);
+    }
+
+    @Transactional
+    public void resendInvite(SupplierResendInviteRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new IllegalStateException("No invite found for this email — use \"Invite to Portal\" instead"));
+        if (user.isEnabled()) {
+            throw new IllegalStateException("This supplier has already activated their account");
+        }
+
+        String token = UUID.randomUUID().toString();
+        inviteRepository.save(SupplierInvite.builder()
+                .token(token)
+                .userId(user.getId())
+                .supplierId(user.getSupplierId())
+                .email(user.getEmail())
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .used(false)
+                .build());
+
+        eventProducer.sendSupplierInviteCreated(SupplierInviteCreatedEvent.builder()
+                .supplierId(user.getSupplierId())
+                .supplierName(request.getSupplierName())
+                .email(user.getEmail())
+                .activationToken(token)
+                .activationUrl(supplierPortalBaseUrl + "/supplier/activate?token=" + token)
+                .build());
+    }
+
+    // Lets the Suppliers page show "Not Invited" / "Pending Activation" / "Active" per supplier
+    // without exposing full user records.
+    @Transactional(readOnly = true)
+    public Map<Long, String> getInviteStatuses(List<Long> supplierIds) {
+        Map<Long, String> result = new HashMap<>();
+        for (User user : userRepository.findBySupplierIdIn(supplierIds)) {
+            result.put(user.getSupplierId(), user.isEnabled() ? "ACTIVE" : "PENDING");
+        }
+        return result;
     }
 }

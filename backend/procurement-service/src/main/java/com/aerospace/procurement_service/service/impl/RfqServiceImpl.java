@@ -83,6 +83,49 @@ public class RfqServiceImpl implements RfqService {
     }
 
     @Override
+    @Transactional
+    public RfqResponse inviteMoreSuppliers(Long rfqId, InviteMoreSuppliersRequest request) {
+        RequestForQuotation rfq = findRfqOrThrow(rfqId);
+        if (rfq.getStatus() != RfqStatus.OPEN) {
+            throw new IllegalStateException("Cannot invite more suppliers — RFQ is not OPEN (current status: "
+                    + rfq.getStatus() + ")");
+        }
+
+        Set<Long> alreadyInvitedIds = rfq.getInvitedSuppliers().stream().map(Supplier::getId)
+                .collect(Collectors.toSet());
+
+        List<Supplier> newSuppliers = request.getSupplierIds().stream()
+                .filter(id -> !alreadyInvitedIds.contains(id))
+                .distinct()
+                .map(id -> supplierRepository.findById(id)
+                        .orElseThrow(() -> new ResourceNotFoundException("Supplier not found: " + id)))
+                .toList();
+
+        if (newSuppliers.isEmpty()) {
+            throw new IllegalArgumentException("Every selected supplier is already invited to this RFQ");
+        }
+
+        rfq.getInvitedSuppliers().addAll(newSuppliers);
+        RequestForQuotation saved = rfqRepository.save(rfq);
+
+        PurchaseRequisition pr = rfq.getPurchaseRequisition();
+        for (Supplier s : newSuppliers) {
+            eventPublisher.publishRfqCreated(RfqCreatedEvent.builder()
+                    .rfqId(saved.getId())
+                    .rfqNumber(saved.getRfqNumber())
+                    .partName(pr.getPartName())
+                    .quantity(saved.getQuantity())
+                    .dueDate(saved.getDueDate())
+                    .supplierId(s.getId())
+                    .supplierName(s.getName())
+                    .supplierEmail(s.getEmail())
+                    .build());
+        }
+        log.info("[RFQ] {} — invited {} additional supplier(s)", saved.getRfqNumber(), newSuppliers.size());
+        return toDTO(saved);
+    }
+
+    @Override
     public List<RfqResponse> getAll() {
         return rfqRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toDTO).toList();
     }
@@ -243,6 +286,8 @@ public class RfqServiceImpl implements RfqService {
         return QuotationResponse.builder()
                 .id(q.getId())
                 .rfqId(q.getRfq().getId())
+                .rfqNumber(q.getRfq().getRfqNumber())
+                .partName(q.getRfq().getPurchaseRequisition().getPartName())
                 .supplierId(q.getSupplier().getId())
                 .supplierName(q.getSupplier().getName())
                 .unitPrice(q.getUnitPrice())

@@ -10,6 +10,20 @@ export const authApi = axios.create({
     },
 });
 
+// Attaches the JWT to authenticated auth-service calls (e.g. /suppliers/invite). Harmless
+// for the public calls below (login/register/refresh/logout/validate) — no token exists yet
+// at that point, so the header is simply omitted.
+authApi.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
 //register user
 export const registerUser = async (userData: {
     username: string,

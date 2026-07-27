@@ -17,4 +17,10 @@ public class SupplierAuthDTOs {
         @NotBlank private String token;
         @NotBlank private String password;
     }
+
+    @Data
+    public static class SupplierResendInviteRequest {
+        @NotBlank private String email;
+        @NotBlank private String supplierName; //for the invite emails greeting
+    }
 }

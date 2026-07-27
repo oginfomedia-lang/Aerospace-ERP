@@ -3,7 +3,7 @@ import { NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
-  Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route
+  Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -45,6 +45,20 @@ const navItems = [
     label: 'Vendor Invoices',
     icon: <Receipt size={18} />,
     description: 'Three-way match & AP',
+    roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/purchase-requisitions',
+    label: 'Purchase Requisitions',
+    icon: <ShoppingCart size={18} />,
+    description: 'Quotation module',
+    roles: ['PROCUREMENT_OFFICER', 'STORE_KEEPER', 'ADMIN']
+  },
+  {
+    path: '/rfqs',
+    label: 'RFQs',
+    icon: <Send size={18} />,
+    description: 'Quotations & award',
     roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
   },
   {

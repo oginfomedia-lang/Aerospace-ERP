@@ -22,6 +22,11 @@ public class RfqDTOs {
     }
 
     @Data
+    public static class InviteMoreSuppliersRequest {
+        @NotEmpty private List<Long> supplierIds;
+    }
+
+    @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
@@ -64,6 +69,8 @@ public class RfqDTOs {
     public static class QuotationResponse {
         private Long id;
         private Long rfqId;
+        private String rfqNumber;
+        private String partName;
         private Long supplierId;
         private String supplierName;
         private BigDecimal unitPrice;

@@ -7,8 +7,10 @@ import com.aerospace.procurement_service.entity.PRStatus;
 import com.aerospace.procurement_service.entity.PurchaseRequisition;
 import com.aerospace.procurement_service.event.MaterialShortageEvent;
 import com.aerospace.procurement_service.event.StockLowEvent;
+import com.aerospace.procurement_service.entity.RequestForQuotation;
 import com.aerospace.procurement_service.exception.ResourceNotFoundException;
 import com.aerospace.procurement_service.repository.PurchaseRequisitionRepository;
+import com.aerospace.procurement_service.repository.RequestForQuotationRepository;
 import com.aerospace.procurement_service.service.DocumentSequenceService;
 import com.aerospace.procurement_service.service.PurchaseRequisitionService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import java.util.List;
 public class PurchaseRequisitionServiceImpl implements PurchaseRequisitionService {
 
     private final PurchaseRequisitionRepository prRepository;
+    private final RequestForQuotationRepository rfqRepository;
     private final DocumentSequenceService documentSequenceService;
 
     private static final List<PRStatus> TERMINAL = List.of(PRStatus.PO_RAISED, PRStatus.CANCELLED);
@@ -110,6 +113,9 @@ public class PurchaseRequisitionServiceImpl implements PurchaseRequisitionServic
     }
 
     private PurchaseRequisitionResponse toDTO(PurchaseRequisition pr) {
+        List<RequestForQuotation> rfqs = rfqRepository.findByPurchaseRequisition_IdOrderByCreatedAtDesc(pr.getId());
+        RequestForQuotation latestRfq = rfqs.isEmpty() ? null : rfqs.get(0);
+
         return PurchaseRequisitionResponse.builder()
                 .id(pr.getId())
                 .prNumber(pr.getPrNumber())
@@ -124,6 +130,8 @@ public class PurchaseRequisitionServiceImpl implements PurchaseRequisitionServic
                 .status(pr.getStatus())
                 .remarks(pr.getRemarks())
                 .createdAt(pr.getCreatedAt())
+                .latestRfqId(latestRfq == null ? null : latestRfq.getId())
+                .latestRfqNumber(latestRfq == null ? null : latestRfq.getRfqNumber())
                 .build();
     }
 }

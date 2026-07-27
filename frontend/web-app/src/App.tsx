@@ -23,6 +23,13 @@ import Register from './pages/Register';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import DebitNotes from './pages/DebitNotes';
 import ApprovalMatrix from './pages/ApprovalMatrix';
+import PurchaseRequisitions from './pages/PurchaseRequisitions';
+import Rfqs from './pages/Rfqs';
+import RfqDetail from './pages/RfqDetail';
+import SupplierLogin from './pages/supplier/SupplierLogin';
+import SupplierActivate from './pages/supplier/SupplierActivate';
+import SupplierDashboard from './pages/supplier/SupplierDashboard';
+import SupplierRfqDetail from './pages/supplier/SupplierRfqDetail';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -44,6 +51,12 @@ function App() {
         {/* Public routes (no Layout) */}
         <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />} />
         <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/supplier/login" element={<SupplierLogin />} />
+        <Route path="/supplier/activate" element={<SupplierActivate />} />
+        <Route element={<ProtectedRoute requiredRoles={['SUPPLIER']} />}>
+          <Route path="/supplier/dashboard" element={<SupplierDashboard />} />
+          <Route path="/supplier/rfqs/:id" element={<SupplierRfqDetail />} />
+        </Route>
 
         {/* Protected routes (with Layout) */}
         <Route element={<ProtectedRoute />}>
@@ -61,6 +74,9 @@ function App() {
             <Route path="/locations" element={<Locations />} />
             <Route path="/purchase-orders" element={<ProcurementOrders />} />
             <Route path="/vendor-invoices" element={<VendorInvoices />} />
+            <Route path="/purchase-requisitions" element={<PurchaseRequisitions />} />
+            <Route path="/rfqs" element={<Rfqs />} />
+            <Route path="/rfqs/:id" element={<RfqDetail />} />
             <Route path="/material-receipts" element={<MaterialReceipts />} />
             <Route path="/ncr" element={<NCRPage />} />
             <Route path="/org-settings" element={<OrgSettings />} />

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Loader2, RefreshCw, Edit3, Ban, RotateCcw, ChevronDown, ChevronRight, Package } from 'lucide-react';
+import { Users, Plus, Loader2, RefreshCw, Edit3, Ban, RotateCcw, ChevronDown, ChevronRight, Package, Send, RefreshCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import procurementApi from '../api/procurementAxios';
+import { authApi } from '../api/authAxios';
 import api from '../api/axios';
 import { Supplier, SupplierRequest } from '../types/procurement';
 import { PartBasic } from '../types/inventory';
+
+type PortalStatus = 'NONE' | 'PENDING' | 'ACTIVE';
 
 const emptyForm = {
   name: '',
@@ -32,15 +35,31 @@ const ProcurementSuppliers = () => {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [productsBySupplier, setProductsBySupplier] = useState<Record<number, PartBasic[]>>({});
+  const [portalStatus, setPortalStatus] = useState<Record<number, PortalStatus>>({});
 
   // Form State
   const [form, setForm] = useState(emptyForm);
+
+  const fetchInviteStatuses = async (list: Supplier[]) => {
+    if (list.length === 0) return;
+    try {
+      const res = await authApi.get<Record<string, PortalStatus>>('/suppliers/invite-status', {
+        params: { supplierIds: list.map(s => s.id).join(',') },
+      });
+      const byNumber: Record<number, PortalStatus> = {};
+      Object.entries(res.data).forEach(([id, status]) => { byNumber[Number(id)] = status; });
+      setPortalStatus(byNumber);
+    } catch {
+      // non-critical — badges just fall back to "Not Invited"
+    }
+  };
 
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
       const res = await procurementApi.get('/suppliers');
       setSuppliers(res.data);
+      fetchInviteStatuses(res.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -50,6 +69,7 @@ const ProcurementSuppliers = () => {
 
   useEffect(() => {
     fetchSuppliers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleOpenCreate = () => {
@@ -137,6 +157,46 @@ const ProcurementSuppliers = () => {
       setSuppliers(suppliers.map(s => s.id === supplier.id ? res.data : s));
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleInviteToPortal = async (supplier: Supplier) => {
+    if (!supplier.email) {
+      toast.error('This supplier has no email on file — add one via Edit first.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Invite ${supplier.name} to the Supplier Portal? An activation email will be sent to ${supplier.email}.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await authApi.post('/suppliers/invite', {
+        supplierId: supplier.id,
+        email: supplier.email,
+        supplierName: supplier.name,
+      });
+      toast.success(`Invitation sent to ${supplier.email}`);
+      setPortalStatus(prev => ({ ...prev, [supplier.id]: 'PENDING' }));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to send invite');
+    }
+  };
+
+  const handleResendInvite = async (supplier: Supplier) => {
+    const confirmed = window.confirm(
+      `Resend the activation email to ${supplier.email}? The previous activation link will still work, but this issues a fresh one valid for 7 more days.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await authApi.post('/suppliers/resend-invite', {
+        email: supplier.email,
+        supplierName: supplier.name,
+      });
+      toast.success(`Invitation resent to ${supplier.email}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to resend invite');
     }
   };
 
@@ -239,7 +299,42 @@ const ProcurementSuppliers = () => {
                     {supplier.rating || '—'}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-end items-center gap-1">
+                      {(() => {
+                        const status = portalStatus[supplier.id] || 'NONE';
+                        if (status === 'ACTIVE') {
+                          return (
+                            <span className="mr-1 px-2.5 py-1 text-[10px] font-black tracking-wider uppercase rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Portal Active
+                            </span>
+                          );
+                        }
+                        if (status === 'PENDING') {
+                          return (
+                            <>
+                              <span className="mr-1 px-2.5 py-1 text-[10px] font-black tracking-wider uppercase rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                Invite Pending
+                              </span>
+                              <button
+                                onClick={() => handleResendInvite(supplier)}
+                                title="Resend activation email"
+                                className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition"
+                              >
+                                <RefreshCcw size={16} />
+                              </button>
+                            </>
+                          );
+                        }
+                        return (
+                          <button
+                            onClick={() => handleInviteToPortal(supplier)}
+                            title="Invite to Supplier Portal"
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition"
+                          >
+                            <Send size={16} />
+                          </button>
+                        );
+                      })()}
                       <button
                         onClick={() => handleOpenEdit(supplier)}
                         title="Edit supplier"

@@ -31,11 +31,14 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: sadavarteshraddha03@gmail.com
-    password: your-app-password
+    username: shraddhasadavarte24@gmail.com
+    password: mytskmyofbkbwsgq
     properties:
       mail:
         smtp:
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
           auth: true
           starttls:
             enable: true
@@ -44,7 +47,7 @@ notification:
   email:
     enabled: true                            # set true once Gmail app password is configured
     from: noreply@aerospace.local
-    recipients: admin@aerospace.local
+    recipients: oginfomedia@gmail.com
   low-stock-threshold: 10
 
   kafka:

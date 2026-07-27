@@ -40,4 +40,7 @@ public interface PurchaseOrderService {
     List<POApprovalHistoryDTO> getApprovalHistory(Long id);
 
     void createFromAwardedQuotation(PurchaseRequisition pr, RequestForQuotation rfq, Quotation winner);
+
+    // Supplier portal — a supplier's own POs, so they can see what happens after they win an RFQ
+    List<PurchaseOrderResponse> getForSupplier(Long supplierId);
 }

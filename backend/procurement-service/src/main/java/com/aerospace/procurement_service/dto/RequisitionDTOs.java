@@ -26,6 +26,11 @@ public class RequisitionDTOs {
         private PRStatus status;
         private String remarks;
         private LocalDateTime createdAt;
+
+        // Populated from the most recently created RFQ for this PR (if any) — lets the UI
+        // link straight from a PR row to its RFQ instead of a separate lookup on /rfqs.
+        private Long latestRfqId;
+        private String latestRfqNumber;
     }
 
     @Data

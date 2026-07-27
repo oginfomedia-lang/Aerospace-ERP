@@ -559,4 +559,11 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         log.info("📢 [PROCUREMENT] Created real PO {} from awarded RFQ {} — supplier {}, price {}",
                 po.getPoNumber(), rfq.getRfqNumber(), winner.getSupplier().getName(), winner.getUnitPrice());
     }
+
+    @Override
+    public List<PurchaseOrderResponse> getForSupplier(Long supplierId) {
+        return poRepository.findBySupplier_IdOrderByOrderDateDesc(supplierId).stream()
+                .map(poMapper::toDTO)
+                .collect(Collectors.toList());
+    }
 }

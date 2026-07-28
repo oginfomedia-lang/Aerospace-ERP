@@ -1,5 +1,6 @@
 package com.aerospace.inventory_service.controller;
 
+import com.aerospace.inventory_service.audit.Audited;
 import com.aerospace.inventory_service.dto.PartRequestDTO;
 import com.aerospace.inventory_service.dto.PartResponseDTO;
 import com.aerospace.inventory_service.dto.IssueToProductionAllocatedRequest;
@@ -13,6 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -27,6 +29,8 @@ public class PartController {
     private final PartService partService;
     private final TransactionService transactionService; 
 
+    @Audited(action = "CREATE", entityType = "Part")
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PostMapping
     public ResponseEntity<ApiResponse<PartResponseDTO>> create(@RequestBody PartRequestDTO dto) {
         PartResponseDTO response = partService.createPart(dto);
@@ -34,6 +38,8 @@ public class PartController {
                 .body(new ApiResponse<>("SUCCESS", response));
     }
 
+    @Audited(action = "UPDATE", entityType = "Part")
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<PartResponseDTO>> update(
             @PathVariable Long id, @RequestBody PartRequestDTO dto) {
@@ -56,6 +62,7 @@ public class PartController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partService.getBySkuCode(skuCode)));
     }
 
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
         partService.deletePart(id);
@@ -66,6 +73,7 @@ public class PartController {
     // GRN-FR-001: the GRN number is always system-generated; any `grnNumber` passed here
     // is accepted for backward compatibility but ignored — see PartResponseDTO.grnNumber
     // in the response for the authoritative, system-assigned number.
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PostMapping("/{id}/inward-from-grn")
     public ResponseEntity<ApiResponse<PartResponseDTO>> inwardStock(
             @PathVariable Long id,
@@ -94,6 +102,7 @@ public class PartController {
     // batchNumber is optional: omit it to auto-consume the oldest APPROVED batches
     // first (FIFO), splitting across as many batches as needed; pass it to pin the
     // issue to one specific batch instead (fails if that batch alone is short).
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','PRODUCTION_ENGINEER','MANAGER','ADMIN')")
     @PostMapping("/{id}/issue-to-production")
     public ResponseEntity<ApiResponse<PartResponseDTO>> issueMaterial(
             @PathVariable Long id,
@@ -112,6 +121,7 @@ public class PartController {
     // ERP Step: Issue to Production — explicit multi-batch allocation. The caller
     // (a picker form showing real batch availability) decides exactly which batches
     // and how much from each, instead of the server computing a FIFO split.
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','PRODUCTION_ENGINEER','MANAGER','ADMIN')")
     @PostMapping("/{id}/issue-to-production/allocated")
     public ResponseEntity<ApiResponse<PartResponseDTO>> issueMaterialAllocated(
             @PathVariable Long id,
@@ -123,6 +133,7 @@ public class PartController {
     }
 
     // ERP Step: QA Lifecycle
+    @PreAuthorize("hasAnyRole('QA_INSPECTOR','MANAGER','ADMIN')")
     @PostMapping("/{id}/qa-decision")
     public ResponseEntity<ApiResponse<PartResponseDTO>> processQA(
             @PathVariable Long id,
@@ -164,6 +175,7 @@ public class PartController {
 
     //ERP Step: Stock reservation - locks APPROVED quantity into RESERVED so it can't be
     //issued elsewjere. releaseReservation is the reverse (eg. A cancelled work order)
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PostMapping("/{id}/reserve")
     public ResponseEntity<ApiResponse<String>> reserveStock(
             @PathVariable Long id,
@@ -173,6 +185,7 @@ public class PartController {
         return ResponseEntity.ok(new ApiResponse<>("RESERVED", quantity + " units of batch " + batch + " reserved."));
     }
 
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PostMapping("/{id}/release-reservation")
     public ResponseEntity<ApiResponse<String>> releaseReservation(
             @PathVariable Long id,
@@ -184,6 +197,7 @@ public class PartController {
     }
 
      // ERP Step: Bin-to-bin transfer — same batch, same status bucket, different location.
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PostMapping("/{id}/transfer")
     public ResponseEntity<ApiResponse<String>> transfer(
             @PathVariable Long id,

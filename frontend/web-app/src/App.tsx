@@ -66,28 +66,55 @@ function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/inventory" element={<InventoryList />} />
-            <Route path="/inventory/:id/transactions" element={<TransactionHistory />} />
-            <Route path="/qa" element={<QAInspection />} />
-            <Route path="/fai" element={<FaiRecords />} />
             <Route path="/notifications" element={<Notifications />} />
-            <Route path="/work-orders" element={<WorkOrders />} />
-            <Route path="/production" element={<ProductionOrders />} />
-            <Route path="/routing-templates" element={<RoutingTemplates />} />
-            <Route path="/suppliers" element={<ProcurementSuppliers />} />
-            <Route path="/locations" element={<Locations />} />
-            <Route path="/purchase-orders" element={<ProcurementOrders />} />
-            <Route path="/vendor-invoices" element={<VendorInvoices />} />
-            <Route path="/purchase-requisitions" element={<PurchaseRequisitions />} />
-            <Route path="/rfqs" element={<Rfqs />} />
-            <Route path="/rfqs/:id" element={<RfqDetail />} />
-            <Route path="/material-receipts" element={<MaterialReceipts />} />
-            <Route path="/ncr" element={<NCRPage />} />
-            <Route path='/capa' element={<CapaPage />} />
-            <Route path="/calibration" element={<CalibrationPage />} />
-            <Route path="/org-settings" element={<OrgSettings />} />
-            <Route path="/debit-notes" element={<DebitNotes />} />
-            <Route path="/approval-matrix" element={<ApprovalMatrix />} />
+
+            {/* Inventory — visible to warehouse, procurement and production roles */}
+            <Route element={<ProtectedRoute requiredRoles={['STORE_KEEPER', 'PROCUREMENT_OFFICER', 'PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/inventory" element={<InventoryList />} />
+              <Route path="/inventory/:id/transactions" element={<TransactionHistory />} />
+              <Route path="/material-receipts" element={<MaterialReceipts />} />
+              <Route path="/locations" element={<Locations />} />
+            </Route>
+
+            {/* QA / FAI / Calibration */}
+            <Route element={<ProtectedRoute requiredRoles={['QA_INSPECTOR', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/qa" element={<QAInspection />} />
+              <Route path="/fai" element={<FaiRecords />} />
+              <Route path="/calibration" element={<CalibrationPage />} />
+            </Route>
+
+            {/* NCR — also visible to store keepers who log the non-conformance */}
+            <Route element={<ProtectedRoute requiredRoles={['QA_INSPECTOR', 'STORE_KEEPER', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/ncr" element={<NCRPage />} />
+            </Route>
+
+            <Route element={<ProtectedRoute requiredRoles={['QA_INSPECTOR', 'MANAGER', 'ADMIN']} />}>
+              <Route path='/capa' element={<CapaPage />} />
+            </Route>
+
+            {/* Production / Work Orders / Routing Templates */}
+            <Route element={<ProtectedRoute requiredRoles={['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/work-orders" element={<WorkOrders />} />
+              <Route path="/production" element={<ProductionOrders />} />
+              <Route path="/routing-templates" element={<RoutingTemplates />} />
+            </Route>
+
+            {/* Procurement */}
+            <Route element={<ProtectedRoute requiredRoles={['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/suppliers" element={<ProcurementSuppliers />} />
+              <Route path="/purchase-orders" element={<ProcurementOrders />} />
+              <Route path="/vendor-invoices" element={<VendorInvoices />} />
+              <Route path="/purchase-requisitions" element={<PurchaseRequisitions />} />
+              <Route path="/rfqs" element={<Rfqs />} />
+              <Route path="/rfqs/:id" element={<RfqDetail />} />
+              <Route path="/debit-notes" element={<DebitNotes />} />
+            </Route>
+
+            {/* Org Settings / Approval Matrix — management only */}
+            <Route element={<ProtectedRoute requiredRoles={['MANAGER', 'ADMIN']} />}>
+              <Route path="/org-settings" element={<OrgSettings />} />
+              <Route path="/approval-matrix" element={<ApprovalMatrix />} />
+            </Route>
           </Route>
         </Route>
 

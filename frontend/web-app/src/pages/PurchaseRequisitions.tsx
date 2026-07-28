@@ -5,6 +5,10 @@ import procurementApi from '../api/procurementAxios';
 import { PurchaseRequisition } from '../types/procurement';
 import { CreateRfqModal } from '../components/CreateRfqModel';
 import { CreatePurchaseRequisitionModal } from '../components/CreatePurchaseRequisitionModal';
+import { Download } from 'lucide-react';
+import { exportToExcel } from '../utils/excelExport';
+import { useAuth } from '../context/AuthContext';
+import { CAN_MANAGE_PROCUREMENT, hasAnyRole } from '../utils/permissions';
 
 const statusStyle: Record<string, string> = {
   DRAFT: 'bg-slate-100 text-slate-600',
@@ -16,6 +20,8 @@ const statusStyle: Record<string, string> = {
 };
 
 const PurchaseRequisitions: React.FC = () => {
+  const { user } = useAuth();
+  const canManage = hasAnyRole(user?.roles, CAN_MANAGE_PROCUREMENT);
   const [prs, setPrs] = useState<PurchaseRequisition[]>([]);
   const [loading, setLoading] = useState(true);
   const [rfqTarget, setRfqTarget] = useState<PurchaseRequisition | null>(null);
@@ -31,6 +37,23 @@ const PurchaseRequisitions: React.FC = () => {
 
   useEffect(load, []);
 
+  const handleExport = () => {
+    exportToExcel(
+      prs.map(pr => ({
+        'PR Number': pr.prNumber,
+        'Part': pr.partName,
+        'SKU': pr.skuCode,
+        'Quantity Needed': pr.quantityNeeded,
+        'Required By': pr.requiredByDate ? new Date(pr.requiredByDate).toLocaleDateString() : '',
+        'Source': pr.sourceType,
+        'Status': pr.status,
+        'Created At': new Date(pr.createdAt).toLocaleString(),
+      })),
+      'Purchase_Requisition_Register'
+    );
+  };
+
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
@@ -43,10 +66,18 @@ const PurchaseRequisitions: React.FC = () => {
             <p className="text-xs text-slate-500 font-medium">Auto-raised from shortages/low stock, or created manually</p>
           </div>
         </div>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-black rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
-          <PlusCircle size={16} /> New Purchase Requisition
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 text-sm font-black rounded-xl hover:bg-slate-50 transition">
+            <Download size={16} /> Export to Excel
+          </button>
+          {canManage && (
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-black rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
+              <PlusCircle size={16} /> New Purchase Requisition
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -82,7 +113,7 @@ const PurchaseRequisitions: React.FC = () => {
                           <Send size={14} /> {pr.latestRfqNumber}
                         </Link>
                       )}
-                      {pr.status === 'DRAFT' && (
+                      {pr.status === 'DRAFT' && canManage && (
                         <button onClick={() => setRfqTarget(pr)}
                           className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700">
                           <PlusCircle size={14} /> Create RFQ

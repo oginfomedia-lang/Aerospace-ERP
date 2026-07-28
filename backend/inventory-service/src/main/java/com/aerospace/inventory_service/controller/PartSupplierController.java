@@ -7,6 +7,7 @@ import com.aerospace.inventory_service.dto.PartSupplierResponse;
 import com.aerospace.inventory_service.service.PartSupplierService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,12 +27,14 @@ public class PartSupplierController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partSupplierService.getApprovedSuppliers(partId)));
     }
 
+    @PreAuthorize("hasAnyRole('PROCUREMENT_OFFICER','MANAGER','ADMIN')")
     @PostMapping("/parts/{partId}/suppliers")
     public ResponseEntity<ApiResponse<PartSupplierResponse>> addApprovedSupplier(
             @PathVariable Long partId, @RequestBody PartSupplierRequest request) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partSupplierService.addApprovedSupplier(partId, request)));
     }
 
+    @PreAuthorize("hasAnyRole('PROCUREMENT_OFFICER','MANAGER','ADMIN')")
     @DeleteMapping("/parts/{partId}/suppliers/{supplierId}")
     public ResponseEntity<ApiResponse<String>> removeApprovedSupplier(@PathVariable Long partId, @PathVariable Long supplierId) {
         partSupplierService.removeApprovedSupplier(partId, supplierId);

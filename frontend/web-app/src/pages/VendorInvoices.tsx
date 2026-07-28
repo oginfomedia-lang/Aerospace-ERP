@@ -5,6 +5,8 @@ import procurementApi from '../api/procurementAxios';
 import { OrganizationProfile, PurchaseOrderResponse, VendorInvoiceResponse, VendorInvoiceRequest, VendorInvoiceLineItemDTO } from '../types/procurement';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { VendorInvoiceDocument } from '../components/VendorInvoiceDocument';
+import { useAuth } from '../context/AuthContext';
+import { CAN_MANAGE_PROCUREMENT, CAN_APPROVE_PROCUREMENT, hasAnyRole } from '../utils/permissions';
 
 const statusStyle: Record<string, string> = {
   PENDING_MATCH: 'bg-slate-100 text-slate-500',
@@ -16,6 +18,9 @@ const statusStyle: Record<string, string> = {
 };
 
 const VendorInvoices = () => {
+  const { user } = useAuth();
+  const canManage = hasAnyRole(user?.roles, CAN_MANAGE_PROCUREMENT);
+  const canApprove = hasAnyRole(user?.roles, CAN_APPROVE_PROCUREMENT);
   const [invoices, setInvoices] = useState<VendorInvoiceResponse[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderResponse[]>([]);
   const [orgProfile, setOrgProfile] = useState<OrganizationProfile | null>(null);
@@ -173,10 +178,12 @@ const VendorInvoices = () => {
           <button onClick={fetchData} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={handleOpenRecord}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20">
-            <Plus size={18} /> Record Vendor Invoice
-          </button>
+          {canManage && (
+            <button onClick={handleOpenRecord}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20">
+              <Plus size={18} /> Record Vendor Invoice
+            </button>
+          )}
         </div>
       </div>
 
@@ -225,7 +232,7 @@ const VendorInvoices = () => {
                           className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all" title="View / Print">
                           <FileText size={16} />
                         </button>
-                        {(invoice.status === 'MATCHED' || invoice.status === 'VARIANCE_HOLD') && (
+                        {(invoice.status === 'MATCHED' || invoice.status === 'VARIANCE_HOLD') && canApprove && (
                           <>
                             <button onClick={() => openAction(invoice, 'reject')}
                               className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Reject">
@@ -237,7 +244,7 @@ const VendorInvoices = () => {
                             </button>
                           </>
                         )}
-                        {invoice.status === 'APPROVED' && (
+                        {invoice.status === 'APPROVED' && canApprove && (
                           <button onClick={() => handleMarkPaid(invoice)}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
                             <Banknote size={14} /> Mark Paid

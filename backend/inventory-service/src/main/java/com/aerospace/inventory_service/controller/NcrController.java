@@ -1,11 +1,13 @@
 package com.aerospace.inventory_service.controller;
 
+import com.aerospace.inventory_service.audit.Audited;
 import com.aerospace.inventory_service.common.ApiResponse;
 import com.aerospace.inventory_service.dto.DispositionRequest;
 import com.aerospace.inventory_service.dto.NcrResponse;
 import com.aerospace.inventory_service.service.NcrService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +34,8 @@ public class NcrController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", ncrService.getById(id)));
     }
 
+    @Audited(action = "DISPOSITION", entityType = "NCR")
+    @PreAuthorize("hasAnyRole('QA_INSPECTOR','MANAGER','ADMIN')")
     @PostMapping("/{id}/disposition")
     public ResponseEntity<ApiResponse<NcrResponse>> disposition(
             @PathVariable Long id, @RequestBody DispositionRequest request) {

@@ -4,9 +4,7 @@ import toast from 'react-hot-toast';
 import {
   ClipboardList, Clock, CheckCircle2, Loader2, ChevronRight, XCircle, PlusCircle, X
 } from 'lucide-react';
-import { ApiResponse, CapaRecord, CapaTransitionRequest, CapaStatus, NonConformanceReport } from '../types/inventory';
-
-const STAGE_ORDER: CapaStatus[] = ['OPEN', 'ROOT_CAUSE_LOGGED', 'ACTION_PLANNED', 'IN_PROGRESS', 'PENDING_VERIFICATION', 'CLOSED'];
+import { ApiResponse, CapaRecord, CapaTransitionRequest, NonConformanceReport } from '../types/inventory';
 
 const stageEndpoint: Record<string, string> = {
   OPEN: 'root-cause',
@@ -88,7 +86,7 @@ const CapaPage = () => {
     setCreateSubmitting(true);
     try {
       await toast.promise(
-        api.post(`/inventory/capa/ncr/${newNcrId}`, {
+        api.post(`/inventory/ncr/${newNcrId}/capa`, {
           capaType,
           ownerName,
           createdBy,

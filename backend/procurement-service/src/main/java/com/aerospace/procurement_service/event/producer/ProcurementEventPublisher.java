@@ -1,6 +1,8 @@
 package com.aerospace.procurement_service.event.producer;
 
 import com.aerospace.procurement_service.event.KafkaTopics;
+import com.aerospace.procurement_service.event.PoApprovalEvent;
+import com.aerospace.procurement_service.event.PrStatusEvent;
 import com.aerospace.procurement_service.event.PurchaseOrderCreatedEvent;
 import com.aerospace.procurement_service.event.QuotationAwardedEvent;
 import com.aerospace.procurement_service.event.QuotationRejectedEvent;
@@ -28,12 +30,12 @@ public class ProcurementEventPublisher {
         try {
             // 1. Convert our Java Object into a JSON String
             String message = objectMapper.writeValueAsString(event);
-            
+
             // 2. Send the message to the Kafka topic
             kafkaTemplate.send(PO_CREATED_TOPIC, message);
-            
+
             log.info("📢 [PROCUREMENT EVENT] Published PO Created event for PO: {}", event.getPoNumber());
-            
+
         } catch (JsonProcessingException e) {
             log.error("Failed to convert PurchaseOrderCreatedEvent to JSON", e);
         }
@@ -55,5 +57,17 @@ public class ProcurementEventPublisher {
         kafkaTemplate.send(KafkaTopics.QUOTATION_REJECTED, event);
         log.info("📢 [PROCUREMENT EVENT] Published QUOTATION_REJECTED — rfq={} supplier={}",
                 event.getRfqNumber(), event.getSupplierName());
+    }
+
+    public void publishPrStatusChanged(PrStatusEvent event) {
+        kafkaTemplate.send(KafkaTopics.PR_STATUS_CHANGED, event);
+        log.info("📢 [PROCUREMENT EVENT] Published PR_STATUS_CHANGED — pr={} status={}",
+                event.getPrNumber(), event.getStatus());
+    }
+
+    public void publishPoApprovalStatusChanged(PoApprovalEvent event) {
+        kafkaTemplate.send(KafkaTopics.PO_APPROVAL_STATUS, event);
+        log.info("📢 [PROCUREMENT EVENT] Published PO_APPROVAL_STATUS — po={} status={}",
+                event.getPoNumber(), event.getStatus());
     }
 }

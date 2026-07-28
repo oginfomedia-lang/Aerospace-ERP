@@ -13,4 +13,7 @@ public class KafkaTopics {
     public static final String RFQ_CREATED         = "rfq-created-events";
     public static final String QUOTATION_AWARDED   = "quotation-awarded-events";
     public static final String QUOTATION_REJECTED  = "quotation-rejected-events";
+
+    public static final String PR_STATUS_CHANGED   = "pr-status-events";
+    public static final String PO_APPROVAL_STATUS  = "po-approval-status-events";
 }

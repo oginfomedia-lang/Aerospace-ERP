@@ -8,11 +8,15 @@ import { OrganizationProfile, Supplier, PurchaseOrderResponse } from '../types/p
 import { ReceiptModal } from '../components/ReceiptModal';
 import { MaterialReceiptDocument } from '../components/MaterialReceiptDocument';
 import { GrnReceiptDocument } from '../components/GrnReceiptDocument';
+import { useAuth } from '../context/AuthContext';
+import { CAN_MANAGE_PARTS, hasAnyRole } from '../utils/permissions';
 
 // Step 1→2 of the gate-to-GRN flow: Material Receipts are logged at the gate
 // (via Purchase Orders → "Record Material Receipt"); this page is where the GRN
 // is actually formed from a receipt, posting stock to PENDING_QA/APPROVED.
 const MaterialReceipts = () => {
+  const { user } = useAuth();
+  const canFormGrn = hasAnyRole(user?.roles, CAN_MANAGE_PARTS);
   const [receipts, setReceipts] = useState<MaterialReceipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<MaterialReceipt | null>(null);
@@ -152,10 +156,12 @@ const MaterialReceipts = () => {
                   <td className="px-6 py-4 text-slate-600">{r.challanNumber}</td>
                   <td className="px-6 py-4 text-slate-600">{r.receivedBy}</td>
                   <td className="px-6 py-4 text-right">
-                    <button onClick={() => handleOpenFormGrn(r)}
-                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
-                      Form GRN →
-                    </button>
+                    {canFormGrn && (
+                      <button onClick={() => handleOpenFormGrn(r)}
+                        className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
+                        Form GRN →
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

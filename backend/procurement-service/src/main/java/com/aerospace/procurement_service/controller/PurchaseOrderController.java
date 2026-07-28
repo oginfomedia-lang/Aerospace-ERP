@@ -1,5 +1,6 @@
 package com.aerospace.procurement_service.controller;
 
+import com.aerospace.procurement_service.audit.Audited;
 import com.aerospace.procurement_service.dto.POApprovalActionRequest;
 import com.aerospace.procurement_service.dto.POApprovalHistoryDTO;
 import com.aerospace.procurement_service.dto.PurchaseOrderRequest;
@@ -9,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
@@ -19,10 +21,12 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/purchase-orders")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('PROCUREMENT_OFFICER','MANAGER','ADMIN')")
 public class PurchaseOrderController {
 
     private final PurchaseOrderService poService;
 
+    @Audited(action = "CREATE", entityType = "PurchaseOrder")
     @PostMapping
     public ResponseEntity<PurchaseOrderResponse> createPurchaseOrder(@Valid @RequestBody PurchaseOrderRequest request) {
         PurchaseOrderResponse created = poService.createPurchaseOrder(request);
@@ -35,6 +39,7 @@ public class PurchaseOrderController {
     }
 
     // Only works while status == DRAFT — this is how a PO with a bad SKU/supplier gets fixed
+    @Audited(action = "UPDATE", entityType = "PurchaseOrder")
     @PutMapping("/{id}")
     public ResponseEntity<PurchaseOrderResponse> updatePurchaseOrder(
             @PathVariable Long id, @Valid @RequestBody PurchaseOrderRequest request) {
@@ -56,11 +61,14 @@ public class PurchaseOrderController {
     }
 
     // PUR-BR-001: kicks off (or auto-clears) the amount-based approval chain
+    @Audited(action = "SUBMIT_FOR_APPROVAL", entityType = "PurchaseOrder")
     @PostMapping("/{id}/submit")
     public ResponseEntity<PurchaseOrderResponse> submit(@PathVariable Long id) {
         return ResponseEntity.ok(poService.submitForApproval(id));
     }
 
+    @Audited(action = "APPROVE", entityType = "PurchaseOrder")
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PostMapping("/{id}/approve")
     public ResponseEntity<PurchaseOrderResponse> approve(
             @PathVariable Long id,
@@ -72,6 +80,8 @@ public class PurchaseOrderController {
     }
 
     // PUR-BR-002: rejection remarks are mandatory — enforced in the service layer
+    @Audited(action = "REJECT", entityType = "PurchaseOrder")
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PostMapping("/{id}/reject")
     public ResponseEntity<PurchaseOrderResponse> reject(
             @PathVariable Long id,

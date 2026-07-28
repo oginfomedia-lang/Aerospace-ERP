@@ -3,10 +3,14 @@ import { MapPin, Plus, Loader2, RefreshCw, Edit3, Ban, RotateCcw } from 'lucide-
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { Location, LocationRequest } from '../types/inventory';
+import { useAuth } from '../context/AuthContext';
+import { CAN_MANAGE_PARTS, hasAnyRole } from '../utils/permissions';
 
 const emptyForm: LocationRequest = { code: '', name: '', zone: '' };
 
 const Locations = () => {
+  const { user } = useAuth();
+  const canManage = hasAnyRole(user?.roles, CAN_MANAGE_PARTS);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -95,13 +99,15 @@ const Locations = () => {
           >
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
-          >
-            <Plus size={18} />
-            Add Location
-          </button>
+          {canManage && (
+            <button
+              onClick={handleOpenCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
+            >
+              <Plus size={18} />
+              Add Location
+            </button>
+          )}
         </div>
       </div>
 
@@ -140,20 +146,24 @@ const Locations = () => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-1">
-                      <button
-                        onClick={() => handleOpenEdit(location)}
-                        title="Edit location"
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
-                      >
-                        <Edit3 size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleToggleActive(location)}
-                        title={location.active ? 'Deactivate location' : 'Reactivate location'}
-                        className={`p-2 rounded-xl transition ${location.active ? 'text-slate-400 hover:text-red-600 hover:bg-red-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
-                      >
-                        {location.active ? <Ban size={16} /> : <RotateCcw size={16} />}
-                      </button>
+                      {canManage && (
+                        <button
+                          onClick={() => handleOpenEdit(location)}
+                          title="Edit location"
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                      )}
+                      {canManage && (
+                        <button
+                          onClick={() => handleToggleActive(location)}
+                          title={location.active ? 'Deactivate location' : 'Reactivate location'}
+                          className={`p-2 rounded-xl transition ${location.active ? 'text-slate-400 hover:text-red-600 hover:bg-red-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                        >
+                          {location.active ? <Ban size={16} /> : <RotateCcw size={16} />}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

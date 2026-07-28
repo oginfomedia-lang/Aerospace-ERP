@@ -3,6 +3,7 @@ com\aerospace\auth_service\entity\SupplierInvite$SupplierInviteBuilder.class
 com\aerospace\auth_service\entity\RefreshToken$RefreshTokenBuilder.class
 com\aerospace\auth_service\security\JwtService.class
 com\aerospace\auth_service\dto\LogoutRequest.class
+com\aerospace\auth_service\dto\SupplierAuthDTOs$SupplierResendInviteRequest.class
 com\aerospace\auth_service\dto\AuthResponse$AuthResponseBuilder.class
 com\aerospace\auth_service\event\KafkaTopics.class
 com\aerospace\auth_service\entity\Role.class

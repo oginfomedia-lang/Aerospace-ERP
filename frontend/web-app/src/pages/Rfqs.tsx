@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Send } from 'lucide-react';
 import procurementApi from '../api/procurementAxios';
 import { Rfq } from '../types/procurement';
+import { Download } from 'lucide-react';
+import { exportToExcel } from '../utils/excelExport';
 
 const statusStyle: Record<string, string> = {
   OPEN: 'bg-blue-50 text-blue-600',
@@ -21,16 +23,40 @@ const Rfqs: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  const handleExport = () => {
+    exportToExcel(
+      rfqs.map(r => ({
+        'RFQ Number': r.rfqNumber,
+        'Part': r.partName,
+        'SKU': r.skuCode,
+        'Quantity': r.quantity,
+        'Invited Suppliers': r.invitedSuppliers.length,
+        'Quoted': r.invitedSuppliers.filter(s => s.hasQuoted).length,
+        'Due Date': new Date(r.dueDate).toLocaleString(),
+        'Status': r.status,
+        'Created At': new Date(r.createdAt).toLocaleString(),
+      })),
+      'RFQ_Register'
+    );
+  };
+
+
   return (
     <div className="p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-200">
-          <Send size={20} />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-200">
+            <Send size={20} />
+          </div>
+          <div>
+            <h1 className="text-xl font-black text-slate-900">Requests for Quotation</h1>
+            <p className="text-xs text-slate-500 font-medium">Track sent RFQs and compare quotations</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-black text-slate-900">Requests for Quotation</h1>
-          <p className="text-xs text-slate-500 font-medium">Track sent RFQs and compare quotations</p>
-        </div>
+        <button onClick={handleExport}
+          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 text-sm font-black rounded-xl hover:bg-slate-50 transition">
+          <Download size={16} /> Export to Excel
+        </button>
       </div>
 
       {loading ? (

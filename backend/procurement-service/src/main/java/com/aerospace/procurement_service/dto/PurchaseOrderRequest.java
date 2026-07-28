@@ -11,6 +11,10 @@ public class PurchaseOrderRequest {
     @NotNull(message = "Supplier ID is required")
     private Long supplierId;
 
+    // PUR-BR-002-ORIGIN: which Purchase Requisition this PO was raised from — required
+    // unless procurement.po.require-pr-origin is set to false.
+    private Long purchaseRequisitionId;
+
     private LocalDateTime deliveryDate;
     private String currency;
     private String remarks;

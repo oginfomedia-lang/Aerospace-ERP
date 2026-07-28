@@ -38,4 +38,9 @@ app:
   jwt:
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
 
+procurement:
+  po:
+    # PUR-BR-002-ORIGIN: set to false to allow POs with no PR/RFQ link (an explicit,
+    # configured exception rather than an accidental gap)
+    require-pr-origin: true
 

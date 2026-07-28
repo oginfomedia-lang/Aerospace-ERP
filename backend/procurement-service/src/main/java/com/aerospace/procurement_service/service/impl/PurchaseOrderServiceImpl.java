@@ -54,9 +54,33 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private final POApprovalHistoryRepository approvalHistoryRepository;
     private final DocumentSequenceService documentSequenceService;
     private final com.aerospace.procurement_service.event.producer.ProcurementEventPublisher eventPublisher;
+    private final com.aerospace.procurement_service.repository.PurchaseRequisitionRepository purchaseRequisitionRepository;
+
+    @org.springframework.beans.factory.annotation.Value("${procurement.po.require-pr-origin:true}")
+    private boolean requirePrOrigin;
+
 
     @Transactional
     public PurchaseOrderResponse createPurchaseOrder(PurchaseOrderRequest request) {
+        // PUR-BR-002-ORIGIN: every PO must trace back to an approved PR, unless the
+        // tenant has explicitly configured this rule off.
+        if (request.getPurchaseRequisitionId() == null) {
+            if (requirePrOrigin) {
+                throw new IllegalStateException(
+                        "PUR-BR-002: Purchase Orders must originate from an approved Purchase Requisition. " +
+                                "Set procurement.po.require-pr-origin=false to allow direct POs.");
+            }
+        } else {
+            com.aerospace.procurement_service.entity.PurchaseRequisition sourcePr = purchaseRequisitionRepository
+                    .findById(request.getPurchaseRequisitionId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Purchase Requisition not found: " + request.getPurchaseRequisitionId()));
+            if (sourcePr.getStatus() == com.aerospace.procurement_service.entity.PRStatus.CANCELLED) {
+                throw new IllegalStateException(
+                        "Cannot raise a PO from cancelled Purchase Requisition " + sourcePr.getPrNumber() + ".");
+            }
+        }
+
         // 1. Fetch the supplier. (If not found, it throws our custom exception)
         Supplier supplier = supplierService.getSupplierById(request.getSupplierId());
 
@@ -75,8 +99,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         po.setSupplier(supplier);
         po.setOrderDate(LocalDateTime.now());
         po.setStatus(POStatus.DRAFT);
-        // ARC-BR-006: PO numbers are always system-generated via the document sequence, never ad hoc
+                // ARC-BR-006: PO numbers are always system-generated via the document sequence, never ad hoc
         po.setPoNumber(documentSequenceService.generate("PO"));
+        po.setSourcePurchaseRequisitionId(request.getPurchaseRequisitionId());
 
         // 4. Calculate total amount by looping through line items
         BigDecimal totalAmount = BigDecimal.ZERO;

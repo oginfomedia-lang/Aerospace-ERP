@@ -2,6 +2,7 @@ package com.aerospace.procurement_service.dto;
 
 import com.aerospace.procurement_service.entity.PRSourceType;
 import com.aerospace.procurement_service.entity.PRStatus;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -27,10 +28,12 @@ public class RequisitionDTOs {
         private String remarks;
         private LocalDateTime createdAt;
 
-        // Populated from the most recently created RFQ for this PR (if any) — lets the UI
-        // link straight from a PR row to its RFQ instead of a separate lookup on /rfqs.
         private Long latestRfqId;
         private String latestRfqNumber;
+
+        private String approvedBy;
+        private LocalDateTime approvedAt;
+        private String rejectionRemarks;
     }
 
     @Data
@@ -40,6 +43,13 @@ public class RequisitionDTOs {
         private String skuCode;
         @NotNull private Integer quantityNeeded;
         private LocalDateTime requiredByDate;
+        private String remarks;
+    }
+
+    @Data
+    public static class PrApprovalActionRequest {
+        // Required only for reject — validated in the service layer, same convention
+        // as POApprovalActionRequest/DispositionRequest in this codebase.
         private String remarks;
     }
 }

@@ -4,14 +4,20 @@ import { ShoppingCart, Plus, RefreshCw, Trash2, Edit3, ChevronDown, ChevronRight
 import toast from 'react-hot-toast';
 import procurementApi from '../api/procurementAxios';
 import api from '../api/axios';
-import { Supplier, PurchaseOrderResponse, PurchaseOrderRequest, POLineItemDTO, OrganizationProfile } from '../types/procurement';
-import { Part } from '../types/inventory';
+import { Supplier, PurchaseOrderResponse, PurchaseOrderRequest, POLineItemDTO, OrganizationProfile, PurchaseRequisition } from '../types/procurement';
 import { MaterialReceiptFromPOModal } from '../components/MaterialReceiptFromPOModal';
 import { POApprovalModal } from '../components/POApprovalModal';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { POReceiptDocument } from '../components/POReceiptDocument';
+import { Part } from '../types/inventory';
+import { useAuth } from '../context/AuthContext';
+import { CAN_MANAGE_PROCUREMENT, CAN_APPROVE_PROCUREMENT, CAN_MANAGE_PARTS, hasAnyRole } from '../utils/permissions';
 
 const ProcurementOrders = () => {
+  const { user } = useAuth();
+  const canManage = hasAnyRole(user?.roles, CAN_MANAGE_PROCUREMENT);
+  const canApprove = hasAnyRole(user?.roles, CAN_APPROVE_PROCUREMENT);
+  const canReceiveMaterial = hasAnyRole(user?.roles, CAN_MANAGE_PARTS);
   const [orders, setOrders] = useState<PurchaseOrderResponse[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
@@ -29,6 +35,8 @@ const ProcurementOrders = () => {
 
   // Form State
   const [supplierId, setSupplierId] = useState<number | ''>('');
+  const [purchaseRequisitionId, setPurchaseRequisitionId] = useState<number | ''>('');
+  const [availablePrs, setAvailablePrs] = useState<PurchaseRequisition[]>([]);
   const [deliveryDate, setDeliveryDate] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [remarks, setRemarks] = useState('');
@@ -50,11 +58,12 @@ const ProcurementOrders = () => {
     try {
       // Assuming a GET /purchase-orders endpoint exists, otherwise we just handle creation for now
       // Since we didn't explicitly implement GET /purchase-orders in backend, we'll gracefully handle 404s
-      const [suppRes, orderRes, partsRes, orgRes] = await Promise.allSettled([
+            const [suppRes, orderRes, partsRes, orgRes, prRes] = await Promise.allSettled([
         procurementApi.get('/suppliers'),
         procurementApi.get('/purchase-orders'),
         api.get('/inventory'),
         procurementApi.get('/organization-profile'),
+        procurementApi.get('/purchase-requisitions'),
       ]);
 
       if (suppRes.status === 'fulfilled') setSuppliers(suppRes.value.data);
@@ -63,6 +72,9 @@ const ProcurementOrders = () => {
       // resolution fails later — this list is what the item picker is built from.
       if (partsRes.status === 'fulfilled') setParts(partsRes.value.data.data);
       if (orgRes.status === 'fulfilled') setOrgProfile(orgRes.value.data);
+      // Only DRAFT PRs are "approved and ready" — see the PR approval workflow (Fix 3):
+      // a PR only reaches DRAFT after being approved from PENDING_APPROVAL.
+      if (prRes.status === 'fulfilled') setAvailablePrs(prRes.value.data.filter((pr: PurchaseRequisition) => pr.status === 'DRAFT'));
     } catch (err) {
       console.error(err);
     } finally {
@@ -88,6 +100,7 @@ const ProcurementOrders = () => {
 
   const resetForm = () => {
     setSupplierId('');
+    setPurchaseRequisitionId('')
     setDeliveryDate('');
     setCurrency('USD');
     setRemarks('');
@@ -117,6 +130,7 @@ const ProcurementOrders = () => {
   const handleOpenEdit = (po: PurchaseOrderResponse) => {
     setEditingPO(po);
     setSupplierId(po.supplierId);
+    setPurchaseRequisitionId(po.sourcePurchaseRequisitionId || '');
     setDeliveryDate(po.deliveryDate ? new Date(po.deliveryDate).toISOString().slice(0, 16) : '');
     setCurrency(po.currency || 'USD');
     setRemarks(po.remarks || '');
@@ -172,9 +186,14 @@ const ProcurementOrders = () => {
       toast.error('Please select a supplier');
       return;
     }
+    if (!purchaseRequisitionId) {
+      toast.error('Every PO must originate from an approved Purchase Requisition (PUR-BR-002).');
+      return;
+    }
 
     const payload: PurchaseOrderRequest = {
       supplierId: Number(supplierId),
+      purchaseRequisitionId: Number(purchaseRequisitionId),
       deliveryDate: deliveryDate ? new Date(deliveryDate).toISOString() : new Date().toISOString(),
       currency,
       remarks,
@@ -285,13 +304,15 @@ const ProcurementOrders = () => {
           >
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
-          >
-            <Plus size={18} />
-            Draft PO
-          </button>
+          {canManage && (
+            <button
+              onClick={handleOpenCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
+            >
+              <Plus size={18} />
+              Draft PO
+            </button>
+          )}
         </div>
       </div>
 
@@ -369,7 +390,7 @@ const ProcurementOrders = () => {
                   {order.currency} {order.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  {order.status === 'DRAFT' && (
+                  {order.status === 'DRAFT' && canManage && (
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => handleOpenEdit(order)}
@@ -393,7 +414,7 @@ const ProcurementOrders = () => {
                       </button>
                     </div>
                   )}
-                  {order.status === 'PENDING_APPROVAL' && (
+                  {order.status === 'PENDING_APPROVAL' && canApprove && (
                     <button
                       onClick={() => setSelectedPOForApproval(order)}
                       className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
@@ -401,7 +422,7 @@ const ProcurementOrders = () => {
                       Review · Level {order.currentApprovalLevel}
                     </button>
                   )}
-                  {order.status === 'APPROVED' && (
+                  {order.status === 'APPROVED' && canManage && (
                     <button
                       onClick={() => handleUpdateStatus(order.id, 'SENT_TO_VENDOR')}
                       className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
@@ -409,7 +430,7 @@ const ProcurementOrders = () => {
                       Send to Vendor
                     </button>
                   )}
-                  {order.status === 'SENT_TO_VENDOR' && (
+                  {order.status === 'SENT_TO_VENDOR' && canManage && (
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => handleUpdateStatus(order.id, 'RECEIVED')}
@@ -425,7 +446,7 @@ const ProcurementOrders = () => {
                       </button>
                     </div>
                   )}
-                  {order.status === 'RECEIVED' && (
+                  {order.status === 'RECEIVED' && canReceiveMaterial && (
                     <button
                       onClick={() => setSelectedPOForGRN(order)}
                       className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
@@ -481,14 +502,14 @@ const ProcurementOrders = () => {
                                     <span className="px-2 py-1 text-[11px] font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded-lg whitespace-nowrap">
                                       ↻ Replacement raised: {replacementPO.poNumber} ({replacementPO.status})
                                     </span>
-                                  ) : (
+                                  ) : canManage ? (
                                     <button
                                       onClick={() => handleRaiseReplacementPO(order, item)}
                                       className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-all"
                                     >
                                       Raise Replacement PO →
                                     </button>
-                                  );
+                                  ) : null;
                                 })()}
                               </td>
                             </tr>
@@ -533,7 +554,21 @@ const ProcurementOrders = () => {
             
             <div className="p-6 overflow-y-auto flex-1">
               <form id="po-form" onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Purchase Requisition</label>
+                    <select required value={purchaseRequisitionId} onChange={e => setPurchaseRequisitionId(Number(e.target.value))}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                      <option value="" disabled>Select an approved PR...</option>
+                      {availablePrs.map(pr => (
+                        <option key={pr.id} value={pr.id}>{pr.prNumber} — {pr.partName} (qty {pr.quantityNeeded})</option>
+                      ))}
+                      {editingPO?.sourcePurchaseRequisitionId && !availablePrs.some(pr => pr.id === editingPO.sourcePurchaseRequisitionId) && (
+                        <option value={editingPO.sourcePurchaseRequisitionId}>Current PR (already linked)</option>
+                      )}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">PUR-BR-002: every PO must trace back to an approved PR.</p>
+                  </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Supplier</label>
                     <select required value={supplierId} onChange={e => setSupplierId(Number(e.target.value))}
@@ -544,11 +579,11 @@ const ProcurementOrders = () => {
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Expected Delivery</label>
-                    <input required type="datetime-local" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} 
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
-                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Expected Delivery</label>
+                  <input required type="datetime-local" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                 </div>
 
                 <div>

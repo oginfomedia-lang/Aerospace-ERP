@@ -1,5 +1,6 @@
 package com.aerospace.inventory_service.controller;
 
+import com.aerospace.inventory_service.audit.Audited;
 import com.aerospace.inventory_service.common.ApiResponse;
 import com.aerospace.inventory_service.dto.FormGrnRequest;
 import com.aerospace.inventory_service.dto.MaterialReceiptRequest;
@@ -8,6 +9,7 @@ import com.aerospace.inventory_service.service.MaterialReceiptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +25,8 @@ public class MaterialReceiptController {
 
     private final MaterialReceiptService materialReceiptService;
 
+    @Audited(action = "CREATE", entityType = "MaterialReceipt")
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PostMapping
     public ResponseEntity<ApiResponse<MaterialReceiptResponse>> create(@RequestBody MaterialReceiptRequest request) {
         MaterialReceiptResponse response = materialReceiptService.createReceipt(request);
@@ -41,6 +45,8 @@ public class MaterialReceiptController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", materialReceiptService.getById(id)));
     }
 
+    @Audited(action = "FORM_GRN", entityType = "MaterialReceipt")
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PostMapping("/{id}/form-grn")
     public ResponseEntity<ApiResponse<MaterialReceiptResponse>> formGrn(
             @PathVariable Long id, @RequestBody FormGrnRequest request) {

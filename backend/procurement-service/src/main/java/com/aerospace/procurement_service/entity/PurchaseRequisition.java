@@ -43,6 +43,11 @@ public class PurchaseRequisition {
     private String remarks;
     private String createdBy;
 
+    // Approval trail (BP-001 §4.13 — PR submitted/approved/rejected)
+    private String approvedBy;
+    private LocalDateTime approvedAt;
+    private String rejectionRemarks;
+
     private LocalDateTime createdAt;
 
     @PrePersist

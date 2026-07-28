@@ -6,6 +6,8 @@ import { authApi } from '../api/authAxios';
 import api from '../api/axios';
 import { Supplier, SupplierRequest } from '../types/procurement';
 import { PartBasic } from '../types/inventory';
+import { useAuth } from '../context/AuthContext';
+import { CAN_MANAGE_PROCUREMENT, hasAnyRole } from '../utils/permissions';
 
 type PortalStatus = 'NONE' | 'PENDING' | 'ACTIVE';
 
@@ -29,6 +31,8 @@ const emptyForm = {
 };
 
 const ProcurementSuppliers = () => {
+  const { user } = useAuth();
+  const canManage = hasAnyRole(user?.roles, CAN_MANAGE_PROCUREMENT);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -227,13 +231,15 @@ const ProcurementSuppliers = () => {
           >
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
-          >
-            <Plus size={18} />
-            Add Supplier
-          </button>
+          {canManage && (
+            <button
+              onClick={handleOpenCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
+            >
+              <Plus size={18} />
+              Add Supplier
+            </button>
+          )}
         </div>
       </div>
 
@@ -335,20 +341,24 @@ const ProcurementSuppliers = () => {
                           </button>
                         );
                       })()}
-                      <button
-                        onClick={() => handleOpenEdit(supplier)}
-                        title="Edit supplier"
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
-                      >
-                        <Edit3 size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleToggleActive(supplier)}
-                        title={supplier.active ? 'Deactivate supplier' : 'Reactivate supplier'}
-                        className={`p-2 rounded-xl transition ${supplier.active ? 'text-slate-400 hover:text-red-600 hover:bg-red-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
-                      >
-                        {supplier.active ? <Ban size={16} /> : <RotateCcw size={16} />}
-                      </button>
+                      {canManage && (
+                        <button
+                          onClick={() => handleOpenEdit(supplier)}
+                          title="Edit supplier"
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                      )}
+                      {canManage && (
+                        <button
+                          onClick={() => handleToggleActive(supplier)}
+                          title={supplier.active ? 'Deactivate supplier' : 'Reactivate supplier'}
+                          className={`p-2 rounded-xl transition ${supplier.active ? 'text-slate-400 hover:text-red-600 hover:bg-red-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                        >
+                          {supplier.active ? <Ban size={16} /> : <RotateCcw size={16} />}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

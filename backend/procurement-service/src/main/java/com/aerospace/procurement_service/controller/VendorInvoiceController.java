@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/vendor-invoices")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('PROCUREMENT_OFFICER','MANAGER','ADMIN')")
 public class VendorInvoiceController {
 
     private final VendorInvoiceService invoiceService;
@@ -37,6 +39,7 @@ public class VendorInvoiceController {
         return ResponseEntity.ok(invoiceService.getById(id));
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PostMapping("/{id}/approve")
     public ResponseEntity<VendorInvoiceResponse> approve(
             @PathVariable Long id,
@@ -46,6 +49,7 @@ public class VendorInvoiceController {
                 request != null ? request : new InvoiceActionRequest(), authentication.getName()));
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PostMapping("/{id}/reject")
     public ResponseEntity<VendorInvoiceResponse> reject(
             @PathVariable Long id,
@@ -54,6 +58,7 @@ public class VendorInvoiceController {
         return ResponseEntity.ok(invoiceService.reject(id, request, authentication.getName()));
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PostMapping("/{id}/mark-paid")
     public ResponseEntity<VendorInvoiceResponse> markPaid(@PathVariable Long id) {
         return ResponseEntity.ok(invoiceService.markPaid(id));

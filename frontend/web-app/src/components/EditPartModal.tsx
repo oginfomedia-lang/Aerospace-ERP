@@ -5,6 +5,8 @@ import { X, Edit3, ShieldAlert, Star, Trash2 } from 'lucide-react';
 import { Part, ApprovedSupplier } from '../types/inventory';
 import { Supplier } from '../types/procurement';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+import { CAN_MANAGE_PROCUREMENT, hasAnyRole } from '../utils/permissions';
 
 interface Props {
   isOpen: boolean;
@@ -18,6 +20,8 @@ interface Props {
 // Stock/batch/location are managed via StockAdjustmentModal
 
 export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
+  const { user } = useAuth();
+  const canManageApprovedSuppliers = hasAnyRole(user?.roles, CAN_MANAGE_PROCUREMENT);
   const [formData, setFormData] = useState({
     name: '',
     partType: '',
@@ -362,7 +366,9 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
             <label className="text-xs font-bold text-slate-500 uppercase block tracking-wider">Approved Suppliers</label>
             {approvedSuppliers.length === 0 ? (
-              <p className="text-xs text-slate-400">No approved suppliers yet — add one below.</p>
+              <p className="text-xs text-slate-400">
+                {canManageApprovedSuppliers ? 'No approved suppliers yet — add one below.' : 'No approved suppliers yet.'}
+              </p>
             ) : (
               <div className="space-y-1.5">
                 {approvedSuppliers.map(as => {
@@ -372,36 +378,40 @@ export const EditPartModal = ({ isOpen, part, onClose, onSuccess }: Props) => {
                       <span className="text-sm font-semibold text-slate-700 truncate">
                         {s ? `${s.name} (${s.vendorCode})` : `Supplier #${as.supplierId}`}
                       </span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button type="button" onClick={() => handleMarkPreferred(as.supplierId)}
-                          title={as.preferred ? 'Preferred supplier' : 'Mark as preferred'}
-                          className={as.preferred ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}>
-                          <Star size={16} fill={as.preferred ? 'currentColor' : 'none'} />
-                        </button>
-                        <button type="button" onClick={() => handleRemoveApprovedSupplier(as.supplierId)}
-                          title="Remove" className="text-slate-300 hover:text-red-600">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      {canManageApprovedSuppliers && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button type="button" onClick={() => handleMarkPreferred(as.supplierId)}
+                            title={as.preferred ? 'Preferred supplier' : 'Mark as preferred'}
+                            className={as.preferred ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}>
+                            <Star size={16} fill={as.preferred ? 'currentColor' : 'none'} />
+                          </button>
+                          <button type="button" onClick={() => handleRemoveApprovedSupplier(as.supplierId)}
+                            title="Remove" className="text-slate-300 hover:text-red-600">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
-            <div className="flex gap-2">
-              <select value={addSupplierId}
-                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500"
-                onChange={e => setAddSupplierId(e.target.value ? Number(e.target.value) : '')}>
-                <option value="">Add an approved supplier...</option>
-                {suppliers.filter(s => !approvedSuppliers.some(as => as.supplierId === s.id)).map(s => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.vendorCode})</option>
-                ))}
-              </select>
-              <button type="button" onClick={handleAddApprovedSupplier} disabled={!addSupplierId}
-                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg transition-all disabled:opacity-50">
-                Add
-              </button>
-            </div>
+            {canManageApprovedSuppliers && (
+              <div className="flex gap-2">
+                <select value={addSupplierId}
+                  className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500"
+                  onChange={e => setAddSupplierId(e.target.value ? Number(e.target.value) : '')}>
+                  <option value="">Add an approved supplier...</option>
+                  {suppliers.filter(s => !approvedSuppliers.some(as => as.supplierId === s.id)).map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.vendorCode})</option>
+                  ))}
+                </select>
+                <button type="button" onClick={handleAddApprovedSupplier} disabled={!addSupplierId}
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg transition-all disabled:opacity-50">
+                  Add
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ERP notice — explain why stock fields are not here */}

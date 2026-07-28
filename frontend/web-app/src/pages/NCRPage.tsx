@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { ApiResponse, NonConformanceReport, DispositionRequest } from '../types/inventory';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { CAN_DISPOSITION_NCR, CAN_MANAGE_CAPA, hasAnyRole } from '../utils/permissions';
 
 const dispositionOptions: { value: DispositionRequest['dispositionType']; label: string; icon: React.ReactNode }[] = [
   { value: 'RETURN_TO_VENDOR', label: 'Return to Vendor', icon: <RotateCcw size={16} /> },
@@ -17,6 +19,9 @@ const dispositionOptions: { value: DispositionRequest['dispositionType']; label:
 
 const NCRPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canDisposition = hasAnyRole(user?.roles, CAN_DISPOSITION_NCR);
+  const canManageCapa = hasAnyRole(user?.roles, CAN_MANAGE_CAPA);
   const [ncrs, setNcrs] = useState<NonConformanceReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<NonConformanceReport | null>(null);
@@ -175,13 +180,15 @@ const NCRPage = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => handleOpenCapaModal(ncr, e)}
-                        className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold border border-purple-200 transition-all flex items-center gap-1"
-                      >
-                        <ClipboardList size={12} /> Open CAPA
-                      </button>
+                      {canManageCapa && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenCapaModal(ncr, e)}
+                          className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold border border-purple-200 transition-all flex items-center gap-1"
+                        >
+                          <ClipboardList size={12} /> Open CAPA
+                        </button>
+                      )}
                       <ChevronRight size={16} className="text-slate-300 group-hover:text-red-500 transition-colors" />
                     </div>
                   </div>
@@ -219,13 +226,15 @@ const NCRPage = () => {
                       {' · '} Qty: <span className="font-bold">{selected.quantity}</span>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenCapaModal(selected)}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm"
-                  >
-                    <ClipboardList size={14} /> Open CAPA
-                  </button>
+                  {canManageCapa && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCapaModal(selected)}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm"
+                    >
+                      <ClipboardList size={14} /> Open CAPA
+                    </button>
+                  )}
                 </div>
                 {selected.reason && (
                   <p className="mt-2 text-xs text-slate-600 italic">Rejection reason: {selected.reason}</p>
@@ -276,11 +285,15 @@ const NCRPage = () => {
                   onChange={e => setForm({ ...form, dispositionedBy: e.target.value })} />
               </div>
 
-              <button type="submit" disabled={submitting}
-                className="w-full py-3 rounded-xl font-black text-white bg-slate-900 hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg disabled:opacity-60">
-                {submitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                Confirm Disposition
-              </button>
+              {canDisposition ? (
+                <button type="submit" disabled={submitting}
+                  className="w-full py-3 rounded-xl font-black text-white bg-slate-900 hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg disabled:opacity-60">
+                  {submitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                  Confirm Disposition
+                </button>
+              ) : (
+                <p className="text-xs text-slate-400 font-bold text-center">Only QA Inspectors, Managers, or Admins can disposition an NCR.</p>
+              )}
             </form>
           )}
         </div>

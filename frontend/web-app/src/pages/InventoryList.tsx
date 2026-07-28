@@ -18,6 +18,7 @@ import { ItemRegisterDocument } from '../components/ItemRegisterDocument';
 import { MaterialIssueReceiptDocument } from '../components/MaterialIssueReceiptDocument';
 import { IssueMaterialPickerModal } from '../components/IssueMaterialPickerModal';
 import { useAuth } from '../context/AuthContext';
+import { CAN_MANAGE_PARTS, CAN_ISSUE_MATERIAL, hasAnyRole } from '../utils/permissions';
 import toast from 'react-hot-toast';
 
 interface WorkOrderNeedingPart {
@@ -76,6 +77,8 @@ const getExpiryDisplay = (expiryDate: string | null) => {
 
 const InventoryList = () => {
   const { user } = useAuth();
+  const canManageParts = hasAnyRole(user?.roles, CAN_MANAGE_PARTS);
+  const canIssueMaterial = hasAnyRole(user?.roles, CAN_ISSUE_MATERIAL);
   const routerLocation = useLocation();
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(false);
@@ -366,35 +369,43 @@ const InventoryList = () => {
             >
               <History size={18} />
             </button>
-            <button
-              onClick={() => handleIssue(part)}
-              className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition"
-              title="Issue Material (User Requirement)"
-              disabled={part.status !== 'APPROVED'}
-            >
-              <MinusCircle size={18} className={part.status !== 'APPROVED' ? 'opacity-30' : ''} />
-            </button>
-            <button
-              onClick={() => handleOpenAdjust(part)}
-              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition"
-              title="Stock Adjustment"
-            >
-              <SlidersHorizontal size={18} />
-            </button>
-            <button
-              onClick={() => handleOpenEdit(part)}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
-              title="Edit Material Master"
-            >
-              <Edit3 size={18} />
-            </button>
-            <button
-              onClick={() => handleToggleActive(part)}
-              className={`p-2 rounded-xl transition ${part.itemStatus === 'INACTIVE' ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
-              title={part.itemStatus === 'INACTIVE' ? 'Reactivate Item' : 'Deactivate Item'}
-            >
-              {part.itemStatus === 'INACTIVE' ? <RotateCcw size={18} /> : <Ban size={18} />}
-            </button>
+            {canIssueMaterial && (
+              <button
+                onClick={() => handleIssue(part)}
+                className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition"
+                title="Issue Material (User Requirement)"
+                disabled={part.status !== 'APPROVED'}
+              >
+                <MinusCircle size={18} className={part.status !== 'APPROVED' ? 'opacity-30' : ''} />
+              </button>
+            )}
+            {canManageParts && (
+              <button
+                onClick={() => handleOpenAdjust(part)}
+                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition"
+                title="Stock Adjustment"
+              >
+                <SlidersHorizontal size={18} />
+              </button>
+            )}
+            {canManageParts && (
+              <button
+                onClick={() => handleOpenEdit(part)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                title="Edit Material Master"
+              >
+                <Edit3 size={18} />
+              </button>
+            )}
+            {canManageParts && (
+              <button
+                onClick={() => handleToggleActive(part)}
+                className={`p-2 rounded-xl transition ${part.itemStatus === 'INACTIVE' ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                title={part.itemStatus === 'INACTIVE' ? 'Reactivate Item' : 'Deactivate Item'}
+              >
+                {part.itemStatus === 'INACTIVE' ? <RotateCcw size={18} /> : <Ban size={18} />}
+              </button>
+            )}
           </div>
         </td>
 
@@ -437,12 +448,14 @@ const InventoryList = () => {
           >
             <Printer size={18} /> Print Item Register
           </button>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 text-white px-8 py-3 rounded-2xl hover:bg-blue-700 transition font-bold flex items-center gap-2 shadow-lg shadow-blue-200"
-          >
-            <PlusCircle size={20} /> Initialize Material
-          </button>
+          {canManageParts && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="bg-blue-600 text-white px-8 py-3 rounded-2xl hover:bg-blue-700 transition font-bold flex items-center gap-2 shadow-lg shadow-blue-200"
+            >
+              <PlusCircle size={20} /> Initialize Material
+            </button>
+          )}
         </div>
       </div>
 

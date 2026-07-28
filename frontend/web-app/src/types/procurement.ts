@@ -70,6 +70,7 @@ export interface POLineItemDTO {
 
 export interface PurchaseOrderRequest {
   supplierId: number;
+  purchaseRequisitionId?: number;
   deliveryDate: string;
   currency: string;
   remarks: string;
@@ -97,6 +98,7 @@ export interface PurchaseOrderResponse {
   deliveryDate: string;
   items: POLineItemDTO[];
   remarks: string | null;
+  sourcePurchaseRequisitionId: number | null;
 
   // Set only when this PO was auto-raised for a Work Order material shortage
   sourceWorkOrderId?: number | null;

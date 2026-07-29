@@ -46,20 +46,14 @@ public class AuthService {
             throw new IllegalStateException("Email is already registered");
         }
 
-        // Convert role names to Role entities
+        // Public self-registration always gets the default role — client-supplied
+        // roles are never honored here (see AGENT.md security note: this endpoint
+        // is permitAll(), so trusting client-supplied roles is a privilege-escalation hole).
         Set<Role> roles = new HashSet<>();
-        if (request.getRoles() == null || request.getRoles().isEmpty()) {
-            // Assign default role STORE_KEEPER
-            Role defaultRole = roleRepository.findByName("STORE_KEEPER")
-                    .orElseThrow(() -> new IllegalStateException("Default role STORE_KEEPER not found"));
-            roles.add(defaultRole);
-        } else {
-            for (String roleName : request.getRoles()) {
-                Role role = roleRepository.findByName(roleName)
-                        .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleName));
-                roles.add(role);
-            }
-        }
+        Role defaultRole = roleRepository.findByName("STORE_KEEPER")
+                .orElseThrow(() -> new IllegalStateException("Default role STORE_KEEPER not found"));
+        roles.add(defaultRole);
+
 
         User user = User.builder()
                 .username(request.getUsername())
@@ -194,6 +188,44 @@ public class AuthService {
 
         return TokenValidationResponse.builder()
                 .valid(false)
+                .build();
+    }
+
+    @Transactional
+    public UserResponse createUserWithRoles(AdminCreateUserRequest request) {
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new IllegalStateException("Username is already taken");
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalStateException("Email is already registered");
+        }
+
+        Set<Role> roles = new HashSet<>();
+        for (String roleName : request.getRoles()) {
+            Role role = roleRepository.findByName(roleName)
+                    .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleName));
+            roles.add(role);
+        }
+
+        User user = User.builder()
+                .username(request.getUsername())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .email(request.getEmail())
+                .roles(roles)
+                .enabled(true)
+                .build();
+
+        User savedUser = userRepository.save(user);
+        log.info("Admin created user: {} with roles: {}", savedUser.getUsername(),
+                savedUser.getRoles().stream().map(Role::getName).collect(Collectors.joining(",")));
+
+        return UserResponse.builder()
+                .id(savedUser.getId())
+                .username(savedUser.getUsername())
+                .email(savedUser.getEmail())
+                .roles(savedUser.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
+                .enabled(savedUser.getEnabled())
+                .createdAt(savedUser.getCreatedAt())
                 .build();
     }
 }

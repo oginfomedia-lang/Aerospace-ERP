@@ -13,6 +13,8 @@ import com.aerospace.inventory_service.service.PartService;
 import com.aerospace.inventory_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.hibernate.annotations.Cache;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -567,7 +570,10 @@ public class PartServiceImpl implements PartService {
     @Transactional
     @CacheEvict(value = "dashboardStats", allEntries = true)
     public void deletePart(Long id) {
-        partRepository.deleteById(id);
+        Part part = partRepository.findById(id)
+                                .orElseThrow(() -> new ResourceNotFoundException("Part not found with ID: "+id));
+        part.setStatus("INACTIVE");
+        partRepository.save(part);
     }
 
     @Override
@@ -900,4 +906,46 @@ public class PartServiceImpl implements PartService {
         return dto;
     }
 
+    @Override
+    @Transactional
+    @CacheEvict(value = "dashboardStats", allEntries = true)
+    public ImportResultDTO importParts(List<PartImportRowDTO> rows) {
+        List<ImportRowError> errors = new java.util.ArrayList<>();
+        int success = 0;
+
+        for (int i = 0; i < rows.size(); i++) {
+            PartImportRowDTO row = rows.get(i);
+            int rowNumber = i + 1;
+            try {
+                if (row.getName() == null || row.getName().isBlank()) {
+                    throw new IllegalArgumentException("Name is required");
+                }
+                if (row.getSkuCode() == null || row.getSkuCode().isBlank()) {
+                    throw new IllegalArgumentException("SKU Code is required");
+                }
+                if (partRepository.findBySkuCode(row.getSkuCode()).isPresent()) {
+                    throw new IllegalArgumentException("SKU already exists: " + row.getSkuCode());
+                }
+
+                Part part = Part.builder()
+                        .name(row.getName())
+                        .skuCode(row.getSkuCode())
+                        .partType(row.getPartType())
+                        .uom(row.getUom())
+                        .reorderLevel(row.getReorderLevel())
+                        .criticality(row.getCriticality())
+                        .build();
+                partRepository.save(part);
+                success++;
+            } catch (Exception e) {
+                errors.add(new ImportRowError(rowNumber, row.getSkuCode(), e.getMessage()));
+            }
+        }
+
+        return ImportResultDTO.builder()
+                .successCount(success)
+                .failureCount(errors.size())
+                .errors(errors)
+                .build();
+    }
 }

@@ -63,6 +63,11 @@ public class PartMapper {
                 .taxRatePercent(part.getTaxRatePercent())
                 .hsnCode(part.getHsnCode())
                 .description(part.getDescription())
+                .version(part.getVersion())
+                .createdAt(part.getCreatedAt())
+                .updatedAt(part.getUpdatedAt())
+                .createdBy(part.getCreatedBy())
+                .updatedBy(part.getUpdatedBy())
                 // Note: quantity, status (stock bucket), and batchNumber will be set
                 // by the Service layer after aggregating StockBalances
                 .build();

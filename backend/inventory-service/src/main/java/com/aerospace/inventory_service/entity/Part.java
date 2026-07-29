@@ -3,8 +3,12 @@ package com.aerospace.inventory_service.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Data
@@ -82,5 +86,36 @@ public class Part {
     @Column(length = 2000)
     private String description;
 
-    // Total quantity is now a derived value or managed via StockBalance logic
+    @Version
+    @Builder.Default
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private Long version = 0L;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
+    private String createdBy;
+    private String updatedBy;
+
+    @PrePersist
+    private void stampCreatedBy(){
+        String actor = currentActor();
+        this.createdBy = actor;
+        this.updatedBy = actor;
+    }
+
+    @PreUpdate
+    private void stampUpdateBy() {
+        this.updatedBy = currentActor();
+    }
+
+    private static String currentActor() {
+        var context = SecurityContextHolder.getContext();
+        var authentication = context != null ? context.getAuthentication() : null;
+        return authentication != null ? authentication.getName() : "SYSTEM";
+    }
 }

@@ -14,14 +14,16 @@ import com.aerospace.procurement_service.service.PurchaseOrderService;
 import com.aerospace.procurement_service.service.RfqService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +50,9 @@ public class RfqServiceImpl implements RfqService {
                 .collect(Collectors.toSet());
         if (suppliers.isEmpty()) {
             throw new IllegalArgumentException("Invite at least one supplier");
+        }
+        for(Supplier s: suppliers) {
+            assertEligible(s);
         }
 
         RequestForQuotation rfq = RequestForQuotation.builder()
@@ -99,7 +104,8 @@ public class RfqServiceImpl implements RfqService {
                 .distinct()
                 .map(id -> supplierRepository.findById(id)
                         .orElseThrow(() -> new ResourceNotFoundException("Supplier not found: " + id)))
-                .toList();
+                .collect(Collectors.toList());
+        newSuppliers.forEach(this::assertEligible);            
 
         if (newSuppliers.isEmpty()) {
             throw new IllegalArgumentException("Every selected supplier is already invited to this RFQ");
@@ -127,7 +133,7 @@ public class RfqServiceImpl implements RfqService {
 
     @Override
     public List<RfqResponse> getAll() {
-        return rfqRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toDTO).toList();
+        return rfqRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toDTO).collect(Collectors.toList());
     }
 
     @Override
@@ -138,7 +144,7 @@ public class RfqServiceImpl implements RfqService {
     @Override
     public List<QuotationResponse> getQuotations(Long rfqId) {
         return quotationRepository.findByRfq_IdOrderByUnitPriceAsc(rfqId).stream()
-                .map(this::toQuotationDTO).toList();
+                .map(this::toQuotationDTO).collect(Collectors.toList());
     }
 
     @Override
@@ -153,44 +159,50 @@ public class RfqServiceImpl implements RfqService {
         Quotation winner = all.stream().filter(q -> q.getId().equals(quotationId)).findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Quotation not found on this RFQ: " + quotationId));
 
-        for (Quotation q : all) {
-            boolean isWinner = q.getId().equals(quotationId);
-            q.setStatus(isWinner ? QuotationStatus.SELECTED : QuotationStatus.REJECTED);
-            quotationRepository.save(q);
+        assertEligible(winner.getSupplier());
 
-            if (isWinner) {
-                eventPublisher.publishQuotationAwarded(QuotationAwardedEvent.builder()
-                        .rfqNumber(rfq.getRfqNumber())
-                        .supplierId(q.getSupplier().getId())
-                        .supplierName(q.getSupplier().getName())
-                        .supplierEmail(q.getSupplier().getEmail())
-                        .unitPrice(q.getUnitPrice())
-                        .build());
-            } else {
-                eventPublisher.publishQuotationRejected(QuotationRejectedEvent.builder()
-                        .rfqNumber(rfq.getRfqNumber())
-                        .supplierId(q.getSupplier().getId())
-                        .supplierName(q.getSupplier().getName())
-                        .supplierEmail(q.getSupplier().getEmail())
-                        .build());
+        try {
+            for (Quotation q : all) {
+                boolean isWinner = q.getId().equals(quotationId);
+                q.setStatus(isWinner ? QuotationStatus.SELECTED : QuotationStatus.REJECTED);
+                quotationRepository.save(q);
+
+                if (isWinner) {
+                    eventPublisher.publishQuotationAwarded(QuotationAwardedEvent.builder()
+                            .rfqNumber(rfq.getRfqNumber())
+                            .supplierId(q.getSupplier().getId())
+                            .supplierName(q.getSupplier().getName())
+                            .supplierEmail(q.getSupplier().getEmail())
+                            .unitPrice(q.getUnitPrice())
+                            .build());
+                } else {
+                    eventPublisher.publishQuotationRejected(QuotationRejectedEvent.builder()
+                            .rfqNumber(rfq.getRfqNumber())
+                            .supplierId(q.getSupplier().getId())
+                            .supplierName(q.getSupplier().getName())
+                            .supplierEmail(q.getSupplier().getEmail())
+                            .build());
+                }
             }
+
+            rfq.setStatus(RfqStatus.AWARDED);
+            rfqRepository.save(rfq);
+            
+            PurchaseRequisition pr = rfq.getPurchaseRequisition();
+            pr.setStatus(PRStatus.SUPPLIER_SELECTED);
+            prRepository.save(pr);
+
+            // Real PO — real price, real supplier, no more $0 guess.
+            purchaseOrderService.createFromAwardedQuotation(pr, rfq, winner);
+
+            pr.setStatus(PRStatus.PO_RAISED);
+            prRepository.save(pr);
+
+            log.info("[RFQ] {} awarded to supplier {} at {}", rfq.getRfqNumber(),
+                    winner.getSupplier().getName(), winner.getUnitPrice());
+        } catch (ObjectOptimisticLockingFailureException e) {
+            throw new IllegalStateException("This RFQ was just updated by another request - reload and try again");
         }
-
-        rfq.setStatus(RfqStatus.AWARDED);
-        rfqRepository.save(rfq);
-
-        PurchaseRequisition pr = rfq.getPurchaseRequisition();
-        pr.setStatus(PRStatus.SUPPLIER_SELECTED);
-        prRepository.save(pr);
-
-        // Real PO — real price, real supplier, no more $0 guess.
-        purchaseOrderService.createFromAwardedQuotation(pr, rfq, winner);
-
-        pr.setStatus(PRStatus.PO_RAISED);
-        prRepository.save(pr);
-
-        log.info("[RFQ] {} awarded to supplier {} at {}", rfq.getRfqNumber(),
-                winner.getSupplier().getName(), winner.getUnitPrice());
     }
 
     // ── Supplier portal ──────────────────────────────────────────────────────
@@ -200,7 +212,7 @@ public class RfqServiceImpl implements RfqService {
         return rfqRepository.findByInvitedSuppliers_Id(supplierId).stream()
                 .filter(r -> r.getStatus() == RfqStatus.OPEN)
                 .map(this::toDTO)
-                .toList();
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -233,6 +245,7 @@ public class RfqServiceImpl implements RfqService {
         quotation.setValidityDate(request.getValidityDate());
         quotation.setRemarks(request.getRemarks());
         quotation.setStatus(QuotationStatus.SUBMITTED);
+        quotation.setSubmittedAt(LocalDateTime.now());
 
         return toQuotationDTO(quotationRepository.save(quotation));
     }
@@ -240,8 +253,15 @@ public class RfqServiceImpl implements RfqService {
     @Override
     public List<QuotationResponse> getMyQuotations(Long supplierId) {
         return quotationRepository.findBySupplier_IdOrderBySubmittedAtDesc(supplierId).stream()
-                .map(this::toQuotationDTO).toList();
+                .map(this::toQuotationDTO).collect(Collectors.toList());
     }
+
+    private void assertEligible(Supplier s) {
+        if(!s.isActive() || !"CERTIFIED".equalsIgnoreCase(s.getCertificationStatus())) {
+            throw new IllegalStateException("Supplier "+s.getId()+ " (" + s.getName() + ") is not active/certified");
+        }
+    }
+
 
     // ── Private ──────────────────────────────────────────────────────────────
 
@@ -266,7 +286,7 @@ public class RfqServiceImpl implements RfqService {
                         .supplierName(s.getName())
                         .hasQuoted(quotes.stream().anyMatch(q -> q.getSupplier().getId().equals(s.getId())))
                         .build())
-                .toList();
+                .collect(Collectors.toList());
         return RfqResponse.builder()
                 .id(rfq.getId())
                 .rfqNumber(rfq.getRfqNumber())

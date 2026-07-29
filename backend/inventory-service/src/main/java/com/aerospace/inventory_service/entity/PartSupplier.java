@@ -21,6 +21,4 @@ public class PartSupplier {
     private Long partId;
     private Long supplierId;
 
-    @Builder.Default
-    private boolean preferred = false;
 }

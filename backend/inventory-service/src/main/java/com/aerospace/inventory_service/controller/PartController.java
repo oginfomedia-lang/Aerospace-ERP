@@ -16,6 +16,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.aerospace.inventory_service.dto.PartImportRowDTO;
+import com.aerospace.inventory_service.dto.ImportResultDTO;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -66,7 +68,14 @@ public class PartController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
         partService.deletePart(id);
-        return ResponseEntity.ok(new ApiResponse<>("DELETED", "Part removed successfully"));
+        return ResponseEntity.ok(new ApiResponse<>("DELETED", "Part deactivated successfully"));
+    }
+
+    @Audited(action = "BULK_IMPORT", entityType = "Part")
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
+    @PostMapping("/import")
+    public ResponseEntity<ApiResponse<ImportResultDTO>> importParts(@RequestBody List<PartImportRowDTO> rows) {
+        return ResponseEntity.ok(new ApiResponse<>("IMPORT_COMPLETE", partService.importParts(rows)));
     }
 
     // ERP Step 1+2: Receive Stock & Auto-Generate GRN (F-36 GRN Form)

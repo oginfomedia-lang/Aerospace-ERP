@@ -23,4 +23,11 @@ public class DocumentSequence {
 
     @Column(nullable = false)
     private long nextNumber;
+
+    private String prefix;
+    private String suffix;
+
+    @Builder.Default
+    @Column(nullable=false)
+    private int padding = 5;
 }

@@ -82,7 +82,7 @@ const NCRPage = () => {
     setCapaSubmitting(true);
     try {
       await toast.promise(
-        api.post(`/inventory/capa/ncr/${capaTargetNcr.id}`, capaForm),
+        api.post(`/inventory/ncr/${capaTargetNcr.id}/capa`, capaForm),
         {
           loading: 'Initializing CAPA...',
           success: `CAPA created for NCR ${capaTargetNcr.ncrNumber}`,

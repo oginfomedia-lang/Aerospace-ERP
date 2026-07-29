@@ -1,9 +1,7 @@
 package com.aerospace.auth_service.dto;
 
-import java.util.Set;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -21,7 +19,4 @@ public class RegisterRequest {
     @NotBlank(message = "Email is required")
     @Email(message = "Email must be valid")
     private String email;
-
-    @NotNull(message = "Role is required")
-    private Set<String> roles;
 }

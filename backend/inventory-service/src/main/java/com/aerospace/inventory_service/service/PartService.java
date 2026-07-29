@@ -54,5 +54,7 @@ public interface PartService {
     // Search & History
     List<PartResponseDTO> searchByName(String name);
     Page<PartResponseDTO> getAllParts(Pageable pageable);
-    List<InventoryTransaction> getTransactionHistory(Long partId); // delegates to TransactionService internally
+    List<InventoryTransaction> getTransactionHistory(Long partId); // delegates to TransactionService internally\
+
+    ImportResultDTO importParts(List<PartImportRowDTO> rows);
 }

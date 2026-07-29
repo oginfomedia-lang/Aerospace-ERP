@@ -6,7 +6,7 @@ import productionApi from '../api/productionAxios';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Edit3, Search, Loader2, Clock, MinusCircle, PlusCircle,
-  Layers, MapPin, SlidersHorizontal, CalendarX2, Ban, RotateCcw, Printer, History, X, Wrench, Factory
+  Layers, MapPin, SlidersHorizontal, CalendarX2, Ban, RotateCcw, Printer, History, X, Wrench, Factory, Upload
 } from 'lucide-react';
 import { Part, ApiResponse, MaterialIssueRecord, Location } from '../types/inventory';
 import { OrganizationProfile } from '../types/procurement';
@@ -19,6 +19,7 @@ import { MaterialIssueReceiptDocument } from '../components/MaterialIssueReceipt
 import { IssueMaterialPickerModal } from '../components/IssueMaterialPickerModal';
 import { useAuth } from '../context/AuthContext';
 import { CAN_MANAGE_PARTS, CAN_ISSUE_MATERIAL, hasAnyRole } from '../utils/permissions';
+import { ImportPartsModal } from '../components/ImportPartModal';
 import toast from 'react-hot-toast';
 
 interface WorkOrderNeedingPart {
@@ -110,6 +111,9 @@ const InventoryList = () => {
   const [woOptions, setWoOptions] = useState<WorkOrderNeedingPart[]>([]);
   const [poOptions, setPoOptions] = useState<ProductionOrderNeedingPart[]>([]);
   const [issueContext, setIssueContext] = useState<IssueContext | null>(null);
+
+  // import state
+  const [showImport, setShowImport] = useState(false);
 
   const fetchParts = async (query = '') => {
     setLoading(true);
@@ -416,6 +420,7 @@ const InventoryList = () => {
   return (
     <div className="space-y-6">
       <AddPartModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={() => fetchParts(searchTerm)} />
+      <ImportPartsModal isOpen={showImport} onClose={() => setShowImport(false)} onSuccess={() => fetchParts(searchTerm)} />
       <EditPartModal isOpen={isEditModalOpen} part={selectedPart} onClose={() => setIsEditModalOpen(false)} onSuccess={() => fetchParts(searchTerm)} />
       <StockAdjustmentModal isOpen={isAdjustModalOpen} part={selectedPart} onClose={() => setIsAdjustModalOpen(false)} onSuccess={() => fetchParts(searchTerm)} />
 
@@ -448,6 +453,14 @@ const InventoryList = () => {
           >
             <Printer size={18} /> Print Item Register
           </button>
+          {canManageParts && (
+            <button
+              onClick={() => setShowImport(true)}
+              className="bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl hover:bg-slate-50 transition font-bold flex items-center gap-2"
+            >
+              <Upload size={18} /> Import Parts
+            </button>
+          )}
           {canManageParts && (
             <button
               onClick={() => setIsModalOpen(true)}

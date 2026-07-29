@@ -3,6 +3,7 @@ package com.aerospace.procurement_service.exception;
 import java.util.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.*;
+import org.springframework.security.access.AccessDeniedException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -20,6 +21,14 @@ public class GlobalExceptionHandler {
         error.put("error", "Duplicate Resource");
         error.put("message", ex.getMessage());
         return ResponseEntity.status(409).body(error);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", "Forbidden");
+        error.put("message", ex.getMessage());
+        return ResponseEntity.status(403).body(error);
     }
 
     // Business-rule / validation failures (PUR-BR-*, ARC-BR-*) → 400, not 500

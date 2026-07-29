@@ -4,7 +4,11 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -56,4 +60,34 @@ public class Supplier {
     @JsonIgnore
     @OneToMany(mappedBy = "supplier", cascade = CascadeType.ALL)
     private List<PurchaseOrder> purchaseOrders;
+
+    @Version
+    private Long version;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
+    private String createdBy;
+    private String updatedBy;
+
+    @PrePersist
+    private void stampCreatedBy() {
+        String actor = currentActor();
+        this.createdBy = actor;
+        this.updatedBy = actor;
+    }
+
+    @PreUpdate
+    private void stampUpdatedBy() {
+        this.updatedBy = currentActor();
+    }
+
+    private static String currentActor() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null ? auth.getName() : "SYSTEM";
+    }
 }

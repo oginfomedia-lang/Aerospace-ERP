@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
-  FileCheck2, ClipboardList
+  FileCheck2, ClipboardList, Database
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -160,7 +160,14 @@ const navItems = [
     icon: <ShieldCheck size={18} />,
     description: 'PO approval bands & roles',
     roles: ['MANAGER', 'ADMIN']
-  }
+  },
+  {
+    path: '/master-data-reports',
+    label: 'Master Data Reports',
+    icon: <Database size={18} />,
+    description: 'Inactive, duplicate & change-history records',
+    roles: ['MANAGER', 'ADMIN']
+  },
 ];
 
 const Layout = ({ children }: Props) => {

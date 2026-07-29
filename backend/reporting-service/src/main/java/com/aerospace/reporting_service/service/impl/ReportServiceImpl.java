@@ -2,15 +2,12 @@ package com.aerospace.reporting_service.service.impl;
 
 import com.aerospace.reporting_service.dto.*;
 import com.aerospace.reporting_service.entity.InventoryFact;
-import com.aerospace.reporting_service.entity.ProductionFact;
-import com.aerospace.reporting_service.entity.WorkOrderFact;
 import com.aerospace.reporting_service.repository.*;
 import com.aerospace.reporting_service.service.ReportService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,13 +19,12 @@ public class ReportServiceImpl implements ReportService {
     private final WorkOrderFactRepository workOrderFactRepository;
     private final ProductionFactRepository productionFactRepository;
     private final QAFactRepository qaFactRepository;
-    private final ProcurementFactRepository procurementFactRepository;
 
     @Override
     public DashboardSummaryDTO getDashboardSummary() {
-        long totalParts = inventoryFactRepository.count();
+     //   long totalParts = inventoryFactRepository.count();
         long pendingQA = inventoryFactRepository.countByStatus("PENDING_QA");
-        long rejectedItems = inventoryFactRepository.countByStatus("REJECTED");
+     //   long rejectedItems = inventoryFactRepository.countByStatus("REJECTED");
         long lowStockCount = inventoryFactRepository.countByStatus("LOW_STOCK"); // you'll need to track this via StockLowEvent
 
         double inventoryValue = inventoryFactRepository.findAll().stream()

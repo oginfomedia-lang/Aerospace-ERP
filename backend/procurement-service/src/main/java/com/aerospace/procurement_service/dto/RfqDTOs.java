@@ -4,6 +4,8 @@ import com.aerospace.procurement_service.entity.QuotationStatus;
 import com.aerospace.procurement_service.entity.RfqStatus;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Min;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -56,11 +58,12 @@ public class RfqDTOs {
 
     @Data
     public static class SubmitQuotationRequest {
-        @NotNull private BigDecimal unitPrice;
-        @NotNull private Integer leadTimeDays;
+        @NotNull @Positive private BigDecimal unitPrice;
+        @NotNull @Min(0) private Integer leadTimeDays;
         private LocalDate validityDate;
         private String remarks;
     }
+
 
     @Data
     @Builder

@@ -33,6 +33,7 @@ import SupplierDashboard from './pages/supplier/SupplierDashboard';
 import SupplierRfqDetail from './pages/supplier/SupplierRfqDetail';
 import FaiRecords from './pages/FaiRecords';
 import CapaPage from './pages/CapaPage';
+import MasterDataReports from './pages/MasterDataReports';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -114,6 +115,7 @@ function App() {
             <Route element={<ProtectedRoute requiredRoles={['MANAGER', 'ADMIN']} />}>
               <Route path="/org-settings" element={<OrgSettings />} />
               <Route path="/approval-matrix" element={<ApprovalMatrix />} />
+              <Route path="/master-data-reports" element={<MasterDataReports />} />
             </Route>
           </Route>
         </Route>

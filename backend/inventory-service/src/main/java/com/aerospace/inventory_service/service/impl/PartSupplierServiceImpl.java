@@ -26,10 +26,12 @@ public class PartSupplierServiceImpl implements PartSupplierService {
 
     @Override
     public List<PartSupplierResponse> getApprovedSuppliers(Long partId) {
+        Part part = partRepository.findById(partId)
+                .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
         return partSupplierRepository.findByPartId(partId).stream()
                 .map(ps -> PartSupplierResponse.builder()
                         .supplierId(ps.getSupplierId())
-                        .preferred(ps.isPreferred())
+                        .preferred(ps.getSupplierId().equals(part.getPreferredSupplierId()))
                         .build())
                 .toList();
     }
@@ -42,42 +44,28 @@ public class PartSupplierServiceImpl implements PartSupplierService {
 
         PartSupplier entry = partSupplierRepository.findByPartIdAndSupplierId(partId, request.getSupplierId())
                 .orElse(PartSupplier.builder().partId(partId).supplierId(request.getSupplierId()).build());
-        entry.setPreferred(request.isPreferred());
         partSupplierRepository.save(entry);
 
         if (request.isPreferred()) {
-            // Only one preferred supplier per part — demote every other approved
-            // supplier for this part, and keep Part.preferredSupplierId in sync
-            // (still the field the shortage auto-PO logic actually reads).
-            partSupplierRepository.findByPartId(partId).forEach(ps -> {
-                if (!ps.getSupplierId().equals(request.getSupplierId()) && ps.isPreferred()) {
-                    ps.setPreferred(false);
-                    partSupplierRepository.save(ps);
-                }
-            });
             part.setPreferredSupplierId(request.getSupplierId());
             partRepository.save(part);
         }
 
         return PartSupplierResponse.builder()
                 .supplierId(entry.getSupplierId())
-                .preferred(entry.isPreferred())
+                .preferred(request.isPreferred())
                 .build();
     }
 
     @Override
     @Transactional
     public void removeApprovedSupplier(Long partId, Long supplierId) {
-        boolean wasPreferred = partSupplierRepository.findByPartIdAndSupplierId(partId, supplierId)
-                .map(PartSupplier::isPreferred).orElse(false);
         partSupplierRepository.deleteByPartIdAndSupplierId(partId, supplierId);
 
-        if (wasPreferred) {
-            Part part = partRepository.findById(partId).orElse(null);
-            if (part != null && supplierId.equals(part.getPreferredSupplierId())) {
-                part.setPreferredSupplierId(null);
-                partRepository.save(part);
-            }
+        Part part = partRepository.findById(partId).orElse(null);
+        if (part != null && supplierId.equals(part.getPreferredSupplierId())) {
+            part.setPreferredSupplierId(null);
+            partRepository.save(part);
         }
     }
 
@@ -86,16 +74,22 @@ public class PartSupplierServiceImpl implements PartSupplierService {
         List<PartSupplier> entries = partSupplierRepository.findBySupplierId(supplierId);
         if (entries.isEmpty()) return List.of();
 
-        Map<Long, Boolean> preferredByPartId = entries.stream()
-                .collect(Collectors.toMap(PartSupplier::getPartId, PartSupplier::isPreferred));
+        List<Long> partIds = entries.stream().map(PartSupplier::getPartId).toList();
+        Map<Long, Part> partsById = partRepository.findAllById(partIds).stream()
+                .collect(Collectors.toMap(Part::getId, p -> p));
 
-        return partRepository.findAllById(preferredByPartId.keySet()).stream()
-                .map(p -> PartBasicDTO.builder()
-                        .id(p.getId())
-                        .name(p.getName())
-                        .skuCode(p.getSkuCode())
-                        .preferred(Boolean.TRUE.equals(preferredByPartId.get(p.getId())))
-                        .build())
+        return entries.stream()
+                .map(ps -> {
+                    Part p = partsById.get(ps.getPartId());
+                    if (p == null) return null;
+                    return PartBasicDTO.builder()
+                            .id(p.getId())
+                            .name(p.getName())
+                            .skuCode(p.getSkuCode())
+                            .preferred(ps.getSupplierId().equals(p.getPreferredSupplierId()))
+                            .build();
+                })
+                .filter(java.util.Objects::nonNull)
                 .toList();
     }
 }

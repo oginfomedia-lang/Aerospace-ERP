@@ -68,4 +68,10 @@ public class PartResponseDTO {
     private BigDecimal taxRatePercent;
     private String hsnCode;
     private String description;
+
+    private Long version;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private String createdBy;
+    private String updatedBy;
 }

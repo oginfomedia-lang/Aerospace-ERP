@@ -38,6 +38,10 @@ app:
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
     expiration-ms: 86400000 # 24 hours
     refresh-expiration-ms: 604800000 # 7 days
+  bootstrap-admin:
+    username: ${ADMIN_BOOTSTRAP_USERNAME:admin}
+    email: ${ADMIN_BOOTSTRAP_EMAIL:admin@example.com}
+    password: ${ADMIN_BOOTSTRAP_PASSWORD:}
 
 app.frontend.supplier-portal-base-url: http://localhost:3000
 

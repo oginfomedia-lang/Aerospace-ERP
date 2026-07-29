@@ -33,4 +33,8 @@ public class SupplierRequest {
 
     private String rating;
 
+    private String certificateNumber;
+    private String certifyingBody;
+    private java.time.LocalDate certificationExpiryDate;
+
 }

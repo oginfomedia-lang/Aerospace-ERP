@@ -4,22 +4,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserPlus } from 'lucide-react';
 
-const rolesList = [
-  'STORE_KEEPER',
-  'QA_INSPECTOR',
-  'PRODUCTION_ENGINEER',
-  'PROCUREMENT_OFFICER',
-  'MANAGER',
-  'ADMIN',
-];
-
 const Register: React.FC = () => {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
     confirmPassword: '',
-    roles: [] as string[],
   });
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
@@ -27,15 +17,6 @@ const Register: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleRoleToggle = (role: string) => {
-    setFormData(prev => ({
-      ...prev,
-      roles: prev.roles.includes(role)
-        ? prev.roles.filter(r => r !== role)
-        : [...prev.roles, role],
-    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,7 +30,6 @@ const Register: React.FC = () => {
       username: formData.username,
       email: formData.email,
       password: formData.password,
-      roles: formData.roles.length ? formData.roles : undefined,
     });
     setIsLoading(false);
     if (success) {
@@ -114,31 +94,14 @@ const Register: React.FC = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Roles (optional)</label>
-            <div className="flex flex-wrap gap-2">
-              {rolesList.map(role => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => handleRoleToggle(role)}
-                  className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
-                    formData.roles.includes(role)
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {role}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Default: STORE_KEEPER if none selected</p>
-          </div>
+          <p className="text-xs text-gray-500">
+            New accounts start as <b>Store Keeper</b>. Need a different role? Ask an admin to create your account from User Management.
+          </p>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition-all disabled:opacity-50"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition-all transform hover:scale-[1.02] disabled:opacity-50"
           >
             {isLoading ? 'Creating account...' : 'Register'}
           </button>

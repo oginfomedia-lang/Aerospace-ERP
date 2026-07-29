@@ -28,6 +28,9 @@ const emptyForm = {
   gstinRegType: '',
   certStatus: 'CERTIFIED',
   rating: '',
+  certificateNumber: '',
+  certifyingBody: '',
+  certificationExpiryDate: '',
 };
 
 const ProcurementSuppliers = () => {
@@ -101,6 +104,9 @@ const ProcurementSuppliers = () => {
       gstinRegType: supplier.gstinRegType || '',
       certStatus: supplier.certificationStatus,
       rating: supplier.rating || '',
+      certificateNumber: supplier.certificateNumber || '',
+      certifyingBody: supplier.certifyingBody || '',
+      certificationExpiryDate: supplier.certificationExpiryDate || '',
     });
     setShowModal(true);
   };
@@ -124,6 +130,9 @@ const ProcurementSuppliers = () => {
       gstinRegType: form.gstinRegType || undefined,
       certificationStatus: form.certStatus,
       rating: form.rating || undefined,
+      certificateNumber: form.certificateNumber || undefined,
+      certifyingBody: form.certifyingBody || undefined,
+      certificationExpiryDate: form.certificationExpiryDate || undefined,
     };
 
     try {
@@ -294,6 +303,12 @@ const ProcurementSuppliers = () => {
                       }`}>
                         {supplier.certificationStatus}
                       </span>
+                      {supplier.certificationExpiryDate && (() => {
+                        const daysLeft = Math.ceil((new Date(supplier.certificationExpiryDate).getTime() - Date.now()) / 86400000);
+                        if (daysLeft < 0) return <span className="px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full bg-red-100 text-red-700">Cert Expired</span>;
+                        if (daysLeft <= 30) return <span className="px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full bg-amber-100 text-amber-700">Expires in {daysLeft}d</span>;
+                        return null;
+                      })()}
                       {!supplier.active && (
                         <span className="px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full bg-slate-200 text-slate-600">
                           INACTIVE
@@ -522,6 +537,25 @@ const ProcurementSuppliers = () => {
                     <option value="B">B</option>
                     <option value="C">C</option>
                   </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Certificate Number</label>
+                  <input type="text" value={form.certificateNumber} onChange={e => setForm({ ...form, certificateNumber: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
+                    placeholder="AS9100D-4471" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Certifying Body</label>
+                  <input type="text" value={form.certifyingBody} onChange={e => setForm({ ...form, certifyingBody: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    placeholder="AS9100, NADCAP..." />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Expires On</label>
+                  <input type="date" value={form.certificationExpiryDate} onChange={e => setForm({ ...form, certificationExpiryDate: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                 </div>
               </div>
 

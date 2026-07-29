@@ -50,6 +50,10 @@ public class Supplier {
 
     private String rating; // e.g., "A", "B", "C" based on performance
 
+    private String certificateNumber;      // e.g. "AS9100D-4471"
+    private String certifyingBody;          // e.g. "NADCAP", "AS9100", "ISO 9001"
+    private java.time.LocalDate certificationExpiryDate;
+
     // Soft delete (ARC-BR-003 pattern) — deactivated suppliers stay for history/audit
     // but are blocked from new POs
     @Builder.Default

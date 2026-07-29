@@ -22,6 +22,9 @@ export interface Supplier {
 
   certificationStatus: string;
   rating: string | null;
+  certificateNumber?: string | null;
+  certifyingBody?: string | null;
+  certificationExpiryDate?: string | null; // ISO date, e.g. "2027-03-15"
   active: boolean;
 }
 
@@ -42,6 +45,9 @@ export interface SupplierRequest {
   gstinRegType?: string;
   certificationStatus: string;
   rating?: string;
+  certificateNumber?: string;
+  certifyingBody?: string;
+  certificationExpiryDate?: string;
 }
 
 export interface POLineItemDTO {

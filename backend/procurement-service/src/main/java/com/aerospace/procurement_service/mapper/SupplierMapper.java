@@ -27,6 +27,9 @@ public class SupplierMapper {
                 .gstinRegType(dto.getGstinRegType())
                 .certificationStatus(dto.getCertificationStatus())
                 .rating(dto.getRating())
+                .certificateNumber(dto.getCertificateNumber())
+                .certifyingBody(dto.getCertifyingBody())
+                .certificationExpiryDate(dto.getCertificationExpiryDate())
                 .build();
     }
 
@@ -48,5 +51,8 @@ public class SupplierMapper {
         supplier.setGstinRegType(dto.getGstinRegType());
         supplier.setCertificationStatus(dto.getCertificationStatus());
         supplier.setRating(dto.getRating());
+        supplier.setCertificateNumber(dto.getCertificateNumber());
+        supplier.setCertifyingBody(dto.getCertifyingBody());
+        supplier.setCertificationExpiryDate(dto.getCertificationExpiryDate());
     }
 }

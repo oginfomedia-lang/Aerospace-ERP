@@ -20,6 +20,7 @@ com\aerospace\auth_service\dto\LoginRequest.class
 com\aerospace\auth_service\entity\RefreshToken.class
 com\aerospace\auth_service\service\SupplierAuthService.class
 com\aerospace\auth_service\dto\TokenValidationResponse$TokenValidationResponseBuilder.class
+com\aerospace\auth_service\dto\AdminCreateUserRequest.class
 com\aerospace\auth_service\entity\RefreshToken$RefreshTokenBuilder.class
 com\aerospace\auth_service\security\JwtService.class
 com\aerospace\auth_service\dto\LogoutRequest.class
@@ -36,10 +37,12 @@ com\aerospace\auth_service\entity\SupplierInvite.class
 com\aerospace\auth_service\service\JwtTokenService.class
 com\aerospace\auth_service\dto\SupplierAuthDTOs$SupplierActivateRequest.class
 com\aerospace\auth_service\config\SecurityConfig.class
+com\aerospace\auth_service\config\DataSeeder.class
 com\aerospace\auth_service\exception\GlobalExceptionHandler.class
 com\aerospace\auth_service\dto\UserResponse$UserResponseBuilder.class
 com\aerospace\auth_service\service\AuthService.class
 com\aerospace\auth_service\dto\RegisterRequest.class
+com\aerospace\auth_service\controller\AdminUserController.class
 com\aerospace\auth_service\dto\TokenValidationRequest.class
 com\aerospace\auth_service\security\JwtAuthenticationFilter.class
 com\aerospace\auth_service\controller\SupplierAuthController.class

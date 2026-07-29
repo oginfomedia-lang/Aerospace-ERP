@@ -20,7 +20,6 @@ interface AuthContextType {
     username: string;
     email: string;
     password: string;
-    roles?: string[];
   }) => Promise<boolean>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
@@ -77,7 +76,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     username: string;
     email: string;
     password: string;
-    roles?: string[];
   }): Promise<boolean> => {
     try {
       await registerUser(userData);

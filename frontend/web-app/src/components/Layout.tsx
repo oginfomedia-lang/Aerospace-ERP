@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
-  FileCheck2, ClipboardList, Database
+  FileCheck2, ClipboardList, Database, UserCog
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -146,6 +146,13 @@ const navItems = [
     icon: <Bell size={18} />,
     description: 'Alerts & event feed',
     roles: []
+  },
+  {
+    path: '/admin/users',
+    label: 'User Management',
+    icon: <UserCog size={18} />,
+    description: 'Create staff accounts & assign roles',
+    roles: ['ADMIN']
   },
   {
     path: '/org-settings',
@@ -300,6 +307,7 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/ncr' && 'Non-Conformance Reports'}
               {location.pathname === '/capa' && 'CAPA'}
               {location.pathname === '/calibration' && 'Gauge & Tool Calibration'}
+              {location.pathname === '/admin/users' && 'User Management'}
               {location.pathname === '/org-settings' && 'Organization Settings'}
               {location.pathname === '/approval-matrix' && 'Approval Matrix'}
               {location.pathname === '/vendor-invoices' && 'Vendor Invoices'}

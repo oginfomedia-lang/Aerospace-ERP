@@ -2,8 +2,6 @@ package com.aerospace.reporting_service.entity;
 
 import java.time.LocalDateTime;
 
-import org.springframework.cglib.core.Local;
-
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;

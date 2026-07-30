@@ -47,4 +47,8 @@ public class ApprovalMatrix {
     // If set, escalating reassigns the pending row to this role instead of just
     // flagging it. Null = flag only (a "reminder"), approver stays the same.
     private String escalationToRole;
+
+    private String approverUsername;
+
+    private String parallelGroup;
 }

@@ -35,6 +35,7 @@ public class ApprovalMatrixController {
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
                 .escalationHours(request.getEscalationHours())
                 .escalationToRole(request.getEscalationToRole())
+                .approverUsername(request.getApproverUsername())
                 .build();
         return ResponseEntity.ok(repository.save(matrix));
     }
@@ -52,6 +53,7 @@ public class ApprovalMatrixController {
         if (request.getIsActive() != null) matrix.setActive(request.getIsActive());
         matrix.setEscalationHours(request.getEscalationHours());
         matrix.setEscalationToRole(request.getEscalationToRole());
+        matrix.setApproverUsername(request.getApproverUsername());
         return ResponseEntity.ok(repository.save(matrix));
     }
 

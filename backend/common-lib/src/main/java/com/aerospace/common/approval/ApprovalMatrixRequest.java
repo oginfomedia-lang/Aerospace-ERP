@@ -14,4 +14,5 @@ public class ApprovalMatrixRequest {
     private Boolean isActive;
     private Integer escalationHours;
     private String escalationToRole;
+    private String approverUsername;
 }

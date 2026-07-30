@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 
 @Service
@@ -27,16 +29,23 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         List<ApprovalMatrix> bands = matrixRepository
                 .findByModuleCodeAndIsActiveTrueAndAmountFromLessThanEqualOrderByLevelSequenceAsc(moduleCode, amount);
 
+        // Bands sharing a levelSequence are parallel peers (Parallel Approval) — every band
+        // at the FIRST distinct level starts PENDING together; everything at later levels
+        // waits. With one band per level (today's only real config), this is identical to
+        // the old "bands.get(0) is PENDING, rest WAITING" behavior.
+        List<Integer> levelsInOrder = bands.stream().map(ApprovalMatrix::getLevelSequence).distinct().toList();
+        int firstLevel = levelsInOrder.isEmpty() ? -1 : levelsInOrder.get(0);
+
         List<ApprovalHistory> rows = new ArrayList<>();
-        for (int i = 0; i < bands.size(); i++) {
-            ApprovalMatrix band = bands.get(i);
+        for (ApprovalMatrix band : bands) {
+            boolean isFirst = band.getLevelSequence() == firstLevel;
             rows.add(historyRepository.save(ApprovalHistory.builder()
                     .moduleCode(moduleCode)
                     .documentId(documentId)
                     .approvalLevel(band.getLevelSequence())
                     .approverRole(band.getApproverRole())
-                    .status(i == 0 ? ApprovalActionStatus.PENDING : ApprovalActionStatus.WAITING)
-                    .pendingSince(i == 0 ? LocalDateTime.now() : null)
+                    .status(isFirst ? ApprovalActionStatus.PENDING : ApprovalActionStatus.WAITING)
+                    .pendingSince(isFirst ? LocalDateTime.now() : null)
                     .documentVersion(documentVersion)
                     .build()));
         }
@@ -50,16 +59,15 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         List<ApprovalHistory> rows = historyRepository
                 .findByModuleCodeAndDocumentIdOrderByApprovalLevelAsc(moduleCode, documentId);
 
-        ApprovalHistory pending = rows.stream()
+        List<ApprovalHistory> pendingCandidates = rows.stream()
                 .filter(r -> r.getStatus() == ApprovalActionStatus.PENDING)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "No pending approval found for " + moduleCode + " #" + documentId));
-
-        if (!approverRoles.contains(pending.getApproverRole())) {
-            throw new IllegalArgumentException("This document requires role " + pending.getApproverRole()
-                    + " to approve at level " + pending.getApprovalLevel() + ".");
+                .toList();
+        if (pendingCandidates.isEmpty()) {
+            throw new IllegalStateException("No pending approval found for " + moduleCode + " #" + documentId);
         }
+        ApprovalHistory pending = resolveActingRow(moduleCode, pendingCandidates, approverRoles, approverUsername)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "None of the pending approvals at this stage match your role/user."));
 
         LocalDateTime now = LocalDateTime.now();
         pending.setStatus(ApprovalActionStatus.APPROVED);
@@ -69,17 +77,37 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         pending.setDigitalSignatureHash(computeSignatureHash(approverUsername, now, documentId, pending.getDocumentVersion(), remarks));
         historyRepository.save(pending);
 
-        ApprovalHistory next = rows.stream()
-                .filter(r -> r.getApprovalLevel() == pending.getApprovalLevel() + 1)
-                .findFirst().orElse(null);
+        // Parallel Approval: don't advance until every peer sharing this level has APPROVED.
+        // With one band per level (today's only real config) this is trivially true the
+        // instant `pending` itself approves, same as before.
+        int currentLevel = pending.getApprovalLevel();
+        boolean allPeersCleared = rows.stream()
+                .filter(r -> r.getApprovalLevel() == currentLevel)
+                .allMatch(r -> r == pending || r.getStatus() == ApprovalActionStatus.APPROVED);
 
-        if (next == null) {
+        if (!allPeersCleared) {
+            return new ApprovalOutcome(ApprovalOutcome.Status.PENDING_NEXT_LEVEL, currentLevel, pending.getApproverRole());
+        }
+
+        // "Next distinct level above current" instead of the old hardcoded level+1 — this
+        // also correctly handles non-contiguous level numbers (e.g. 1, 5, 10), which the
+        // old +1 lookup would have silently mishandled.
+        OptionalInt nextLevel = rows.stream()
+                .filter(r -> r.getApprovalLevel() > currentLevel && r.getStatus() == ApprovalActionStatus.WAITING)
+                .mapToInt(ApprovalHistory::getApprovalLevel)
+                .min();
+
+        if (nextLevel.isEmpty()) {
             return new ApprovalOutcome(ApprovalOutcome.Status.FULLY_APPROVED, null, null);
         }
-        next.setStatus(ApprovalActionStatus.PENDING);
-        next.setPendingSince(LocalDateTime.now());
-        historyRepository.save(next);
-        return new ApprovalOutcome(ApprovalOutcome.Status.PENDING_NEXT_LEVEL, next.getApprovalLevel(), next.getApproverRole());
+        List<ApprovalHistory> promoted = rows.stream()
+                .filter(r -> r.getApprovalLevel() == nextLevel.getAsInt() && r.getStatus() == ApprovalActionStatus.WAITING)
+                .toList();
+        promoted.forEach(r -> { r.setStatus(ApprovalActionStatus.PENDING); r.setPendingSince(now); });
+        historyRepository.saveAll(promoted);
+
+        String nextRole = promoted.stream().map(ApprovalHistory::getApproverRole).sorted().findFirst().orElse(null);
+        return new ApprovalOutcome(ApprovalOutcome.Status.PENDING_NEXT_LEVEL, nextLevel.getAsInt(), nextRole);
     }
 
     @Override
@@ -92,16 +120,15 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         List<ApprovalHistory> rows = historyRepository
                 .findByModuleCodeAndDocumentIdOrderByApprovalLevelAsc(moduleCode, documentId);
 
-        ApprovalHistory pending = rows.stream()
+        List<ApprovalHistory> pendingCandidates = rows.stream()
                 .filter(r -> r.getStatus() == ApprovalActionStatus.PENDING)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "No pending approval found for " + moduleCode + " #" + documentId));
-
-        if (!approverRoles.contains(pending.getApproverRole())) {
-            throw new IllegalArgumentException("This document requires role " + pending.getApproverRole()
-                    + " to reject at level " + pending.getApprovalLevel() + ".");
+                .toList();
+        if (pendingCandidates.isEmpty()) {
+            throw new IllegalStateException("No pending approval found for " + moduleCode + " #" + documentId);
         }
+        ApprovalHistory pending = resolveActingRow(moduleCode, pendingCandidates, approverRoles, approverUsername)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "None of the pending approvals at this stage match your role/user."));
 
         LocalDateTime now = LocalDateTime.now();
         pending.setStatus(ApprovalActionStatus.REJECTED);
@@ -110,12 +137,48 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         pending.setRemarks(remarks);
         pending.setDigitalSignatureHash(computeSignatureHash(approverUsername, now, documentId, pending.getDocumentVersion(), remarks));
         historyRepository.save(pending);
+
+        // Parallel Approval: a rejection kills the whole chain, so any sibling still PENDING
+        // at this same level is now moot — close it out too instead of leaving it dangling.
+        // For sequential (non-parallel) bands there is never a sibling, so this is a no-op.
+        List<ApprovalHistory> siblings = rows.stream()
+                .filter(r -> r != pending && r.getApprovalLevel() == pending.getApprovalLevel()
+                        && r.getStatus() == ApprovalActionStatus.PENDING)
+                .toList();
+        siblings.forEach(r -> {
+            r.setStatus(ApprovalActionStatus.REJECTED);
+            r.setRemarks("Auto-closed: peer rejected at this level.");
+        });
+        if (!siblings.isEmpty()){ historyRepository.saveAll(siblings);}
+
         return new ApprovalOutcome(ApprovalOutcome.Status.REJECTED, null, null);
     }
 
     @Override
     public List<ApprovalHistory> getHistory(String moduleCode, Long documentId) {
         return historyRepository.findByModuleCodeAndDocumentIdOrderByApprovalLevelAsc(moduleCode, documentId);
+    }
+
+    // Which of possibly-several PENDING rows (parallel peers share a level) is THIS caller
+    // allowed to act on: either they hold the row's configured role, or — if the originating
+    // band pins a specific approverUsername (User-Based Approval) — they ARE that exact
+    // user regardless of role. Bands never set approverUsername/parallelGroup today, so for
+    // every existing PurchaseOrder/VendorInvoice band this reduces to "the one PENDING row,
+    // if its role matches" — identical to the old single-row check.
+    private Optional<ApprovalHistory> resolveActingRow(String moduleCode, List<ApprovalHistory> pendingCandidates,
+                                                        Set<String> approverRoles, String approverUsername) {
+        List<ApprovalMatrix> bands = matrixRepository.findByModuleCodeOrderByLevelSequenceAsc(moduleCode);
+        for (ApprovalHistory row : pendingCandidates) {
+            ApprovalMatrix band = bands.stream()
+                    .filter(b -> b.getLevelSequence() == row.getApprovalLevel()
+                            && b.getApproverRole().equals(row.getApproverRole()))
+                    .findFirst().orElse(null);
+            boolean roleMatches = approverRoles.contains(row.getApproverRole());
+            boolean userMatches = band != null && band.getApproverUsername() != null
+                    && band.getApproverUsername().equalsIgnoreCase(approverUsername);
+            if (roleMatches || userMatches) return Optional.of(row);
+        }
+        return Optional.empty();
     }
 
     // Same tamper-evident technique every service used to duplicate on its own

@@ -183,6 +183,13 @@ const navItems = [
     roles: ['MANAGER', 'ADMIN']
   },
   {
+    path: '/approval-reports',
+    label: 'Approval Reports',
+    icon: <ClipboardList size={18} />,
+    description: 'Pending approvals, SLA compliance, turnaround time',
+    roles: ['MANAGER', 'ADMIN']
+  },
+  {
     path: '/audit-trail',
     label: 'Audit Trail',
     icon: <History size={18} />,

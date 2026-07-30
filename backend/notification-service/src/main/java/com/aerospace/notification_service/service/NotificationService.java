@@ -30,4 +30,6 @@ public interface NotificationService {
     List<NotificationLog> getByPartId(Long partId);
     List<NotificationLog> getByBatchNumber(String batchNumber);
     List<NotificationLog> getByType(String type);
+
+    void handleApprovalEscalated(ApprovalEscalatedEvent event);
 }

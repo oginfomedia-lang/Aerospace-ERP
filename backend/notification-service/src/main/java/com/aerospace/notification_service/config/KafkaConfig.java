@@ -158,4 +158,32 @@ public class KafkaConfig {
     capaEventListenerFactory() {
         return factory(CapaEvent.class);
     }
+
+    @Bean
+    public ConsumerFactory<String, ApprovalEscalatedEvent> approvalEscalatedConsumerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "notification-group");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+
+        JsonDeserializer<ApprovalEscalatedEvent> deserializer = new JsonDeserializer<>(ApprovalEscalatedEvent.class);
+        deserializer.setUseTypeHeaders(false);
+        deserializer.addTrustedPackages("*");
+
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(),
+                new ErrorHandlingDeserializer<>(deserializer));
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, ApprovalEscalatedEvent> approvalEscalatedListenerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, ApprovalEscalatedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(approvalEscalatedConsumerFactory());
+        factory.setCommonErrorHandler(new org.springframework.kafka.listener.DefaultErrorHandler(
+                new org.springframework.util.backoff.FixedBackOff(2000L, 3)));
+        return factory;
+    }
+
 }

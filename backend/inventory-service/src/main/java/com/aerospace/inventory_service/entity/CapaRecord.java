@@ -56,4 +56,8 @@ public class CapaRecord {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
+
+    // Set once an overdue notification has fired for this CAPA — prevents the daily
+    // scheduler from re-notifying every single day for the same overdue record.
+    private LocalDateTime overdueNotifiedAt;
 }

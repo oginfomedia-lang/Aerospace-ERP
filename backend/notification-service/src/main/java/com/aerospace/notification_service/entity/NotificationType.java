@@ -21,5 +21,8 @@ public enum NotificationType {
     // ── QA events ────────────────────────────────────────────────────────────
     CALIBRATION_DUE,      // gauge/tool is due or overdue for calibration
     FAI_COMPLETED,        // First Article Inspection completed
-    CAPA_STATUS_CHANGED   // CAPA record stage updated
+    CAPA_STATUS_CHANGED,  // CAPA record stage updated
+    CAPA_OVERDUE,
+
+    APPROVAL_ESCALATED
 }

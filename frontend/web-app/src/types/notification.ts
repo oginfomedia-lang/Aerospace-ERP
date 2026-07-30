@@ -19,7 +19,10 @@ export type NotificationType =
   | 'WORK_ORDER_UPDATED'
   | 'WORK_ORDER_COMPLETED'
   // ── QA types ───────────────────────────────────────────────────────────────
-  | 'CALIBRATION_DUE';
+  | 'CALIBRATION_DUE'
+  | 'CAPA_STATUS_CHANGED'
+  | 'CAPA_OVERDUE'
+  | 'APPROVAL_ESCALATED';
 
 export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED';
 

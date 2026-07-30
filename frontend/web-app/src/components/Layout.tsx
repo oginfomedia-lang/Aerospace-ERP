@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
-  FileCheck2, ClipboardList, Database, UserCog
+  FileCheck2, ClipboardList, Database, UserCog, History, Clock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -127,6 +127,13 @@ const navItems = [
     roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
   },
   {
+    path: '/sla-tracking',
+    label: 'SLA & Overdue',
+    icon: <Clock size={18} />,
+    description: 'Overdue CAPAs & escalated approvals',
+    roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
+  },
+  {
     path: '/production',
     label: 'Production',
     icon: <Factory size={18} />,
@@ -173,6 +180,13 @@ const navItems = [
     label: 'Master Data Reports',
     icon: <Database size={18} />,
     description: 'Inactive, duplicate & change-history records',
+    roles: ['MANAGER', 'ADMIN']
+  },
+  {
+    path: '/audit-trail',
+    label: 'Audit Trail',
+    icon: <History size={18} />,
+    description: 'Who changed what, when',
     roles: ['MANAGER', 'ADMIN']
   },
 ];

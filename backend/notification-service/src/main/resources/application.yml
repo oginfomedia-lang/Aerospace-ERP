@@ -66,6 +66,8 @@ notification:
       # ── QA topics ─────────────────────────────────────────────────────────
       calibration-due:      qa.calibration.due
 
+      approval-escalated:   approval-escalated-events
+
 logging:
   level:
     com.aerospace.notification_service: DEBUG

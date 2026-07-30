@@ -34,6 +34,8 @@ import SupplierRfqDetail from './pages/supplier/SupplierRfqDetail';
 import FaiRecords from './pages/FaiRecords';
 import CapaPage from './pages/CapaPage';
 import MasterDataReports from './pages/MasterDataReports';
+import AuditTrail from './pages/AuditTrail';
+import SlaTracking from './pages/SlaTracking';
 import UserManagement from './pages/UserManagement';
 
 function App() {
@@ -92,6 +94,7 @@ function App() {
 
             <Route element={<ProtectedRoute requiredRoles={['QA_INSPECTOR', 'MANAGER', 'ADMIN']} />}>
               <Route path='/capa' element={<CapaPage />} />
+              <Route path="/sla-tracking" element={<SlaTracking />} />
             </Route>
 
             {/* Production / Work Orders / Routing Templates */}
@@ -117,6 +120,7 @@ function App() {
               <Route path="/org-settings" element={<OrgSettings />} />
               <Route path="/approval-matrix" element={<ApprovalMatrix />} />
               <Route path="/master-data-reports" element={<MasterDataReports />} />
+              <Route path="/audit-trail" element={<AuditTrail />} />
             </Route>
 
             {/* User Management — Admin only, not Manager */}

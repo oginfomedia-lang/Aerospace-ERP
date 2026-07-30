@@ -191,4 +191,19 @@ public class NotificationConsumer {
             log.error("[CONSUMER] Failed CapaEvent capaNumber={}: {}", event.getCapaNumber(), ex.getMessage(), ex);
         }
     }
+
+    @KafkaListener(
+        topics           = "${notification.kafka.topics.approval-escalated}",
+        groupId          = "notification-group",
+        containerFactory = "approvalEscalatedListenerFactory"
+    )
+    public void onApprovalEscalated(ApprovalEscalatedEvent event) {
+        log.info("[CONSUMER] approval-escalated-events -> {} #{} level {} -> {}",
+                event.getModuleCode(), event.getDocumentId(), event.getApprovalLevel(), event.getNewApproverRole());
+        try { notificationService.handleApprovalEscalated(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed ApprovalEscalatedEvent {} #{}: {}",
+                    event.getModuleCode(), event.getDocumentId(), ex.getMessage(), ex);
+        }
+    }
 }

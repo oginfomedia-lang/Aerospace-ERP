@@ -14,7 +14,6 @@ import com.aerospace.inventory_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import org.hibernate.annotations.Cache;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,7 +21,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -166,6 +164,10 @@ public class PartServiceImpl implements PartService {
             );
         } catch (Exception ex) {
             log.warn("[KAFKA] STOCK_RECEIVED publish failed for partId={}: {}", id, ex.getMessage());
+        }
+
+        if (targetStatus == StockStatus.APPROVED) {
+            checkAndPublishLowStock(part, totalApprovedStock(id), batch, loc);
         }
 
         PartResponseDTO response = mapper.toDTO(part);
@@ -605,7 +607,9 @@ public class PartServiceImpl implements PartService {
         if (dto.getHsnCode() != null) part.setHsnCode(dto.getHsnCode());
         if (dto.getDescription() != null) part.setDescription(dto.getDescription());
 
-        return mapWithLiveStock(partRepository.save(part), null);
+        Part saved = partRepository.save(part);
+        checkAndPublishLowStock(saved, totalApprovedStock(saved.getId()), null, null);
+        return mapWithLiveStock(saved, null);
     }
 
     @Override

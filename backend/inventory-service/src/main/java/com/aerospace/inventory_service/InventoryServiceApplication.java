@@ -10,8 +10,8 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication(scanBasePackages = {"com.aerospace.inventory_service", "com.aerospace.common"})
-@EntityScan(basePackages = {"com.aerospace.inventory_service.entity", "com.aerospace.inventory_service.audit", "com.aerospace.common"})
-@EnableJpaRepositories(basePackages = {"com.aerospace.inventory_service.repository", "com.aerospace.inventory_service.audit", "com.aerospace.common"})
+@EntityScan(basePackages = {"com.aerospace.inventory_service.entity", "com.aerospace.common"})
+@EnableJpaRepositories(basePackages = {"com.aerospace.inventory_service.repository", "com.aerospace.common"})
 @EnableDiscoveryClient
 public class InventoryServiceApplication {
 

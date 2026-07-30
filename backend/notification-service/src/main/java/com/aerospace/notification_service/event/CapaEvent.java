@@ -24,4 +24,6 @@ public class CapaEvent {
     private String actor;
     private String remarks;
     private LocalDateTime timestamp;
+    @Builder.Default
+    private boolean overdue = false;
 }

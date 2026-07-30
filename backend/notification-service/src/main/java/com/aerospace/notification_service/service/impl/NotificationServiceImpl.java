@@ -248,19 +248,26 @@ public class NotificationServiceImpl implements NotificationService {
     public void handleCapaEvent(CapaEvent event) {
         log.info("[NOTIFY] CAPA_EVENT → capaNumber={}, status={} -> {}", event.getCapaNumber(), event.getFromStatus(), event.getToStatus());
 
-        String severity = "CLOSED".equalsIgnoreCase(event.getToStatus()) ? "INFO"
-                : "REJECTED".equalsIgnoreCase(event.getToStatus()) ? "WARNING"
-                : "INFO";
-
-        String message = String.format(
-                "🛡️ CAPA UPDATE: %s (%s) transitioned from %s to %s by %s. Remarks: %s",
-                event.getCapaNumber(), event.getPartName() != null ? event.getPartName() : "NCR " + event.getNcrNumber(),
-                event.getFromStatus() != null ? event.getFromStatus() : "OPEN", event.getToStatus(),
-                event.getActor() != null ? event.getActor() : "System",
-                event.getRemarks() != null ? event.getRemarks() : "—");
+        String severity;
+        String message;
+        if (event.isOverdue()) {
+            severity = "WARNING";
+            message = String.format("⏰ CAPA OVERDUE: %s is past its target close date. %s",
+                    event.getCapaNumber(), event.getRemarks() != null ? event.getRemarks() : "");
+        } else {
+            severity = "CLOSED".equalsIgnoreCase(event.getToStatus()) ? "INFO"
+                    : "REJECTED".equalsIgnoreCase(event.getToStatus()) ? "WARNING"
+                    : "INFO";
+            message = String.format(
+                    "🛡️ CAPA UPDATE: %s (%s) transitioned from %s to %s by %s. Remarks: %s",
+                    event.getCapaNumber(), event.getPartName() != null ? event.getPartName() : "NCR " + event.getNcrNumber(),
+                    event.getFromStatus() != null ? event.getFromStatus() : "OPEN", event.getToStatus(),
+                    event.getActor() != null ? event.getActor() : "System",
+                    event.getRemarks() != null ? event.getRemarks() : "—");
+        }
 
         dispatch(NotificationLog.builder()
-                .type(NotificationType.CAPA_STATUS_CHANGED)
+                .type(event.isOverdue() ? NotificationType.CAPA_OVERDUE : NotificationType.CAPA_STATUS_CHANGED)
                 .batchNumber(event.getBatchNumber())
                 .message(message)
                 .severity(severity)
@@ -419,5 +426,22 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.save(log_);
         log.info("[NOTIFY] ✅ Persisted notification | type={} partId={} status={}",
                 log_.getType(), log_.getPartId(), status);
+    }
+
+    @Override
+    public void handleApprovalEscalated(ApprovalEscalatedEvent event) {
+        log.info("[NOTIFY] APPROVAL_ESCALATED → {} #{} level {} -> {}",
+                event.getModuleCode(), event.getDocumentId(), event.getApprovalLevel(), event.getNewApproverRole());
+
+        String message = String.format(
+                "⚠️ APPROVAL ESCALATED: %s #%d (level %d) was reassigned to %s — pending since %s with no action.",
+                event.getModuleCode(), event.getDocumentId(), event.getApprovalLevel(),
+                event.getNewApproverRole(), event.getPendingSince());
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.APPROVAL_ESCALATED)
+                .message(message)
+                .severity("WARNING")
+                .build(), message);
     }
 }

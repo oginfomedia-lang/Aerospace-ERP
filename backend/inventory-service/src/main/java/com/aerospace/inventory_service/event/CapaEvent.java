@@ -24,4 +24,9 @@ public class CapaEvent {
     private String actor;
     private String remarks;
     private LocalDateTime timestamp;
+    // true only for the new daily overdue check below — false/absent for every normal
+    // status-transition event this class already carries (fromStatus/toStatus stay
+    // meaningful in both cases; overdue publishes with fromStatus == toStatus).
+    @Builder.Default
+    private boolean overdue = false;
 }

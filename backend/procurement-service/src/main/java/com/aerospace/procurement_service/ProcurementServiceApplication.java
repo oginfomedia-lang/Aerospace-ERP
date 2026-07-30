@@ -8,8 +8,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {"com.aerospace.procurement_service", "com.aerospace.common"})
-@EntityScan(basePackages = {"com.aerospace.procurement_service.entity", "com.aerospace.procurement_service.audit", "com.aerospace.common"})
-@EnableJpaRepositories(basePackages = {"com.aerospace.procurement_service.repository", "com.aerospace.procurement_service.audit", "com.aerospace.common"})
+@EntityScan(basePackages = {"com.aerospace.procurement_service.entity", "com.aerospace.common"})
+@EnableJpaRepositories(basePackages = {"com.aerospace.procurement_service.repository", "com.aerospace.common"})
 @EnableDiscoveryClient
 @EnableScheduling
 public class ProcurementServiceApplication {

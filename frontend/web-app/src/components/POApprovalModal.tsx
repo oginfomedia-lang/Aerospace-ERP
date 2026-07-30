@@ -88,7 +88,14 @@ export const POApprovalModal: React.FC<Props> = ({ po, onClose, onSuccess }) => 
           ) : history.map(h => (
             <div key={h.approvalLevel} className={`p-4 rounded-xl border ${statusStyle[h.status] || statusStyle.WAITING}`}>
               <div className="flex items-center justify-between">
-                <span className="font-black text-sm">Level {h.approvalLevel} — {h.approverRole}</span>
+                <span className="font-black text-sm flex items-center gap-2">
+                  Level {h.approvalLevel} — {h.approverRole}
+                  {h.escalated && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded bg-orange-100 text-orange-700 border border-orange-200">
+                      ⚠ Escalated
+                    </span>
+                  )}
+                </span>
                 <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider">
                   {h.status === 'APPROVED' && <CheckCircle2 size={12} />}
                   {h.status === 'REJECTED' && <XCircle size={12} />}

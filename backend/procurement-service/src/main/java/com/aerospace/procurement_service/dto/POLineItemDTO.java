@@ -37,6 +37,9 @@ public class POLineItemDTO {
     private Integer rejectedQuantity;
     private String ncrNumber;
 
+    // Cumulative quantity physically received so far (read-only, from GRNs formed against this line)
+    private Integer receivedQuantity;
+
     // Set when this line was pre-filled via "Raise Replacement PO" for a rejected
     // quantity on another PO's NCR (see PurchaseOrderMapper for how it's persisted).
     private String replacementForNcrNumber;

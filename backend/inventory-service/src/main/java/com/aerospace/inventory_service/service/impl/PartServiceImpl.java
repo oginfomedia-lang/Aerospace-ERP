@@ -7,7 +7,7 @@ import com.aerospace.inventory_service.event.producer.InventoryProducer;
 import com.aerospace.inventory_service.exception.ResourceNotFoundException;
 import com.aerospace.inventory_service.mapper.PartMapper;
 import com.aerospace.inventory_service.repository.*;
-import com.aerospace.inventory_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import com.aerospace.inventory_service.service.LocationService;
 import com.aerospace.inventory_service.service.PartService;
 import com.aerospace.inventory_service.service.TransactionService;
@@ -384,24 +384,7 @@ public class PartServiceImpl implements PartService {
             log.warn("[KAFKA] MATERIAL_ISSUED publish failed for partId={}: {}", id, ex.getMessage());
         }
 
-        // Trigger LOW_STOCK alert if total remaining APPROVED stock drops at or below reorder level
-        if (part.getReorderLevel() != null && totalRemainingApproved <= part.getReorderLevel()) {
-            try {
-                inventoryProducer.sendLowStockEvent(
-                    StockLowEvent.builder()
-                        .partId(id)
-                        .partName(part.getName())
-                        .skuCode(part.getSkuCode())
-                        .batchNumber(result.batchSummary())
-                        .currentQuantity(totalRemainingApproved)
-                        .reorderLevel(part.getReorderLevel())
-                        .location(result.lastLocation() != null ? result.lastLocation() : "")
-                        .build()
-                );
-            } catch (Exception ex) {
-                log.warn("[KAFKA] STOCK_LOW publish failed for partId={}: {}", id, ex.getMessage());
-            }
-        }
+        checkAndPublishLowStock(part, totalRemainingApproved, result.batchSummary(), result.lastLocation());
 
         PartResponseDTO response = mapper.toDTO(part);
         response.setQuantity(totalRemainingApproved);
@@ -497,6 +480,11 @@ public class PartServiceImpl implements PartService {
         } catch (Exception ex) {
             log.warn("[KAFKA] QA_STATUS_CHANGED publish failed for partId={}: {}", id, ex.getMessage());
         }
+
+        // A rejection means less of this batch became available than was pending — the
+        // part's total APPROVED stock can drop below reorder level here just as easily as
+        // from a material issue, so the same check must run on this path too.
+        checkAndPublishLowStock(part, totalApprovedStock(id), batch, loc);
 
         PartResponseDTO response = mapper.toDTO(part);
         response.setQuantity(approved);
@@ -627,6 +615,8 @@ public class PartServiceImpl implements PartService {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Reserve quantity must be greater than zero.");
         }
+        Part part = partRepository.findById(partId)
+                .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
         // Same multi-location caveat as issueToProductionWithAllocation — a batch's APPROVED
         // stock can be spread across more than one StockBalance row (bin-to-bin transfer), so
         // resolve against all of them rather than a single-result lookup that throws once a
@@ -668,6 +658,11 @@ public class PartServiceImpl implements PartService {
         // QA_DECISION, so the ledger's running balance stays accurate.
         transactionService.logTransaction(partId, batch, "STOCK_RESERVATION",
                 0, null, "Reserved for Work Order (" + quantity + " units)");
+
+        // Reserving takes stock out of the AVAILABLE (APPROVED) bucket just as materially as
+        // issuing it does — total APPROVED can cross the reorder threshold here too.
+        checkAndPublishLowStock(part, totalApprovedStock(partId), batch,
+                approvedBalances.get(0).getLocation());
     }
 
     @Override
@@ -774,6 +769,39 @@ public class PartServiceImpl implements PartService {
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────────
+
+    // Total APPROVED (available) stock across every batch/location for this part —
+    // the number reorder-level comparisons must use, not any single batch/location row.
+    private int totalApprovedStock(Long partId) {
+        return balanceRepository.findAllBalancesByPart(partId).stream()
+                .filter(b -> b.getStatus() == StockStatus.APPROVED)
+                .mapToInt(b -> b.getQuantity() != null ? b.getQuantity() : 0)
+                .sum();
+    }
+
+    // Centralized low-stock check — must be called after ANY change that can reduce a
+    // part's total APPROVED quantity (material issue, QA rejection, reservation), not just
+    // the original "issue material to a Work Order" path. Missing this on a path means a
+    // part can silently drop below reorder level with no auto-PR ever raised for it.
+    private void checkAndPublishLowStock(Part part, int totalRemainingApproved, String batchNumber, String location) {
+        if (part.getReorderLevel() != null && totalRemainingApproved <= part.getReorderLevel()) {
+            try {
+                inventoryProducer.sendLowStockEvent(
+                    StockLowEvent.builder()
+                        .partId(part.getId())
+                        .partName(part.getName())
+                        .skuCode(part.getSkuCode())
+                        .batchNumber(batchNumber != null ? batchNumber : "")
+                        .currentQuantity(totalRemainingApproved)
+                        .reorderLevel(part.getReorderLevel())
+                        .location(location != null ? location : "")
+                        .build()
+                );
+            } catch (Exception ex) {
+                log.warn("[KAFKA] STOCK_LOW publish failed for partId={}: {}", part.getId(), ex.getMessage());
+            }
+        }
+    }
 
     /** Builds a structured GRN remark string for transaction traceability (F-36 GRN Form) */
     private String buildGrnRemark(String grnNumber, String challanNumber,

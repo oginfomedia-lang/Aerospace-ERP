@@ -20,6 +20,11 @@
 
 	<dependencyManagement>
         <dependencies>
+		<dependency>
+            <groupId>com.aerospace</groupId>
+            <artifactId>common-lib</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -31,6 +36,12 @@
     </dependencyManagement>
 	
 	<dependencies>
+
+		<!-- Shared library: numbering + approval engines -->
+		<dependency>
+			<groupId>com.aerospace</groupId>
+			<artifactId>common-lib</artifactId>
+		</dependency>
 
 		<!-- Web -->
 		<dependency>
@@ -149,6 +160,9 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<parameters>true</parameters>
+				</configuration>
 				<executions>
 					<execution>
 						<id>default-compile</id>

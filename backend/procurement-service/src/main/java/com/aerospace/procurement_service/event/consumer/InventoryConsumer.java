@@ -5,6 +5,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 import com.aerospace.procurement_service.event.KafkaTopics;
+import com.aerospace.procurement_service.event.MaterialReceivedEvent;
 import com.aerospace.procurement_service.event.MaterialShortageEvent;
 import com.aerospace.procurement_service.event.QAStatusChangedEvent;
 import com.aerospace.procurement_service.event.StockLowEvent;
@@ -73,6 +74,22 @@ public class InventoryConsumer {
             poService.applyQaOutcome(event);
         } catch (Exception e) {
             log.error("Failed to apply QA outcome to purchase order", e);
+        }
+    }
+
+    // GRN formed against a PO line — accumulate received qty and auto-transition PO status
+    // (PARTIALLY_RECEIVED / RECEIVED). Multiple receipts against the same PO are normal
+    // (partial/multi-truck deliveries), so this is additive, not a one-shot flag.
+    @KafkaListener(
+        topics = KafkaTopics.MATERIAL_RECEIVED,
+        groupId = "procurement-service-group",
+        containerFactory = "materialReceivedKafkaListenerContainerFactory"
+    )
+    public void handleMaterialReceived(@Payload MaterialReceivedEvent event) {
+        try {
+            poService.applyMaterialReceipt(event);
+        } catch (Exception e) {
+            log.error("Failed to apply material receipt to purchase order {}", event.getPoNumber(), e);
         }
     }
 

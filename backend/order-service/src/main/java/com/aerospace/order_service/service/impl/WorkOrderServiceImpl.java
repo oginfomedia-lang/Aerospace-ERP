@@ -8,7 +8,7 @@ import com.aerospace.order_service.exception.ResourceNotFoundException;
 import com.aerospace.order_service.exception.InvalidStatusTransitionException;
 import com.aerospace.order_service.repository.*;
 import com.aerospace.order_service.service.WorkOrderService;
-import com.aerospace.order_service.service.WoNumberGeneratorService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +34,7 @@ public class WorkOrderServiceImpl implements WorkOrderService {
     private final MaterialLineItemRepository lineItemRepository;
     private final WorkOrderStatusHistoryRepository historyRepository;
     private final WorkOrderProducer producer;
-    private final WoNumberGeneratorService woNumberGenerator;
+    private final DocumentSequenceService documentSequenceService;
     private final RestTemplate restTemplate;
     private final HttpServletRequest request;
 
@@ -57,7 +57,7 @@ public class WorkOrderServiceImpl implements WorkOrderService {
     @Override
     @Transactional
     public WorkOrderResponse createWorkOrder(CreateWorkOrderRequest req) {
-        String woNumber = woNumberGenerator.generate();
+        String woNumber = documentSequenceService.generate("WO");
 
         WorkOrder wo = WorkOrder.builder()
                 .woNumber(woNumber)

@@ -1,6 +1,6 @@
 package com.aerospace.procurement_service.controller;
 
-import com.aerospace.procurement_service.audit.Audited;
+import com.aerospace.common.audit.Audited;
 import com.aerospace.procurement_service.dto.POApprovalActionRequest;
 import com.aerospace.procurement_service.dto.POApprovalHistoryDTO;
 import com.aerospace.procurement_service.dto.PurchaseOrderRequest;
@@ -68,7 +68,7 @@ public class PurchaseOrderController {
     }
 
     @Audited(action = "APPROVE", entityType = "PurchaseOrder")
-    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
+    @PreAuthorize("hasAnyRole('PROCUREMENT_OFFICER','MANAGER','ADMIN')")
     @PostMapping("/{id}/approve")
     public ResponseEntity<PurchaseOrderResponse> approve(
             @PathVariable Long id,
@@ -81,7 +81,7 @@ public class PurchaseOrderController {
 
     // PUR-BR-002: rejection remarks are mandatory — enforced in the service layer
     @Audited(action = "REJECT", entityType = "PurchaseOrder")
-    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
+    @PreAuthorize("hasAnyRole('PROCUREMENT_OFFICER','MANAGER','ADMIN')")
     @PostMapping("/{id}/reject")
     public ResponseEntity<PurchaseOrderResponse> reject(
             @PathVariable Long id,

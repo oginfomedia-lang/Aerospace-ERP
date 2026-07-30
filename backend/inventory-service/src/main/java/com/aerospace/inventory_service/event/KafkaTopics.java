@@ -17,6 +17,10 @@ public class KafkaTopics {
     // Published by inventory-service, consumed by procurement-service.
     public static final String MATERIAL_SHORTAGE     = "material-shortage-events";
 
+    // Published by inventory-service (when a GRN is formed), consumed by procurement-service
+    // to accumulate received quantity per PO line and auto-transition PO status.
+    public static final String MATERIAL_RECEIVED     = "material-received-events";
+
     // Published by inventory-service, consumed by procurement-service (auto-creates a Debit
     // Note against the supplier) and notification-service (alerts the team).
     public static final String VENDOR_RETURN = "vendor-return-events";

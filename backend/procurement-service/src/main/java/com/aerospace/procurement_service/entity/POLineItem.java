@@ -54,6 +54,13 @@ public class POLineItem {
     private Integer rejectedQuantity = 0;
     private String ncrNumber; // last NCR raised against this line, if any
 
+    // Cumulative quantity physically received against this line (across one or more GRNs —
+    // partial/multi-truck deliveries are normal), updated asynchronously from
+    // inventory-service's MaterialReceivedEvent (see InventoryConsumer). Independent of
+    // acceptedQuantity/rejectedQuantity above, which only reflect the QA disposition.
+    @Builder.Default
+    private Integer receivedQuantity = 0;
+
     // Set when this line was created via "Raise Replacement PO" for a rejected quantity
     // on another PO's NCR — lets the UI detect a replacement was already raised for that
     // NCR and stop offering the raise action again.

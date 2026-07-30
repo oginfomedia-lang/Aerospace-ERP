@@ -8,7 +8,7 @@ import com.aerospace.qa_service.exception.ResourceNotFoundException;
 import com.aerospace.qa_service.repository.CertificateOfConformanceRepository;
 import com.aerospace.qa_service.repository.InspectionRepository;
 import com.aerospace.qa_service.service.CocService;
-import com.aerospace.qa_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

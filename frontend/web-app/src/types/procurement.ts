@@ -69,6 +69,9 @@ export interface POLineItemDTO {
   rejectedQuantity?: number | null;
   ncrNumber?: string | null;
 
+  // Cumulative quantity physically received so far (read-only, from GRNs formed against this line)
+  receivedQuantity?: number | null;
+
   // Set when this line was pre-filled via "Raise Replacement PO" for a rejected
   // quantity on another PO's NCR — lets the UI detect a replacement was already raised.
   replacementForNcrNumber?: string | null;
@@ -185,6 +188,7 @@ export interface POApprovalHistoryEntry {
   remarks: string | null;
   digitalSignatureHash: string | null;
   documentVersion: number;
+  escalated: boolean;
 }
 
 // ============================================================
@@ -274,6 +278,8 @@ export interface ApprovalMatrix {
   approverRole: string;
   levelSequence: number;
   isActive: boolean;
+  escalationHours?: number | null;
+  escalationToRole?: string | null;
 }
 
 export interface ApprovalMatrixRequest {
@@ -283,6 +289,8 @@ export interface ApprovalMatrixRequest {
   approverRole: string;
   levelSequence: number;
   isActive?: boolean;
+  escalationHours?: number | null;
+  escalationToRole?: string | null;
 }
 
 export type PRStatus = 'DRAFT' | 'RFQ_SENT' | 'QUOTES_RECEIVED' | 'SUPPLIER_SELECTED' | 'PO_RAISED' | 'CANCELLED';

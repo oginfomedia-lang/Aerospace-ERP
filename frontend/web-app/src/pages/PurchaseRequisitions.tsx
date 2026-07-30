@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, PlusCircle, Send } from 'lucide-react';
+import { FileText, PlusCircle, Send, Check, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import procurementApi from '../api/procurementAxios';
 import { PurchaseRequisition } from '../types/procurement';
 import { CreateRfqModal } from '../components/CreateRfqModel';
@@ -8,9 +9,10 @@ import { CreatePurchaseRequisitionModal } from '../components/CreatePurchaseRequ
 import { Download } from 'lucide-react';
 import { exportToExcel } from '../utils/excelExport';
 import { useAuth } from '../context/AuthContext';
-import { CAN_MANAGE_PROCUREMENT, hasAnyRole } from '../utils/permissions';
+import { CAN_MANAGE_PROCUREMENT, CAN_APPROVE_PROCUREMENT, hasAnyRole } from '../utils/permissions';
 
 const statusStyle: Record<string, string> = {
+  PENDING_APPROVAL: 'bg-amber-50 text-amber-700',
   DRAFT: 'bg-slate-100 text-slate-600',
   RFQ_SENT: 'bg-blue-50 text-blue-600',
   QUOTES_RECEIVED: 'bg-amber-50 text-amber-700',
@@ -22,6 +24,7 @@ const statusStyle: Record<string, string> = {
 const PurchaseRequisitions: React.FC = () => {
   const { user } = useAuth();
   const canManage = hasAnyRole(user?.roles, CAN_MANAGE_PROCUREMENT);
+  const canApprove = hasAnyRole(user?.roles, CAN_APPROVE_PROCUREMENT);
   const [prs, setPrs] = useState<PurchaseRequisition[]>([]);
   const [loading, setLoading] = useState(true);
   const [rfqTarget, setRfqTarget] = useState<PurchaseRequisition | null>(null);
@@ -36,6 +39,32 @@ const PurchaseRequisitions: React.FC = () => {
   };
 
   useEffect(load, []);
+
+  const handleApprove = async (pr: PurchaseRequisition) => {
+    try {
+      await procurementApi.post(`/purchase-requisitions/${pr.id}/approve`);
+      toast.success(`${pr.prNumber} approved.`);
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to approve.');
+    }
+  };
+
+  const handleReject = async (pr: PurchaseRequisition) => {
+    const remarks = window.prompt(`Reason for rejecting ${pr.prNumber}?`);
+    if (remarks === null) return;
+    if (!remarks.trim()) {
+      toast.error('Rejection remarks are mandatory.');
+      return;
+    }
+    try {
+      await procurementApi.post(`/purchase-requisitions/${pr.id}/reject`, { remarks });
+      toast.success(`${pr.prNumber} rejected.`);
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to reject.');
+    }
+  };
 
   const handleExport = () => {
     exportToExcel(
@@ -118,6 +147,18 @@ const PurchaseRequisitions: React.FC = () => {
                           className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700">
                           <PlusCircle size={14} /> Create RFQ
                         </button>
+                      )}
+                      {pr.status === 'PENDING_APPROVAL' && canApprove && (
+                        <>
+                          <button onClick={() => handleApprove(pr)}
+                            className="flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                            <Check size={14} /> Approve
+                          </button>
+                          <button onClick={() => handleReject(pr)}
+                            className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-600">
+                            <X size={14} /> Reject
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>

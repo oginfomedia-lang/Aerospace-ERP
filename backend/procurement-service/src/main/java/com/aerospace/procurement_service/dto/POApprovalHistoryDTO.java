@@ -16,4 +16,5 @@ public class POApprovalHistoryDTO {
     private String remarks;
     private String digitalSignatureHash;
     private int documentVersion;
+    private boolean escalated;
 }

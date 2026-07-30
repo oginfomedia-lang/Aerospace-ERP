@@ -13,7 +13,7 @@ import com.aerospace.procurement_service.event.producer.ProcurementEventPublishe
 import com.aerospace.procurement_service.exception.ResourceNotFoundException;
 import com.aerospace.procurement_service.repository.PurchaseRequisitionRepository;
 import com.aerospace.procurement_service.repository.RequestForQuotationRepository;
-import com.aerospace.procurement_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import com.aerospace.procurement_service.service.PurchaseRequisitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

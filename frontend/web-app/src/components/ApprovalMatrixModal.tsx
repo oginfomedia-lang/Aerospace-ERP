@@ -18,6 +18,8 @@ export const ApprovalMatrixModal: React.FC<Props> = ({ isOpen, onClose, onSucces
   const [approverRole, setApproverRole] = useState('');
   const [levelSequence, setLevelSequence] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [escalationHours, setEscalationHours] = useState('');
+  const [escalationToRole, setEscalationToRole] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -29,9 +31,12 @@ export const ApprovalMatrixModal: React.FC<Props> = ({ isOpen, onClose, onSucces
         setApproverRole(band.approverRole);
         setLevelSequence(String(band.levelSequence));
         setIsActive(band.isActive);
+        setEscalationHours(band.escalationHours != null ? String(band.escalationHours) : '');
+        setEscalationToRole(band.escalationToRole ?? '');
       } else {
         setModuleCode('PURCHASE_ORDER'); setAmountFrom(''); setAmountTo('');
         setApproverRole(''); setLevelSequence(''); setIsActive(true);
+        setEscalationHours(''); setEscalationToRole('');
       }
     }
   }, [isOpen, band]);
@@ -52,6 +57,8 @@ export const ApprovalMatrixModal: React.FC<Props> = ({ isOpen, onClose, onSucces
       const payload: ApprovalMatrixRequest = {
         moduleCode, amountFrom: Number(amountFrom), amountTo: Number(amountTo),
         approverRole, levelSequence: Number(levelSequence), isActive,
+        escalationHours: escalationHours.trim() ? Number(escalationHours) : null,
+        escalationToRole: escalationToRole.trim() ? escalationToRole.trim() : null,
       };
       if (band) {
         await procurementApi.put(`/approval-matrix/${band.id}`, payload);
@@ -113,6 +120,21 @@ export const ApprovalMatrixModal: React.FC<Props> = ({ isOpen, onClose, onSucces
           <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
             <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} /> Active
           </label>
+
+          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Escalation Hours</label>
+              <input type="number" value={escalationHours} onChange={e => setEscalationHours(e.target.value)}
+                placeholder="e.g. 24" className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <p className="text-[10px] text-slate-400 mt-1">Optional. Leave blank for no escalation.</p>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Escalation To Role</label>
+              <input value={escalationToRole} onChange={e => setEscalationToRole(e.target.value)}
+                placeholder="e.g. MANAGER" className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <p className="text-[10px] text-slate-400 mt-1">Optional. Blank = flag only, same approver.</p>
+            </div>
+          </div>
         </div>
 
         <div className="flex gap-3 p-6 pt-2 border-t border-slate-100">

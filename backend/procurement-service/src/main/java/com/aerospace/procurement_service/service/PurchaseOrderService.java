@@ -22,6 +22,10 @@ public interface PurchaseOrderService {
     // once inventory-service reports a QA decision against a traceable PO/SKU.
     void applyQaOutcome(com.aerospace.procurement_service.event.QAStatusChangedEvent event);
 
+    // Accumulates received quantity against the matching PO line once a GRN is formed in
+    // inventory-service, and auto-transitions the PO to PARTIALLY_RECEIVED/RECEIVED.
+    void applyMaterialReceipt(com.aerospace.procurement_service.event.MaterialReceivedEvent event);
+
     // Only permitted while status == DRAFT — this is what lets a mistaken SKU/supplier be fixed
     PurchaseOrderResponse updatePurchaseOrder(Long id, PurchaseOrderRequest request);
 

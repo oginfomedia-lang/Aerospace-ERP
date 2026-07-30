@@ -11,7 +11,7 @@ import com.aerospace.qa_service.entity.FaiResult;
 import com.aerospace.qa_service.entity.FaiStatus;
 import com.aerospace.qa_service.exception.ResourceNotFoundException;
 import com.aerospace.qa_service.repository.FaiRecordRepository;
-import com.aerospace.qa_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import com.aerospace.qa_service.service.FaiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

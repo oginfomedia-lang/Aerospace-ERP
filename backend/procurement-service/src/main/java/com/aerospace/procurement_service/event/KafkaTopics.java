@@ -9,6 +9,8 @@ public class KafkaTopics {
     public static final String QA_STATUS_CHANGED   = "qa-status-changed-events";
     // Published by inventory-service when an NCR is dispositioned RETURN_TO_VENDOR.
     public static final String VENDOR_RETURN = "vendor-return-events";
+    // Published by inventory-service when a GRN is formed from a Material Receipt.
+    public static final String MATERIAL_RECEIVED = "material-received-events";
 
     public static final String RFQ_CREATED         = "rfq-created-events";
     public static final String QUOTATION_AWARDED   = "quotation-awarded-events";

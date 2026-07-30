@@ -4,10 +4,10 @@ import com.aerospace.procurement_service.dto.POApprovalHistoryDTO;
 import com.aerospace.procurement_service.dto.POLineItemDTO;
 import com.aerospace.procurement_service.dto.PurchaseOrderRequest;
 import com.aerospace.procurement_service.dto.PurchaseOrderResponse;
-import com.aerospace.procurement_service.entity.POApprovalHistory;
 import com.aerospace.procurement_service.entity.POLineItem;
 import com.aerospace.procurement_service.entity.PurchaseOrder;
-import com.aerospace.procurement_service.repository.POApprovalHistoryRepository;
+import com.aerospace.common.approval.ApprovalHistory;
+import com.aerospace.common.approval.ApprovalHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +18,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PurchaseOrderMapper {
 
-    private final POApprovalHistoryRepository approvalHistoryRepository;
+    private static final String MODULE = "PURCHASE_ORDER";
+
+    private final ApprovalHistoryRepository approvalHistoryRepository;
 
     public PurchaseOrder toEntity(PurchaseOrderRequest dto) {
         if (dto == null) return null;
@@ -71,9 +73,12 @@ public class PurchaseOrderMapper {
         // submit, approve) reports it consistently instead of only the action that set it.
         String pendingApproverRole = po.getCurrentApprovalLevel() != null
                 ? approvalHistoryRepository
-                        .findByPurchaseOrder_IdAndDocumentVersionAndApprovalLevel(
-                                po.getId(), po.getDocumentVersion(), po.getCurrentApprovalLevel())
-                        .map(POApprovalHistory::getApproverRole)
+                        .findByModuleCodeAndDocumentIdOrderByApprovalLevelAsc(MODULE, po.getId())
+                        .stream()
+                        .filter(h -> h.getApprovalLevel() == po.getCurrentApprovalLevel()
+                                && h.getDocumentVersion() == po.getDocumentVersion())
+                        .findFirst()
+                        .map(ApprovalHistory::getApproverRole)
                         .orElse(null)
                 : null;
 
@@ -106,7 +111,7 @@ public class PurchaseOrderMapper {
                 .build();
     }
 
-    public POApprovalHistoryDTO toApprovalHistoryDTO(POApprovalHistory h) {
+    public POApprovalHistoryDTO toApprovalHistoryDTO(ApprovalHistory h) {
         if (h == null) return null;
 
         return POApprovalHistoryDTO.builder()
@@ -118,6 +123,7 @@ public class PurchaseOrderMapper {
                 .remarks(h.getRemarks())
                 .digitalSignatureHash(h.getDigitalSignatureHash())
                 .documentVersion(h.getDocumentVersion())
+                .escalated(h.isEscalated())
                 .build();
     }
 
@@ -135,6 +141,7 @@ public class PurchaseOrderMapper {
                 .description(item.getDescription())
                 .acceptedQuantity(item.getAcceptedQuantity())
                 .rejectedQuantity(item.getRejectedQuantity())
+                .receivedQuantity(item.getReceivedQuantity())
                 .ncrNumber(item.getNcrNumber())
                 .replacementForNcrNumber(item.getReplacementForNcrNumber())
                 .build();

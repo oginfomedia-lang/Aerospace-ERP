@@ -1,6 +1,6 @@
 package com.aerospace.inventory_service.controller;
 
-import com.aerospace.inventory_service.audit.Audited;
+import com.aerospace.common.audit.Audited;
 import com.aerospace.inventory_service.dto.PartRequestDTO;
 import com.aerospace.inventory_service.dto.PartResponseDTO;
 import com.aerospace.inventory_service.dto.IssueToProductionAllocatedRequest;

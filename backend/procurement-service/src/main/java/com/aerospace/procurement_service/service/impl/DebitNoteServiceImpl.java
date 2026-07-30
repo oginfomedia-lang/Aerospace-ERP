@@ -11,7 +11,7 @@ import com.aerospace.procurement_service.mapper.DebitNoteMapper;
 import com.aerospace.procurement_service.repository.DebitNoteRepository;
 import com.aerospace.procurement_service.repository.PurchaseOrderRepository;
 import com.aerospace.procurement_service.service.DebitNoteService;
-import com.aerospace.procurement_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

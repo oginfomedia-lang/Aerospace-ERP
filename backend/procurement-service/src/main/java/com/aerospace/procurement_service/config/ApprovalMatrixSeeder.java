@@ -1,7 +1,7 @@
 package com.aerospace.procurement_service.config;
 
-import com.aerospace.procurement_service.entity.ApprovalMatrix;
-import com.aerospace.procurement_service.repository.ApprovalMatrixRepository;
+import com.aerospace.common.approval.ApprovalMatrix;
+import com.aerospace.common.approval.ApprovalMatrixRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;

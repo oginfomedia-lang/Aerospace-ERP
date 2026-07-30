@@ -75,6 +75,16 @@ public class InventoryProducer {
         kafkaTemplate.send(KafkaTopics.MATERIAL_SHORTAGE, String.valueOf(event.getPartId()), event);
     }
 
+    // ── MATERIAL RECEIVED ─────────────────────────────────────────────────────
+    // Topic: material-received-events — consumed by procurement-service to accumulate
+    // received quantity against the PO line and auto-transition PO status.
+
+    public void sendMaterialReceivedEvent(MaterialReceivedEvent event) {
+        log.info("[KAFKA] Publishing MATERIAL_RECEIVED for PO={} sku={} qty={}",
+                event.getPoNumber(), event.getSkuCode(), event.getQuantityReceived());
+        kafkaTemplate.send(KafkaTopics.MATERIAL_RECEIVED, event.getPoNumber(), event);
+    }
+
     // --─ VENDOR RETURN ─────────────────────────────────────────────────────
     // Topic: vendor-return-events — consumed by procurement-service to auto-raise a Debit Note
     //and notification-service to alert the team.

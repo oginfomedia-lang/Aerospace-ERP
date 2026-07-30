@@ -414,7 +414,8 @@ const ProcurementOrders = () => {
                       </button>
                     </div>
                   )}
-                  {order.status === 'PENDING_APPROVAL' && canApprove && (
+                  {order.status === 'PENDING_APPROVAL' &&
+                    (order.pendingApproverRole ? hasAnyRole(user?.roles, [order.pendingApproverRole]) : canApprove) && (
                     <button
                       onClick={() => setSelectedPOForApproval(order)}
                       className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
@@ -464,6 +465,7 @@ const ProcurementOrders = () => {
                         <tr>
                           <th className="text-left pb-2">SKU</th>
                           <th className="text-right pb-2">Ordered</th>
+                          <th className="text-right pb-2">Received</th>
                           <th className="text-right pb-2">Unit Price</th>
                           <th className="text-left pb-2 pl-4">QA Outcome</th>
                           <th className="text-right pb-2">Action</th>
@@ -477,6 +479,10 @@ const ProcurementOrders = () => {
                             <tr key={idx}>
                               <td className="py-2 font-mono font-bold text-slate-700">{item.skuCode}</td>
                               <td className="py-2 text-right text-slate-600">{item.quantity} {item.uom}</td>
+                              <td className={`py-2 text-right font-bold ${(item.receivedQuantity ?? 0) > item.quantity ? 'text-amber-600' : 'text-slate-600'}`}>
+                                {item.receivedQuantity ?? 0}
+                                {(item.receivedQuantity ?? 0) > item.quantity && ' ⚠'}
+                              </td>
                               <td className="py-2 text-right text-slate-600">{order.currency} {item.unitPrice?.toFixed(2)}</td>
                               <td className="py-2 pl-4">
                                 <div className="flex flex-wrap gap-1.5">

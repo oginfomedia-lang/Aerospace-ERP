@@ -1,5 +1,6 @@
 package com.aerospace.procurement_service.config;
 
+import com.aerospace.procurement_service.event.MaterialReceivedEvent;
 import com.aerospace.procurement_service.event.MaterialShortageEvent;
 import com.aerospace.procurement_service.event.QAStatusChangedEvent;
 import com.aerospace.procurement_service.event.StockLowEvent;
@@ -171,6 +172,33 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, VendorReturnEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(vendorReturnConsumerFactory());
+        return factory;
+    }
+
+    @Bean
+    public ConsumerFactory<String, MaterialReceivedEvent> materialReceivedConsumerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "procurement-service-group");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+
+        JsonDeserializer<MaterialReceivedEvent> deserializer = new JsonDeserializer<>(MaterialReceivedEvent.class);
+        deserializer.setUseTypeHeaders(false);
+        deserializer.addTrustedPackages("*");
+
+        ErrorHandlingDeserializer<MaterialReceivedEvent> errorHandlingDeserializer =
+                new ErrorHandlingDeserializer<>(deserializer);
+
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), errorHandlingDeserializer);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, MaterialReceivedEvent> materialReceivedKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, MaterialReceivedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(materialReceivedConsumerFactory());
         return factory;
     }
 }

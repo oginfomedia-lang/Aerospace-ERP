@@ -16,6 +16,8 @@ const ApprovalMatrixPage = () => {
     try {
       const res = await procurementApi.get<ApprovalMatrixType[]>('/approval-matrix');
       setBands(res.data);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to load approval bands.');
     } finally {
       setLoading(false);
     }
@@ -72,6 +74,7 @@ const ApprovalMatrixPage = () => {
               <th className="px-6 py-4 text-right">Amount To</th>
               <th className="px-6 py-4">Approver Role</th>
               <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4">Escalation</th>
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -90,6 +93,9 @@ const ApprovalMatrixPage = () => {
                     {band.isActive ? 'Active' : 'Inactive'}
                   </span>
                 </td>
+                <td className="px-6 py-4 text-xs text-slate-600">
+                  {band.escalationHours ? `${band.escalationHours}h → ${band.escalationToRole || 'flag only'}` : '—'}
+                </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-1">
                     <button onClick={() => { setEditing(band); setModalOpen(true); }}
@@ -106,7 +112,7 @@ const ApprovalMatrixPage = () => {
             ))}
             {bands.length === 0 && !loading && (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                   <ShieldCheck className="w-12 h-12 mx-auto text-slate-300 mb-3" />
                   <p className="font-medium">No approval bands configured</p>
                   <p className="text-sm mt-1">Without any bands, every Purchase Order is auto-approved with no chain.</p>

@@ -5,9 +5,6 @@ import com.aerospace.procurement_service.dto.POApprovalHistoryDTO;
 import com.aerospace.procurement_service.dto.POLineItemDTO;
 import com.aerospace.procurement_service.dto.PurchaseOrderRequest;
 import com.aerospace.procurement_service.dto.PurchaseOrderResponse;
-import com.aerospace.procurement_service.entity.ApprovalActionStatus;
-import com.aerospace.procurement_service.entity.ApprovalMatrix;
-import com.aerospace.procurement_service.entity.POApprovalHistory;
 import com.aerospace.procurement_service.entity.POLineItem;
 import com.aerospace.procurement_service.entity.POStatus;
 import com.aerospace.procurement_service.entity.PurchaseOrder;
@@ -17,10 +14,11 @@ import com.aerospace.procurement_service.entity.RequestForQuotation;
 import com.aerospace.procurement_service.entity.Supplier;
 import com.aerospace.procurement_service.exception.ResourceNotFoundException;
 import com.aerospace.procurement_service.mapper.PurchaseOrderMapper;
-import com.aerospace.procurement_service.repository.POApprovalHistoryRepository;
 import com.aerospace.procurement_service.repository.PurchaseOrderRepository;
-import com.aerospace.procurement_service.service.ApprovalMatrixService;
-import com.aerospace.procurement_service.service.DocumentSequenceService;
+import com.aerospace.common.approval.ApprovalEngine;
+import com.aerospace.common.approval.ApprovalHistory;
+import com.aerospace.common.approval.ApprovalOutcome;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import com.aerospace.procurement_service.service.PurchaseOrderService;
 import com.aerospace.procurement_service.service.SupplierService;
 
@@ -30,11 +28,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.util.HexFormat;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -50,8 +46,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private final PurchaseOrderRepository poRepository;
     private final SupplierService supplierService;
     private final PurchaseOrderMapper poMapper;
-    private final ApprovalMatrixService approvalMatrixService;
-    private final POApprovalHistoryRepository approvalHistoryRepository;
+    private final ApprovalEngine approvalEngine;
     private final DocumentSequenceService documentSequenceService;
     private final com.aerospace.procurement_service.event.producer.ProcurementEventPublisher eventPublisher;
     private final com.aerospace.procurement_service.repository.PurchaseRequisitionRepository purchaseRequisitionRepository;
@@ -192,7 +187,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     @Transactional
     @Override
     public PurchaseOrderResponse submitForApproval(Long id) {
-        PurchaseOrder po = poRepository.findById(id)
+        PurchaseOrder po = poRepository.lockById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
 
         if (po.getStatus() != POStatus.DRAFT) {
@@ -201,35 +196,23 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         // Only bump the version on a RESUBMISSION (i.e. a prior chain already exists for this PO —
         // it was rejected). The very first submission keeps the PO's initial documentVersion (1).
-        boolean hasPriorSubmission = !approvalHistoryRepository
-                .findByPurchaseOrder_IdOrderByDocumentVersionDescApprovalLevelAsc(id).isEmpty();
+        boolean hasPriorSubmission = !approvalEngine.getHistory(MODULE, id).isEmpty();
         if (hasPriorSubmission) {
             po.setDocumentVersion(po.getDocumentVersion() + 1);
         }
         int version = po.getDocumentVersion();
 
-        List<ApprovalMatrix> bands = approvalMatrixService.evaluateChain(MODULE, po.getTotalAmount());
+        List<ApprovalHistory> chain = approvalEngine.submitForApproval(MODULE, id, po.getTotalAmount(), version);
 
-        if (bands.isEmpty()) {
+        if (chain.isEmpty()) {
             // Doc step 2: no qualifying band → auto-approve, no chain needed
             po.setStatus(POStatus.APPROVED);
             po.setCurrentApprovalLevel(null);
             return poMapper.toDTO(poRepository.save(po));
         }
 
-        for (ApprovalMatrix band : bands) {
-            approvalHistoryRepository.save(POApprovalHistory.builder()
-                    .purchaseOrder(po)
-                    .approvalLevel(band.getLevelSequence())
-                    .approverRole(band.getApproverRole())
-                    .status(band.getLevelSequence() == bands.get(0).getLevelSequence()
-                            ? ApprovalActionStatus.PENDING : ApprovalActionStatus.WAITING)
-                    .documentVersion(version)
-                    .build());
-        }
-
         po.setStatus(POStatus.PENDING_APPROVAL);
-        po.setCurrentApprovalLevel(bands.get(0).getLevelSequence());
+        po.setCurrentApprovalLevel(chain.get(0).getApprovalLevel());
 
         return poMapper.toDTO(poRepository.save(po));
     }
@@ -244,42 +227,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new IllegalArgumentException("PO is not awaiting approval (current: " + po.getStatus() + ").");
         }
 
-        POApprovalHistory pending = approvalHistoryRepository
-                .findByPurchaseOrder_IdAndDocumentVersionAndApprovalLevel(id, po.getDocumentVersion(), po.getCurrentApprovalLevel())
-                .orElseThrow(() -> new IllegalStateException("No pending approval row found for level " + po.getCurrentApprovalLevel()));
+        ApprovalOutcome outcome = approvalEngine.approve(
+                MODULE, id, approverUsername, new HashSet<>(approverRoles), request.getRemarks());
 
-        if (!approverRoles.contains(pending.getApproverRole())) {
-            throw new IllegalArgumentException(
-                    "PUR-BR-001: This PO requires role " + pending.getApproverRole() + " to approve at level " + pending.getApprovalLevel() + ".");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        pending.setStatus(ApprovalActionStatus.APPROVED);
-        pending.setApproverUsername(approverUsername);
-        pending.setApprovedAt(now);
-        pending.setRemarks(request.getRemarks());
-        pending.setDigitalSignatureHash(computeSignatureHash(approverUsername, now, id, po.getDocumentVersion(), request.getRemarks()));
-        approvalHistoryRepository.save(pending);
-
-        List<POApprovalHistory> chain = approvalHistoryRepository
-                .findByPurchaseOrder_IdAndDocumentVersion(id, po.getDocumentVersion());
-        int maxLevel = chain.stream().mapToInt(POApprovalHistory::getApprovalLevel).max().orElse(pending.getApprovalLevel());
-
-        if (pending.getApprovalLevel() >= maxLevel) {
+        if (outcome.status() == ApprovalOutcome.Status.FULLY_APPROVED) {
             // Last qualifying level cleared → fully approved
             po.setStatus(POStatus.APPROVED);
             po.setCurrentApprovalLevel(null);
         } else {
-            int nextLevel = chain.stream()
-                    .mapToInt(POApprovalHistory::getApprovalLevel)
-                    .filter(lvl -> lvl > pending.getApprovalLevel())
-                    .min().orElseThrow();
-            POApprovalHistory nextRow = chain.stream()
-                    .filter(h -> h.getApprovalLevel() == nextLevel)
-                    .findFirst().orElseThrow();
-            nextRow.setStatus(ApprovalActionStatus.PENDING);
-            approvalHistoryRepository.save(nextRow);
-            po.setCurrentApprovalLevel(nextLevel);
+            po.setCurrentApprovalLevel(outcome.nextLevel());
         }
 
         return poMapper.toDTO(poRepository.save(po));
@@ -298,22 +254,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new IllegalArgumentException("PUR-BR-002: Rejection remarks are mandatory.");
         }
 
-        POApprovalHistory pending = approvalHistoryRepository
-                .findByPurchaseOrder_IdAndDocumentVersionAndApprovalLevel(id, po.getDocumentVersion(), po.getCurrentApprovalLevel())
-                .orElseThrow(() -> new IllegalStateException("No pending approval row found for level " + po.getCurrentApprovalLevel()));
-
-        if (!approverRoles.contains(pending.getApproverRole())) {
-            throw new IllegalArgumentException(
-                    "PUR-BR-001: This PO requires role " + pending.getApproverRole() + " to reject at level " + pending.getApprovalLevel() + ".");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        pending.setStatus(ApprovalActionStatus.REJECTED);
-        pending.setApproverUsername(approverUsername);
-        pending.setApprovedAt(now);
-        pending.setRemarks(request.getRemarks());
-        pending.setDigitalSignatureHash(computeSignatureHash(approverUsername, now, id, po.getDocumentVersion(), request.getRemarks()));
-        approvalHistoryRepository.save(pending);
+        approvalEngine.reject(MODULE, id, approverUsername, new HashSet<>(approverRoles), request.getRemarks());
 
         // PUR-BR-002/PUR-BR-003: rejection resets the PO to Draft; a full resubmission is required
         po.setStatus(POStatus.DRAFT);
@@ -380,8 +321,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         if (po.getStatus() != POStatus.DRAFT) {
             throw new IllegalArgumentException("Only a DRAFT PO can be deleted (current: " + po.getStatus() + ").");
         }
-        boolean everSubmitted = !approvalHistoryRepository
-                .findByPurchaseOrder_IdOrderByDocumentVersionDescApprovalLevelAsc(id).isEmpty();
+        boolean everSubmitted = !approvalEngine.getHistory(MODULE, id).isEmpty();
         if (everSubmitted) {
             throw new IllegalArgumentException(
                     "This PO has approval history and can't be deleted outright — it's preserved for audit. Leave it in Draft or edit it instead.");
@@ -391,21 +331,11 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     @Override
     public List<POApprovalHistoryDTO> getApprovalHistory(Long id) {
-        return approvalHistoryRepository.findByPurchaseOrder_IdOrderByDocumentVersionDescApprovalLevelAsc(id).stream()
+        return approvalEngine.getHistory(MODULE, id).stream()
+                .sorted(Comparator.comparingInt(ApprovalHistory::getDocumentVersion).reversed()
+                        .thenComparingInt(ApprovalHistory::getApprovalLevel))
                 .map(poMapper::toApprovalHistoryDTO)
                 .collect(Collectors.toList());
-    }
-
-    private String computeSignatureHash(String approverUsername, LocalDateTime timestamp, Long poId, int documentVersion, String remarks) {
-        String payload = approverUsername + "|" + timestamp + "|" + poId + "|" + documentVersion + "|" + (remarks != null ? remarks : "");
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(payload.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is guaranteed available on every standard JVM
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
     }
 
     @Transactional
@@ -543,6 +473,49 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         poRepository.save(po);
         log.info("📢 [PROCUREMENT] Applied QA outcome {} (approved {}, rejected {}) to PO {} line {}",
                 event.getNewStatus(), approvedQty, rejectedQty, event.getPoNumber(), event.getSkuCode());
+    }
+
+    @Override
+    @Transactional
+    public void applyMaterialReceipt(com.aerospace.procurement_service.event.MaterialReceivedEvent event) {
+        PurchaseOrder po = poRepository.findByPoNumber(event.getPoNumber()).orElse(null);
+        if (po == null) {
+            log.warn("Material receipt for PO {} — no matching purchase order found", event.getPoNumber());
+            return;
+        }
+        // Goods shouldn't normally arrive before a PO clears approval/is sent — but if they
+        // do (or the PO was cancelled/closed), don't let a receipt silently resurrect it.
+        if (po.getStatus() != POStatus.SENT_TO_VENDOR && po.getStatus() != POStatus.PARTIALLY_RECEIVED) {
+            log.warn("Material receipt for PO {} ignored — PO is currently {} (expected SENT_TO_VENDOR/PARTIALLY_RECEIVED)",
+                    event.getPoNumber(), po.getStatus());
+            return;
+        }
+
+        POLineItem line = po.getItems().stream()
+                .filter(i -> i.getSkuCode().equals(event.getSkuCode()))
+                .findFirst()
+                .orElse(null);
+        if (line == null) {
+            log.warn("Material receipt for PO {} — no line item for SKU {}", event.getPoNumber(), event.getSkuCode());
+            return;
+        }
+
+        int updatedReceived = (line.getReceivedQuantity() != null ? line.getReceivedQuantity() : 0) + event.getQuantityReceived();
+        line.setReceivedQuantity(updatedReceived);
+        // Over-receipt (more delivered than ordered) is a real-world variance, not an error —
+        // flagged here for visibility, same tolerance-not-block philosophy as invoice matching.
+        if (updatedReceived > line.getQuantity()) {
+            log.warn("PO {} line {} received {} against an ordered quantity of {} — over-receipt variance",
+                    event.getPoNumber(), event.getSkuCode(), updatedReceived, line.getQuantity());
+        }
+
+        boolean allLinesFullyReceived = po.getItems().stream()
+                .allMatch(i -> (i.getReceivedQuantity() != null ? i.getReceivedQuantity() : 0) >= i.getQuantity());
+        po.setStatus(allLinesFullyReceived ? POStatus.RECEIVED : POStatus.PARTIALLY_RECEIVED);
+
+        poRepository.save(po);
+        log.info("📢 [PROCUREMENT] Applied material receipt (GRN {}) to PO {} line {} — received {}/{} — PO status now {}",
+                event.getGrnNumber(), event.getPoNumber(), event.getSkuCode(), updatedReceived, line.getQuantity(), po.getStatus());
     }
 
     private Supplier firstCertifiedSupplier() {

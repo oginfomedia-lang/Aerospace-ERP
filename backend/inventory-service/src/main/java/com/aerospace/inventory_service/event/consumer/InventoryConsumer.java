@@ -7,7 +7,7 @@ import com.aerospace.inventory_service.event.KafkaTopics;
 import com.aerospace.inventory_service.event.PartCreatedEvent;
 import com.aerospace.inventory_service.event.QAStatusUpdatedEvent;
 import com.aerospace.inventory_service.repository.NcrRepository;
-import com.aerospace.inventory_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import com.aerospace.inventory_service.service.PartService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -13,6 +13,7 @@ import com.aerospace.production_service.mapper.ProductionOrderMapper;
 import com.aerospace.production_service.mapper.ShopFloorNcrMapper;
 import com.aerospace.production_service.repository.*;
 import com.aerospace.production_service.service.ProductionOrderService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -24,7 +25,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @RequiredArgsConstructor
@@ -39,9 +39,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     private final ProductionOrderMapper mapper;
     private final ShopFloorNcrMapper ncrMapper;
     private final ProductionProducer producer;
-
-    // Simple in-memory sequence for PO number generation (replace with DB sequence if needed)
-    private static final AtomicLong PO_COUNTER = new AtomicLong(1);
+    private final DocumentSequenceService documentSequenceService;
 
     // ── CREATE ────────────────────────────────────────────────────────────────
 
@@ -49,7 +47,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     @Transactional
     public ProductionOrderResponseDTO createOrder(ProductionOrderRequestDTO dto) {
         ProductionOrder order = mapper.toEntity(dto);
-        order.setPoNumber(generatePoNumber());
+        order.setPoNumber(documentSequenceService.generate("PROD_ORDER"));
 
         // Persist order first so we have an ID
         ProductionOrder saved = orderRepository.save(order);
@@ -119,7 +117,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         }
 
         ProductionOrder order = ProductionOrder.builder()
-                .poNumber(generatePoNumber())
+                .poNumber(documentSequenceService.generate("PROD_ORDER"))
                 .woNumber(event.getWoNumber())
                 .workOrderId(event.getWorkOrderId())
                 .productName(event.getTaskDescription())
@@ -900,9 +898,4 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         }
     }
 
-    private String generatePoNumber() {
-        String year = String.valueOf(LocalDateTime.now().getYear());
-        String seq = String.format("%05d", PO_COUNTER.getAndIncrement());
-        return "PO-" + year + "-" + seq;
-    }
 }

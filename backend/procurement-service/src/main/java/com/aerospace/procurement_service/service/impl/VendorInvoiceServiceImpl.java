@@ -14,7 +14,9 @@ import com.aerospace.procurement_service.exception.ResourceNotFoundException;
 import com.aerospace.procurement_service.mapper.VendorInvoiceMapper;
 import com.aerospace.procurement_service.repository.PurchaseOrderRepository;
 import com.aerospace.procurement_service.repository.VendorInvoiceRepository;
-import com.aerospace.procurement_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
+import com.aerospace.common.approval.ApprovalEngine;
+import com.aerospace.common.approval.ApprovalOutcome;
 import com.aerospace.procurement_service.service.OrganizationProfileService;
 import com.aerospace.procurement_service.service.VendorInvoiceService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 // Three-way match: a vendor invoice's lines are matched against the PO's negotiated
@@ -38,10 +41,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class VendorInvoiceServiceImpl implements VendorInvoiceService {
 
+    private static final String MODULE = "VENDOR_INVOICE";
+
     private final VendorInvoiceRepository invoiceRepository;
     private final PurchaseOrderRepository poRepository;
     private final OrganizationProfileService organizationProfileService;
     private final DocumentSequenceService documentSequenceService;
+    private final ApprovalEngine approvalEngine;
     private final VendorInvoiceMapper mapper;
 
     @Override
@@ -123,6 +129,12 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
         invoice.setStatus(anyVariance ? InvoiceStatus.VARIANCE_HOLD : InvoiceStatus.MATCHED);
 
         VendorInvoice saved = invoiceRepository.save(invoice);
+
+        // Opens the approval chain (if any bands are configured for VENDOR_INVOICE) so
+        // approve()/reject() below have a chain to work against. If no bands exist yet,
+        // this is a no-op — invoices keep behaving exactly as before (single fixed approve).
+        approvalEngine.submitForApproval(MODULE, saved.getId(), totalAmount, 1);
+
         log.info("[VENDOR-INVOICE] {} matched against PO {} — status {} ({} line(s))",
                 saved.getInvoiceNumber(), po.getPoNumber(), saved.getStatus(), items.size());
         return mapper.toDTO(saved);
@@ -140,7 +152,7 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
 
     @Override
     @Transactional
-    public VendorInvoiceResponse approve(Long id, InvoiceActionRequest request, String approverUsername) {
+    public VendorInvoiceResponse approve(Long id, InvoiceActionRequest request, String approverUsername, Set<String> approverRoles) {
         VendorInvoice invoice = findOrThrow(id);
         if (invoice.getStatus() != InvoiceStatus.MATCHED && invoice.getStatus() != InvoiceStatus.VARIANCE_HOLD) {
             throw new IllegalStateException("Only a MATCHED or VARIANCE_HOLD invoice can be approved (current: " + invoice.getStatus() + ").");
@@ -150,18 +162,30 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
             throw new IllegalArgumentException("An override reason is required to approve an invoice on variance hold.");
         }
 
+        // No bands configured for VENDOR_INVOICE yet → no chain was ever opened → behave
+        // exactly like before (single, direct approve). Only consult the engine when a
+        // real chain exists, otherwise approve() would fail with "no pending approval".
+        boolean hasChain = !approvalEngine.getHistory(MODULE, id).isEmpty();
+        if (hasChain) {
+            ApprovalOutcome outcome = approvalEngine.approve(MODULE, id, approverUsername, approverRoles, request.getRemarks());
+            if (request.getRemarks() != null && !request.getRemarks().isBlank()) {
+                invoice.setRemarks(request.getRemarks());
+            }
+            if (outcome.status() != ApprovalOutcome.Status.FULLY_APPROVED) {
+                // Still awaiting the next level — invoice stays MATCHED/VARIANCE_HOLD until then.
+                return mapper.toDTO(invoiceRepository.save(invoice));
+            }
+        }
+
         invoice.setStatus(InvoiceStatus.APPROVED);
         invoice.setApprovedAt(LocalDateTime.now());
         invoice.setApprovedBy(approverUsername);
-        if (request.getRemarks() != null && !request.getRemarks().isBlank()) {
-            invoice.setRemarks(request.getRemarks());
-        }
         return mapper.toDTO(invoiceRepository.save(invoice));
     }
 
     @Override
     @Transactional
-    public VendorInvoiceResponse reject(Long id, InvoiceActionRequest request, String approverUsername) {
+    public VendorInvoiceResponse reject(Long id, InvoiceActionRequest request, String approverUsername, Set<String> approverRoles) {
         VendorInvoice invoice = findOrThrow(id);
         if (invoice.getStatus() == InvoiceStatus.APPROVED || invoice.getStatus() == InvoiceStatus.PAID) {
             throw new IllegalStateException("Cannot reject an invoice that is already " + invoice.getStatus() + ".");
@@ -169,6 +193,12 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
         if (request.getRemarks() == null || request.getRemarks().isBlank()) {
             throw new IllegalArgumentException("Rejection remarks are mandatory.");
         }
+
+        boolean hasChain = !approvalEngine.getHistory(MODULE, id).isEmpty();
+        if (hasChain) {
+            approvalEngine.reject(MODULE, id, approverUsername, approverRoles, request.getRemarks());
+        }
+
         invoice.setStatus(InvoiceStatus.REJECTED);
         invoice.setRemarks(request.getRemarks());
         invoice.setApprovedBy(approverUsername); // tracks who actioned it, approve or reject

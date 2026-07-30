@@ -1,6 +1,6 @@
 package com.aerospace.inventory_service.controller;
 
-import com.aerospace.inventory_service.audit.Audited;
+import com.aerospace.common.audit.Audited;
 import com.aerospace.inventory_service.common.ApiResponse;
 import com.aerospace.inventory_service.dto.FormGrnRequest;
 import com.aerospace.inventory_service.dto.MaterialReceiptRequest;

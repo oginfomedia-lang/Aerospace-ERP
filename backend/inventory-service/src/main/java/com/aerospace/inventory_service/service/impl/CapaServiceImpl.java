@@ -14,7 +14,7 @@ import com.aerospace.inventory_service.repository.CapaHistoryRepository;
 import com.aerospace.inventory_service.repository.CapaRepository;
 import com.aerospace.inventory_service.repository.NcrRepository;
 import com.aerospace.inventory_service.service.CapaService;
-import com.aerospace.inventory_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

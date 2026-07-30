@@ -1,6 +1,6 @@
 package com.aerospace.procurement_service.controller;
 
-import com.aerospace.procurement_service.audit.Audited;
+import com.aerospace.common.audit.Audited;
 import com.aerospace.procurement_service.dto.RequisitionDTOs.CreatePurchaseRequisitionRequest;
 import com.aerospace.procurement_service.dto.RequisitionDTOs.PrApprovalActionRequest;
 import com.aerospace.procurement_service.dto.RequisitionDTOs.PurchaseRequisitionResponse;

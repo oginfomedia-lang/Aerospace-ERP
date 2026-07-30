@@ -8,11 +8,13 @@ import com.aerospace.inventory_service.entity.MaterialReceipt;
 import com.aerospace.inventory_service.entity.MaterialReceiptItem;
 import com.aerospace.inventory_service.entity.MaterialReceiptStatus;
 import com.aerospace.inventory_service.entity.Part;
+import com.aerospace.inventory_service.event.MaterialReceivedEvent;
+import com.aerospace.inventory_service.event.producer.InventoryProducer;
 import com.aerospace.inventory_service.exception.ResourceNotFoundException;
 import com.aerospace.inventory_service.mapper.MaterialReceiptMapper;
 import com.aerospace.inventory_service.repository.MaterialReceiptRepository;
 import com.aerospace.inventory_service.repository.PartRepository;
-import com.aerospace.inventory_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import com.aerospace.inventory_service.service.MaterialReceiptService;
 import com.aerospace.inventory_service.service.PartService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class MaterialReceiptServiceImpl implements MaterialReceiptService {
     private final PartService partService;
     private final DocumentSequenceService documentSequenceService;
     private final MaterialReceiptMapper mapper;
+    private final InventoryProducer inventoryProducer;
 
     @Override
     @Transactional
@@ -112,6 +115,22 @@ public class MaterialReceiptServiceImpl implements MaterialReceiptService {
             item.setLocation(request.getLocation());
             item.setExpiryDate(request.getExpiryDate());
             item.setInspectionQty(request.getInspectionQty());
+
+            // Only traceable to a PO when this receipt was raised against one (manual/ad-hoc
+            // stock intake leaves poNumber blank) — nothing for procurement-service to update otherwise.
+            if (receipt.getPoNumber() != null && !receipt.getPoNumber().isBlank()) {
+                try {
+                    inventoryProducer.sendMaterialReceivedEvent(MaterialReceivedEvent.builder()
+                            .poNumber(receipt.getPoNumber())
+                            .skuCode(item.getSkuCode())
+                            .quantityReceived(item.getQuantity())
+                            .grnNumber(result.getGrnNumber())
+                            .build());
+                } catch (Exception ex) {
+                    log.warn("[KAFKA] MATERIAL_RECEIVED publish failed for PO={} sku={}: {}",
+                            receipt.getPoNumber(), item.getSkuCode(), ex.getMessage());
+                }
+            }
         }
 
         receipt.setStatus(MaterialReceiptStatus.GRN_FORMED);

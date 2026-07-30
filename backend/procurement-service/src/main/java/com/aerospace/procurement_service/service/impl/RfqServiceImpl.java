@@ -9,7 +9,7 @@ import com.aerospace.procurement_service.event.RfqCreatedEvent;
 import com.aerospace.procurement_service.event.producer.ProcurementEventPublisher;
 import com.aerospace.procurement_service.exception.ResourceNotFoundException;
 import com.aerospace.procurement_service.repository.*;
-import com.aerospace.procurement_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import com.aerospace.procurement_service.service.PurchaseOrderService;
 import com.aerospace.procurement_service.service.RfqService;
 import lombok.RequiredArgsConstructor;

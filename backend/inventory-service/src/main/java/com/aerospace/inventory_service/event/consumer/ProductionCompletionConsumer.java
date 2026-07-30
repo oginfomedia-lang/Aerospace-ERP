@@ -9,7 +9,7 @@ import com.aerospace.inventory_service.event.StockReceivedEvent;
 import com.aerospace.inventory_service.event.producer.InventoryProducer;
 import com.aerospace.inventory_service.repository.PartRepository;
 import com.aerospace.inventory_service.repository.StockBalanceRepository;
-import com.aerospace.inventory_service.service.DocumentSequenceService;
+import com.aerospace.common.numbering.DocumentSequenceService;
 import com.aerospace.inventory_service.service.LocationService;
 import com.aerospace.inventory_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;

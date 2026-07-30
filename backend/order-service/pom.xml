@@ -25,6 +25,11 @@
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
+				<groupId>com.aerospace</groupId>
+				<artifactId>common-lib</artifactId>
+				<version>0.0.1-SNAPSHOT</version>
+			</dependency>
+			<dependency>
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
 				<version>${spring-cloud.version}</version>
@@ -35,6 +40,12 @@
 	</dependencyManagement>
 
 	<dependencies>
+
+		<!-- Shared library: numbering + approval engines -->
+		<dependency>
+			<groupId>com.aerospace</groupId>
+			<artifactId>common-lib</artifactId>
+		</dependency>
 
 		<!-- Spring Boot Starters -->
 		<dependency>
@@ -164,6 +175,7 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
+					<parameters>true</parameters>
 					<annotationProcessorPaths>
 						<path>
 							<groupId>org.projectlombok</groupId>

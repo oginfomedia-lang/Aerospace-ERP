@@ -8,6 +8,7 @@ import com.aerospace.inventory_service.exception.ResourceNotFoundException;
 import com.aerospace.inventory_service.mapper.PartMapper;
 import com.aerospace.inventory_service.repository.*;
 import com.aerospace.common.numbering.DocumentSequenceService;
+import com.aerospace.common.rules.RuleEngine;
 import com.aerospace.inventory_service.service.LocationService;
 import com.aerospace.inventory_service.service.PartService;
 import com.aerospace.inventory_service.service.TransactionService;
@@ -21,7 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +42,7 @@ public class PartServiceImpl implements PartService {
     private final NcrRepository ncrRepository;
     private final LocationService locationService;
     private final MaterialIssueRecordRepository materialIssueRecordRepository;
+    private final RuleEngine ruleEngine;
 
     // ── CREATE PART ──────────────────────────────────────────────────────────
     // Kafka: PART_CREATED → notification-service logs "New Part Registered"
@@ -404,7 +409,7 @@ public class PartServiceImpl implements PartService {
     @Transactional
     @CacheEvict(value = "dashboardStats", allEntries = true)
     public PartResponseDTO processQADecision(Long id, String batch, Integer approvedQty, Integer rejectedQty,
-                                              String criteria, String remarks) {
+                                              String criteria, String remarks, Set<String> actorRoles) {
         Part part = partRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
 
@@ -428,6 +433,11 @@ public class PartServiceImpl implements PartService {
         String newStatus = rejected == 0 ? "APPROVED" : approved == 0 ? "REJECTED" : "PARTIALLY_APPROVED";
 
         if (approved > 0) {
+            Set<String> requiredRoles = ruleEngine.getRequiredRoles("QA_RELEASE", Map.of("criticality", part.getCriticality()));
+            if (!requiredRoles.isEmpty() && Collections.disjoint(requiredRoles, actorRoles)) {
+                throw new IllegalArgumentException("Releasing a " + part.getCriticality()
+                        + "-criticality part requires one of: " + requiredRoles + ".");
+            }
             moveToStatus(id, batch, StockStatus.APPROVED, approved, loc, expiry, poNumber);
         }
         String ncrNumber = null;
@@ -524,13 +534,13 @@ public class PartServiceImpl implements PartService {
     @Override
     @Transactional
     @CacheEvict(value = "dashboardStats", allEntries = true)
-    public PartResponseDTO processQADecision(Long id, String batch, String newStatus, String remarks) {
+    public PartResponseDTO processQADecision(Long id, String batch, String newStatus, String remarks, Set<String> actorRoles) {
         StockBalance pending = balanceRepository
                 .findByPartIdAndBatchNumberAndStatus(id, batch, StockStatus.PENDING_QA)
                 .orElseThrow(() -> new ResourceNotFoundException("Pending stock not found for batch: " + batch));
         int qty = pending.getQuantity();
         boolean approved = StockStatus.APPROVED.name().equalsIgnoreCase(newStatus);
-        return processQADecision(id, batch, approved ? qty : 0, approved ? 0 : qty, null, remarks);
+        return processQADecision(id, batch, approved ? qty : 0, approved ? 0 : qty, null, remarks, actorRoles);
     }
 
     // ── REST QUERIES ─────────────────────────────────────────────────────────

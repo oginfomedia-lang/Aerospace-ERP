@@ -15,12 +15,16 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 import com.aerospace.inventory_service.dto.PartImportRowDTO;
 import com.aerospace.inventory_service.dto.ImportResultDTO;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
@@ -148,9 +152,17 @@ public class PartController {
             @PathVariable Long id,
             @RequestParam String batchNumber,
             @RequestParam String status,
-            @RequestParam String remarks) {
+            @RequestParam String remarks,
+            Authentication authentication) {
         return ResponseEntity.ok(new ApiResponse<>("QA_STATUS_UPDATED",
-                partService.processQADecision(id, batchNumber, status, remarks)));
+                partService.processQADecision(id, batchNumber, status, remarks, rolesOf(authentication))));
+    }
+
+    private Set<String> rolesOf(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .map(a -> a.startsWith("ROLE_") ? a.substring(5) : a)
+                .collect(Collectors.toSet());
     }
 
     @GetMapping("/search")

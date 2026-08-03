@@ -44,6 +44,9 @@ public class InventoryConsumer {
                 event.getPartId(), event.getBatchNumber(), event.getStatus(),
                 event.getApprovedQty(), event.getRejectedQty());
         try {
+            // The external Compliance Service's QA result stands in for a human QA Inspector's
+            // sign-off, so it's granted the same authority — this keeps this automated path
+            // working unchanged even once a criticality-based release rule is configured.
             partService.processQADecision(
                     event.getPartId(),
                     event.getBatchNumber(),
@@ -51,7 +54,8 @@ public class InventoryConsumer {
                     event.getRejectedQty(),
                     event.getCriteria(),
                     event.getRemarks() != null && !event.getRemarks().isBlank()
-                            ? event.getRemarks() : "Automated update from Compliance Service"
+                            ? event.getRemarks() : "Automated update from Compliance Service",
+                    java.util.Set.of("QA_INSPECTOR")
             );
             log.info("Stock balance updated for Batch: {}", event.getBatchNumber());
         } catch (Exception e) {

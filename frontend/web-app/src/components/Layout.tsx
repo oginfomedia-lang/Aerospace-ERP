@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
-  FileCheck2, ClipboardList, Database, UserCog, History, Clock
+  FileCheck2, ClipboardList, Database, UserCog, History, Clock, Archive
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -124,6 +124,13 @@ const navItems = [
     label: 'Calibration',
     icon: <Gauge size={18} />,
     description: 'Gauge & tool due dates',
+    roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/inspection-records',
+    label: 'Inspection Records',
+    icon: <Archive size={18} />,
+    description: 'Full QA history, any status',
     roles: ['QA_INSPECTOR', 'MANAGER', 'ADMIN']
   },
   {
@@ -328,6 +335,7 @@ const Layout = ({ children }: Props) => {
               {location.pathname === '/ncr' && 'Non-Conformance Reports'}
               {location.pathname === '/capa' && 'CAPA'}
               {location.pathname === '/calibration' && 'Gauge & Tool Calibration'}
+              {location.pathname === '/inspection-records' && 'Inspection Records'}
               {location.pathname === '/admin/users' && 'User Management'}
               {location.pathname === '/org-settings' && 'Organization Settings'}
               {location.pathname === '/approval-matrix' && 'Approval Matrix'}

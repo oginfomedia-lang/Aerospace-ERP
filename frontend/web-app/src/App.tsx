@@ -32,6 +32,7 @@ import SupplierActivate from './pages/supplier/SupplierActivate';
 import SupplierDashboard from './pages/supplier/SupplierDashboard';
 import SupplierRfqDetail from './pages/supplier/SupplierRfqDetail';
 import FaiRecords from './pages/FaiRecords';
+import InspectionRecords from './pages/InspectionRecords';
 import CapaPage from './pages/CapaPage';
 import MasterDataReports from './pages/MasterDataReports';
 import ApprovalReports from './pages/ApprovalReports';
@@ -86,6 +87,7 @@ function App() {
               <Route path="/qa" element={<QAInspection />} />
               <Route path="/fai" element={<FaiRecords />} />
               <Route path="/calibration" element={<CalibrationPage />} />
+              <Route path="/inspection-records" element={<InspectionRecords />} />
             </Route>
 
             {/* NCR — also visible to store keepers who log the non-conformance */}

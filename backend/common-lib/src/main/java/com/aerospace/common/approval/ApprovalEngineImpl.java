@@ -65,9 +65,9 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         if (pendingCandidates.isEmpty()) {
             throw new IllegalStateException("No pending approval found for " + moduleCode + " #" + documentId);
         }
-        ApprovalHistory pending = resolveActingRow(moduleCode, pendingCandidates, approverRoles, approverUsername)
+        ApprovalHistory pending = resolveActingRow(moduleCode, rows, pendingCandidates, approverRoles, approverUsername)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "None of the pending approvals at this stage match your role/user."));
+                        "None of the pending approvals match your role/user, or you've already approved a peer requirement at this level — a different approver is needed."));
 
         LocalDateTime now = LocalDateTime.now();
         pending.setStatus(ApprovalActionStatus.APPROVED);
@@ -126,9 +126,9 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         if (pendingCandidates.isEmpty()) {
             throw new IllegalStateException("No pending approval found for " + moduleCode + " #" + documentId);
         }
-        ApprovalHistory pending = resolveActingRow(moduleCode, pendingCandidates, approverRoles, approverUsername)
+        ApprovalHistory pending = resolveActingRow(moduleCode, rows, pendingCandidates, approverRoles, approverUsername)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "None of the pending approvals at this stage match your role/user."));
+                        "None of the pending approvals match your role/user, or you've already approved a peer requirement at this level — a different approver is needed."));
 
         LocalDateTime now = LocalDateTime.now();
         pending.setStatus(ApprovalActionStatus.REJECTED);
@@ -162,13 +162,20 @@ public class ApprovalEngineImpl implements ApprovalEngine {
     // Which of possibly-several PENDING rows (parallel peers share a level) is THIS caller
     // allowed to act on: either they hold the row's configured role, or — if the originating
     // band pins a specific approverUsername (User-Based Approval) — they ARE that exact
-    // user regardless of role. Bands never set approverUsername/parallelGroup today, so for
-    // every existing PurchaseOrder/VendorInvoice band this reduces to "the one PENDING row,
-    // if its role matches" — identical to the old single-row check.
-    private Optional<ApprovalHistory> resolveActingRow(String moduleCode, List<ApprovalHistory> pendingCandidates,
+    // user regardless of role. A candidate is skipped if this same approverUsername has
+    // already approved a peer row at this same level for this document — otherwise one
+    // person could satisfy a "two different managers must sign off" rule by themselves.
+    private Optional<ApprovalHistory> resolveActingRow(String moduleCode, List<ApprovalHistory> allRowsForDocument,
+                                                        List<ApprovalHistory> pendingCandidates,
                                                         Set<String> approverRoles, String approverUsername) {
         List<ApprovalMatrix> bands = matrixRepository.findByModuleCodeOrderByLevelSequenceAsc(moduleCode);
         for (ApprovalHistory row : pendingCandidates) {
+            boolean alreadyClaimedThisLevel = allRowsForDocument.stream()
+                    .anyMatch(r -> r.getApprovalLevel() == row.getApprovalLevel()
+                            && r.getStatus() == ApprovalActionStatus.APPROVED
+                            && approverUsername.equalsIgnoreCase(r.getApproverUsername()));
+            if (alreadyClaimedThisLevel) continue;
+
             ApprovalMatrix band = bands.stream()
                     .filter(b -> b.getLevelSequence() == row.getApprovalLevel()
                             && b.getApproverRole().equals(row.getApproverRole()))

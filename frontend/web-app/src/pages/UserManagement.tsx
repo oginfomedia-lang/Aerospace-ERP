@@ -42,8 +42,9 @@ const UserManagement: React.FC = () => {
       <form onSubmit={submit} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
         <div>
           <label className="text-xs font-black text-slate-500 uppercase block mb-1">Username</label>
-          <input required value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
+          <input required minLength={3} value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+          <p className="text-[11px] text-slate-400 mt-1">At least 3 characters</p>
         </div>
         <div>
           <label className="text-xs font-black text-slate-500 uppercase block mb-1">Email</label>
@@ -52,8 +53,9 @@ const UserManagement: React.FC = () => {
         </div>
         <div>
           <label className="text-xs font-black text-slate-500 uppercase block mb-1">Password</label>
-          <input required type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
+          <input required type="password" minLength={6} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+          <p className="text-[11px] text-slate-400 mt-1">At least 6 characters</p>
         </div>
         <div>
           <label className="text-xs font-black text-slate-500 uppercase block mb-2">Role(s)</label>

@@ -25,4 +25,7 @@ public class NcrResponse {
     private String dispositionedBy;
     private LocalDateTime createdAt;
     private LocalDateTime dispositionedAt;
+    // True when a non-terminal (not CLOSED/REJECTED) CAPA already exists against this NCR —
+    // lets the frontend show "CAPA Already Raised" instead of a clickable Open CAPA button.
+    private boolean hasActiveCapa;
 }

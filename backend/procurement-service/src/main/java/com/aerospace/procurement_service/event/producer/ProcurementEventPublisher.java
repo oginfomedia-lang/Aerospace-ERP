@@ -13,6 +13,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
+import com.aerospace.procurement_service.event.PoDeliveryOverdueEvent;
+import com.aerospace.procurement_service.event.SupplierRegisteredEvent;
+import com.aerospace.procurement_service.event.SupplierConfirmationDecidedEvent;
 
 @Component
 @RequiredArgsConstructor
@@ -69,5 +72,22 @@ public class ProcurementEventPublisher {
         kafkaTemplate.send(KafkaTopics.PO_APPROVAL_STATUS, event);
         log.info("📢 [PROCUREMENT EVENT] Published PO_APPROVAL_STATUS — po={} status={}",
                 event.getPoNumber(), event.getStatus());
+    }
+
+    public void publishPoDeliveryOverdue(PoDeliveryOverdueEvent event) {
+        kafkaTemplate.send(KafkaTopics.PO_DELIVERY_OVERDUE, event);
+        log.info("📢 [PROCUREMENT EVENT] Published PO_DELIVERY_OVERDUE — po={} supplier={} overdueHours={}",
+                event.getPoNumber(), event.getSupplierName(), event.getHoursOverdue());
+    }
+
+    public void publishSupplierRegistered(SupplierRegisteredEvent event) {
+        kafkaTemplate.send(KafkaTopics.SUPPLIER_REGISTERED, event);
+        log.info("📢 [PROCUREMENT EVENT] Published SUPPLIER_REGISTERED — supplier={}", event.getSupplierName());
+    }
+
+    public void publishSupplierConfirmationDecided(SupplierConfirmationDecidedEvent event) {
+        kafkaTemplate.send(KafkaTopics.SUPPLIER_CONFIRMATION_DECIDED, event);
+        log.info("📢 [PROCUREMENT EVENT] Published SUPPLIER_CONFIRMATION_DECIDED — supplier={} status={}",
+                event.getSupplierName(), event.getStatus());
     }
 }

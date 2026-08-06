@@ -45,3 +45,9 @@ app:
 
 app.frontend.supplier-portal-base-url: http://localhost:3000
 
+# Cross-service HTTP client — used to verify a supplier's confirmation status
+# with procurement-service before inviting them to the Supplier Portal.
+services:
+  procurement:
+    base-url: http://localhost:8086/api
+

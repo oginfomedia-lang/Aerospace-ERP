@@ -1,5 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { tokenStorage } from '../utils/tokenStorage';
 
 const procurementApi = axios.create({
   baseURL: 'http://localhost:8086/api',
@@ -9,7 +10,7 @@ const procurementApi = axios.create({
 // ✅ Request interceptor – attach JWT token
 procurementApi.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = tokenStorage.getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

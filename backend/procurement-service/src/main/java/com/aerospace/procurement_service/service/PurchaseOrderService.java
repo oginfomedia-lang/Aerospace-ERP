@@ -43,6 +43,11 @@ public interface PurchaseOrderService {
 
     List<POApprovalHistoryDTO> getApprovalHistory(Long id);
 
+    // Admin recovery tool: recomputes status/currentApprovalLevel purely from this PO's
+    // own live-version approval history, for documents left inconsistent by a bug (fixed
+    // this session, but couldn't retroactively repair records it had already corrupted).
+    PurchaseOrderResponse resyncApprovalStatus(Long id);
+
     void createFromAwardedQuotation(PurchaseRequisition pr, RequestForQuotation rfq, Quotation winner);
 
     // Supplier portal — a supplier's own POs, so they can see what happens after they win an RFQ

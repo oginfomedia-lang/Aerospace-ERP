@@ -160,6 +160,28 @@ public class KafkaConfig {
     }
 
     @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, PoDeliveryOverdueEvent> poDeliveryOverdueListenerFactory() {
+        return factory(PoDeliveryOverdueEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, PurchaseOrderCreatedEvent> poCreatedListenerFactory() {
+        return factory(PurchaseOrderCreatedEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, SupplierRegisteredEvent>
+    supplierRegisteredListenerFactory() {
+        return factory(SupplierRegisteredEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, SupplierConfirmationDecidedEvent>
+    supplierConfirmationDecidedListenerFactory() {
+        return factory(SupplierConfirmationDecidedEvent.class);
+    }
+
+    @Bean
     public ConsumerFactory<String, ApprovalEscalatedEvent> approvalEscalatedConsumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);

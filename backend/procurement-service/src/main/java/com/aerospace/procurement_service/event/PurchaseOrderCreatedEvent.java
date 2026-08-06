@@ -15,6 +15,7 @@ public class PurchaseOrderCreatedEvent {
     private Long purchaseOrderId;
     private String poNumber;
     private String supplierName;
+    private String supplierEmail;
     private Double totalAmount;
     private String currency;
     private LocalDateTime expectedDeliveryDate;

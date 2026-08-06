@@ -16,6 +16,7 @@ export const ApprovalMatrixModal: React.FC<Props> = ({ isOpen, onClose, onSucces
   const [amountFrom, setAmountFrom] = useState('');
   const [amountTo, setAmountTo] = useState('');
   const [approverRole, setApproverRole] = useState('');
+  const [approverUsername, setApproverUsername] = useState('');
   const [levelSequence, setLevelSequence] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [escalationHours, setEscalationHours] = useState('');
@@ -29,6 +30,7 @@ export const ApprovalMatrixModal: React.FC<Props> = ({ isOpen, onClose, onSucces
         setAmountFrom(String(band.amountFrom));
         setAmountTo(String(band.amountTo));
         setApproverRole(band.approverRole);
+        setApproverUsername(band.approverUsername ?? '');
         setLevelSequence(String(band.levelSequence));
         setIsActive(band.isActive);
         setEscalationHours(band.escalationHours != null ? String(band.escalationHours) : '');
@@ -56,7 +58,8 @@ export const ApprovalMatrixModal: React.FC<Props> = ({ isOpen, onClose, onSucces
     try {
       const payload: ApprovalMatrixRequest = {
         moduleCode, amountFrom: Number(amountFrom), amountTo: Number(amountTo),
-        approverRole, levelSequence: Number(levelSequence), isActive,
+        approverRole, approverUsername: approverUsername.trim() ? approverUsername.trim() : null,
+        levelSequence: Number(levelSequence), isActive,
         escalationHours: escalationHours.trim() ? Number(escalationHours) : null,
         escalationToRole: escalationToRole.trim() ? escalationToRole.trim() : null,
       };
@@ -115,6 +118,15 @@ export const ApprovalMatrixModal: React.FC<Props> = ({ isOpen, onClose, onSucces
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Level Sequence *</label>
               <input type="number" value={levelSequence} onChange={e => setLevelSequence(e.target.value)}
                 className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Approver Username</label>
+              <input value={approverUsername} onChange={e => setApproverUsername(e.target.value)}
+                placeholder="e.g. priya (leave blank for role-only)"
+                className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Optional. If set, this exact person can also approve here — in addition to anyone holding the role above, not instead of them.
+              </p>
             </div>
           </div>
           <label className="flex items-center gap-2 text-xs font-bold text-slate-600">

@@ -81,7 +81,16 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         // With one band per level (today's only real config) this is trivially true the
         // instant `pending` itself approves, same as before.
         int currentLevel = pending.getApprovalLevel();
-        boolean allPeersCleared = rows.stream()
+        // Scope every check below to THIS submission's version — old rows from a prior,
+        // already-resolved version (e.g. a rejected-then-resubmitted document) share the
+        // same approvalLevel numbers and would otherwise be miscounted as unmet peers,
+        // permanently stalling the current version at the level it's already cleared.
+        int currentVersion = pending.getDocumentVersion();
+        List<ApprovalHistory> currentVersionRows = rows.stream()
+                .filter(r -> r.getDocumentVersion() == currentVersion)
+                .toList();
+
+        boolean allPeersCleared = currentVersionRows.stream()
                 .filter(r -> r.getApprovalLevel() == currentLevel)
                 .allMatch(r -> r == pending || r.getStatus() == ApprovalActionStatus.APPROVED);
 
@@ -92,7 +101,7 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         // "Next distinct level above current" instead of the old hardcoded level+1 — this
         // also correctly handles non-contiguous level numbers (e.g. 1, 5, 10), which the
         // old +1 lookup would have silently mishandled.
-        OptionalInt nextLevel = rows.stream()
+        OptionalInt nextLevel = currentVersionRows.stream()
                 .filter(r -> r.getApprovalLevel() > currentLevel && r.getStatus() == ApprovalActionStatus.WAITING)
                 .mapToInt(ApprovalHistory::getApprovalLevel)
                 .min();
@@ -100,7 +109,7 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         if (nextLevel.isEmpty()) {
             return new ApprovalOutcome(ApprovalOutcome.Status.FULLY_APPROVED, null, null);
         }
-        List<ApprovalHistory> promoted = rows.stream()
+        List<ApprovalHistory> promoted = currentVersionRows.stream()
                 .filter(r -> r.getApprovalLevel() == nextLevel.getAsInt() && r.getStatus() == ApprovalActionStatus.WAITING)
                 .toList();
         promoted.forEach(r -> { r.setStatus(ApprovalActionStatus.PENDING); r.setPendingSince(now); });
@@ -142,7 +151,8 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         // at this same level is now moot — close it out too instead of leaving it dangling.
         // For sequential (non-parallel) bands there is never a sibling, so this is a no-op.
         List<ApprovalHistory> siblings = rows.stream()
-                .filter(r -> r != pending && r.getApprovalLevel() == pending.getApprovalLevel()
+                .filter(r -> r != pending && r.getDocumentVersion() == pending.getDocumentVersion()
+                        && r.getApprovalLevel() == pending.getApprovalLevel()
                         && r.getStatus() == ApprovalActionStatus.PENDING)
                 .toList();
         siblings.forEach(r -> {
@@ -171,7 +181,8 @@ public class ApprovalEngineImpl implements ApprovalEngine {
         List<ApprovalMatrix> bands = matrixRepository.findByModuleCodeOrderByLevelSequenceAsc(moduleCode);
         for (ApprovalHistory row : pendingCandidates) {
             boolean alreadyClaimedThisLevel = allRowsForDocument.stream()
-                    .anyMatch(r -> r.getApprovalLevel() == row.getApprovalLevel()
+                    .anyMatch(r -> r.getDocumentVersion() == row.getDocumentVersion()
+                            && r.getApprovalLevel() == row.getApprovalLevel()
                             && r.getStatus() == ApprovalActionStatus.APPROVED
                             && approverUsername.equalsIgnoreCase(r.getApproverUsername()));
             if (alreadyClaimedThisLevel) continue;
@@ -230,5 +241,23 @@ public class ApprovalEngineImpl implements ApprovalEngine {
             justEscalated.add(row);
         }
         return justEscalated;
+    }
+
+    @Override
+    public SignatureVerificationResult verifySignature(Long historyId) {
+        ApprovalHistory row = historyRepository.findById(historyId)
+                .orElseThrow(() -> new IllegalArgumentException("Approval history row not found: " + historyId));
+
+        if (row.getDigitalSignatureHash() == null) {
+            return new SignatureVerificationResult(false, "This row was never signed (status: " + row.getStatus() + ") — nothing to verify.");
+        }
+
+        String recomputed = computeSignatureHash(
+                row.getApproverUsername(), row.getApprovedAt(), row.getDocumentId(), row.getDocumentVersion(), row.getRemarks());
+
+        boolean valid = recomputed.equals(row.getDigitalSignatureHash());
+        return new SignatureVerificationResult(valid, valid
+                ? "Signature matches — actor, timestamp, and remarks are unchanged since signing."
+                : "TAMPER DETECTED — one or more of actor/timestamp/documentVersion/remarks has been altered since this row was signed.");
     }
 }

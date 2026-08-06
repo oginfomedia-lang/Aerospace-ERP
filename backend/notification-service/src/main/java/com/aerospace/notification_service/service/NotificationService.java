@@ -32,4 +32,11 @@ public interface NotificationService {
     List<NotificationLog> getByType(String type);
 
     void handleApprovalEscalated(ApprovalEscalatedEvent event);
+
+    void handlePoDeliveryOverdue(PoDeliveryOverdueEvent event);
+
+    void handlePurchaseOrderSentToVendor(PurchaseOrderCreatedEvent event);
+
+    void handleSupplierRegistered(SupplierRegisteredEvent event);
+    void handleSupplierConfirmationDecided(SupplierConfirmationDecidedEvent event);
 }

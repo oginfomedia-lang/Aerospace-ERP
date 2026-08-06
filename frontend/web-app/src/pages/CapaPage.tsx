@@ -90,7 +90,7 @@ const CapaPage = () => {
           capaType,
           ownerName,
           createdBy,
-          targetCloseDate,
+          targetCloseDate: targetCloseDate ? `${targetCloseDate}T00:00:00` : null,
           remarks: openRemarks
         }),
         {

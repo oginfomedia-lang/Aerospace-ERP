@@ -61,6 +61,18 @@ public class Supplier {
     @Column(nullable = false)
     private boolean active = true;
 
+    // Onboarding gate: a brand-new supplier can't be invited to the portal until
+    // QA/authority confirms it. Independent from `active`, which is about whether
+    // an already-approved supplier can still receive new POs.
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    @Column(nullable = false)
+    private SupplierConfirmationStatus confirmationStatus = SupplierConfirmationStatus.PENDING;
+
+    private String confirmationRemarks;
+    private String confirmedBy;
+    private LocalDateTime confirmedAt;
+
     @JsonIgnore
     @OneToMany(mappedBy = "supplier", cascade = CascadeType.ALL)
     private List<PurchaseOrder> purchaseOrders;

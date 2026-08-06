@@ -95,6 +95,16 @@ public class PurchaseOrderController {
         return ResponseEntity.ok(poService.getApprovalHistory(id));
     }
 
+    // Admin-only recovery tool for a PO left inconsistent by a past bug — recomputes
+    // status/currentApprovalLevel from the PO's own approval history instead of a manual
+    // SQL UPDATE. Deliberately not exposed to PROCUREMENT_OFFICER/MANAGER.
+    @Audited(action = "RESYNC_APPROVAL_STATUS", entityType = "PurchaseOrder")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{id}/resync-approval-status")
+    public ResponseEntity<PurchaseOrderResponse> resyncApprovalStatus(@PathVariable Long id) {
+        return ResponseEntity.ok(poService.resyncApprovalStatus(id));
+    }
+
     private List<String> rolesOf(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)

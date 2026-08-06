@@ -19,7 +19,7 @@ public class ProcurementEventConsumer {
     private final ProcurementFactRepository procurementFactRepository;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "purchase-order-created", containerFactory = "reportingKafkaListenerContainerFactory")
+    @KafkaListener(topics = "procurement-po-created", containerFactory = "reportingKafkaListenerContainerFactory")
     public void handlePurchaseOrderCreated(String message) {
         try {
             PurchaseOrderCreatedEvent event = objectMapper.readValue(message, PurchaseOrderCreatedEvent.class);

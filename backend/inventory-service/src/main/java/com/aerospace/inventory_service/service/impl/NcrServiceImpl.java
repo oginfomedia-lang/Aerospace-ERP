@@ -2,6 +2,7 @@ package com.aerospace.inventory_service.service.impl;
 
 import com.aerospace.inventory_service.dto.DispositionRequest;
 import com.aerospace.inventory_service.dto.NcrResponse;
+import com.aerospace.inventory_service.entity.CapaStatus;
 import com.aerospace.inventory_service.entity.DispositionType;
 import com.aerospace.inventory_service.entity.NcrStatus;
 import com.aerospace.inventory_service.entity.NonConformanceReport;
@@ -9,6 +10,7 @@ import com.aerospace.inventory_service.entity.StockBalance;
 import com.aerospace.inventory_service.entity.StockStatus;
 import com.aerospace.inventory_service.exception.ResourceNotFoundException;
 import com.aerospace.inventory_service.mapper.NcrMapper;
+import com.aerospace.inventory_service.repository.CapaRepository;
 import com.aerospace.inventory_service.repository.NcrRepository;
 import com.aerospace.inventory_service.repository.StockBalanceRepository;
 import com.aerospace.inventory_service.service.NcrService;
@@ -31,24 +33,41 @@ import java.util.List;
 @Slf4j
 public class NcrServiceImpl implements NcrService {
 
+    private static final List<CapaStatus> CAPA_TERMINAL = List.of(CapaStatus.CLOSED, CapaStatus.REJECTED);
+
     private final NcrRepository ncrRepository;
     private final StockBalanceRepository balanceRepository;
     private final TransactionService transactionService;
     private final NcrMapper mapper;
     private final PartRepository partRepository;
     private final InventoryProducer inventoryProducer;
+    private final CapaRepository capaRepository;
+
+    // Same "any non-terminal CAPA" rule CapaServiceImpl.openCapa() enforces server-side —
+    // exposed here too so the frontend can show "CAPA Already Raised" instead of a button
+    // that's just going to fail with a 409.
+    private boolean hasActiveCapa(Long ncrId) {
+        return capaRepository.findByNcrIdOrderByCreatedAtDesc(ncrId).stream()
+                .anyMatch(c -> !CAPA_TERMINAL.contains(c.getStatus()));
+    }
+
+    private NcrResponse toDTOWithCapaFlag(NonConformanceReport ncr) {
+        NcrResponse dto = mapper.toDTO(ncr);
+        dto.setHasActiveCapa(hasActiveCapa(ncr.getId()));
+        return dto;
+    }
 
     @Override
     public List<NcrResponse> getAll(String status) {
         List<NonConformanceReport> ncrs = (status != null && !status.isBlank())
                 ? ncrRepository.findByStatus(NcrStatus.valueOf(status.toUpperCase()))
                 : ncrRepository.findAll();
-        return ncrs.stream().map(mapper::toDTO).toList();
+        return ncrs.stream().map(this::toDTOWithCapaFlag).toList();
     }
 
     @Override
     public NcrResponse getById(Long id) {
-        return mapper.toDTO(findOrThrow(id));
+        return toDTOWithCapaFlag(findOrThrow(id));
     }
 
     @Override
@@ -145,7 +164,7 @@ public class NcrServiceImpl implements NcrService {
 
         NonConformanceReport saved = ncrRepository.save(ncr);
         log.info("[NCR] {} dispositioned as {} by {}", ncr.getNcrNumber(), type, request.getDispositionedBy());
-        return mapper.toDTO(saved);
+        return toDTOWithCapaFlag(saved);
     }
 
     private NonConformanceReport findOrThrow(Long id) {

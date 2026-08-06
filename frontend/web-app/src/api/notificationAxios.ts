@@ -3,6 +3,7 @@
 
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { tokenStorage } from '../utils/tokenStorage';
 
 const notificationApi = axios.create({
   baseURL: 'http://localhost:8083/api/v1',
@@ -12,7 +13,7 @@ const notificationApi = axios.create({
 // ✅ Request interceptor – attach JWT token
 notificationApi.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = tokenStorage.getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

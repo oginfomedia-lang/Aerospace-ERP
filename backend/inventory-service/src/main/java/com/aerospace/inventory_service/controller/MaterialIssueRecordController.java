@@ -8,6 +8,7 @@ import com.aerospace.inventory_service.mapper.MaterialIssueRecordMapper;
 import com.aerospace.inventory_service.repository.MaterialIssueRecordRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/inventory/material-issue-records")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('STORE_KEEPER','PRODUCTION_ENGINEER','QA_INSPECTOR','MANAGER','ADMIN')")
 public class MaterialIssueRecordController {
 
     private final MaterialIssueRecordRepository repository;

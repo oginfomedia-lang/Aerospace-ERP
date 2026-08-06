@@ -80,4 +80,8 @@ public class PurchaseOrder {
     @ColumnDefault("1")
     @Column(nullable = false)
     private int documentVersion = 1;
+
+    //set once an overdue-delivery notification has fired for this PO — prevents the
+    // daily scheduler from re-notifying every single day for the same overdue PO.
+    private LocalDateTime overdueNotifiedAt;
 }

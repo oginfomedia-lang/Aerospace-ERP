@@ -1,6 +1,7 @@
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\AuthServiceApplication.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\config\DataSeeder.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\config\KafkaProducerConfig.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\config\RestClientConfig.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\config\SecurityConfig.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\controller\AdminUserController.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\controller\AuthController.java
@@ -12,6 +13,7 @@ C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\mai
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\dto\RefreshTokenRequest.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\dto\RegisterRequest.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\dto\SupplierAuthDTOs.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\dto\SupplierLookupResponse.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\dto\TokenValidationRequest.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\dto\TokenValidationResponse.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\auth-service\src\main\java\com\aerospace\auth_service\dto\UserResponse.java

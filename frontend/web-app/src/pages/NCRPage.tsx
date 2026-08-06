@@ -82,11 +82,14 @@ const NCRPage = () => {
     setCapaSubmitting(true);
     try {
       await toast.promise(
-        api.post(`/inventory/ncr/${capaTargetNcr.id}/capa`, capaForm),
+        api.post(`/inventory/ncr/${capaTargetNcr.id}/capa`, {
+          ...capaForm,
+          targetCloseDate: capaForm.targetCloseDate ? `${capaForm.targetCloseDate}T00:00:00` : null,
+        }),
         {
           loading: 'Initializing CAPA...',
           success: `CAPA created for NCR ${capaTargetNcr.ncrNumber}`,
-          error: (err) => err.response?.data?.message || 'Failed to open CAPA'
+          error: (err) => err.response?.data?.message || err.response?.data || 'Failed to open CAPA'
         }
       );
       setShowCapaModal(false);
@@ -166,8 +169,9 @@ const NCRPage = () => {
           ) : (
             <div className="divide-y divide-slate-50">
               {ncrs.map(ncr => (
-                <button key={ncr.id} onClick={() => handleSelect(ncr)}
-                  className={`w-full text-left p-5 hover:bg-slate-50 transition-all group ${
+                <div key={ncr.id} onClick={() => handleSelect(ncr)} role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelect(ncr); }}
+                  className={`w-full text-left p-5 hover:bg-slate-50 transition-all group cursor-pointer ${
                     selected?.id === ncr.id ? 'bg-red-50 border-l-4 border-red-600' : ''
                   }`}>
                   <div className="flex justify-between items-start">
@@ -181,13 +185,22 @@ const NCRPage = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       {canManageCapa && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleOpenCapaModal(ncr, e)}
-                          className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold border border-purple-200 transition-all flex items-center gap-1"
-                        >
-                          <ClipboardList size={12} /> Open CAPA
-                        </button>
+                        ncr.hasActiveCapa ? (
+                          <span
+                            title="This NCR already has an active CAPA — see the CAPA page to progress it."
+                            className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-xs font-bold border border-slate-200 flex items-center gap-1"
+                          >
+                            <ClipboardList size={12} /> CAPA Already Raised
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => handleOpenCapaModal(ncr, e)}
+                            className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold border border-purple-200 transition-all flex items-center gap-1"
+                          >
+                            <ClipboardList size={12} /> Open CAPA
+                          </button>
+                        )
                       )}
                       <ChevronRight size={16} className="text-slate-300 group-hover:text-red-500 transition-colors" />
                     </div>
@@ -198,7 +211,7 @@ const NCRPage = () => {
                   {ncr.reason && (
                     <p className="mt-1 text-xs text-slate-500 italic truncate">{ncr.reason}</p>
                   )}
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -227,13 +240,19 @@ const NCRPage = () => {
                     </div>
                   </div>
                   {canManageCapa && (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenCapaModal(selected)}
-                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm"
-                    >
-                      <ClipboardList size={14} /> Open CAPA
-                    </button>
+                    selected.hasActiveCapa ? (
+                      <span className="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-xl text-xs font-black flex items-center gap-1.5">
+                        <ClipboardList size={14} /> CAPA Already Raised
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCapaModal(selected)}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm"
+                      >
+                        <ClipboardList size={14} /> Open CAPA
+                      </button>
+                    )
                   )}
                 </div>
                 {selected.reason && (

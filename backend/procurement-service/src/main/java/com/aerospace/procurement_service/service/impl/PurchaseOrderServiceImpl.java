@@ -151,7 +151,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     @Transactional
     @Override
     public PurchaseOrderResponse updatePOStatus(Long id, POStatus status) {
-        PurchaseOrder po = poRepository.findById(id)
+        // Locked — same double-click/race concern as approve()/reject() below.
+        PurchaseOrder po = poRepository.lockById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
 
         // The approval chain has its own dedicated endpoints — this generic endpoint must not
@@ -165,6 +166,24 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new IllegalArgumentException(
                     "PO must be APPROVED before it can be sent to the vendor (current: " + po.getStatus() + ").");
         }
+        // Every other transition was previously unguarded — a raw API call (or a race with
+        // the UI's own state) could cancel a RECEIVED/CLOSED order, or jump straight from
+        // DRAFT to RECEIVED, skipping SENT_TO_VENDOR entirely.
+        if (status == POStatus.CANCELLED && po.getStatus() != POStatus.SENT_TO_VENDOR) {
+            throw new IllegalArgumentException(
+                    "Only a PO that has been sent to the vendor can be cancelled (current: " + po.getStatus() + ").");
+        }
+        if (status == POStatus.RECEIVED
+                && po.getStatus() != POStatus.SENT_TO_VENDOR && po.getStatus() != POStatus.PARTIALLY_RECEIVED) {
+            throw new IllegalArgumentException(
+                    "A PO can only be marked received once it has been sent to the vendor (current: " + po.getStatus() + ").");
+        }
+        if (status == POStatus.PARTIALLY_RECEIVED || status == POStatus.CLOSED) {
+            // PARTIALLY_RECEIVED is only ever set automatically from a real Material
+            // Receipt/GRN (see applyMaterialReceipt) and CLOSED has no workflow that
+            // produces it yet — neither is a valid manual transition through this endpoint.
+            throw new IllegalArgumentException(status + " cannot be set manually through this endpoint.");
+        }
 
         po.setStatus(status);
         PurchaseOrder saved = poRepository.save(po);
@@ -174,6 +193,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                     .purchaseOrderId(saved.getId())
                     .poNumber(saved.getPoNumber())
                     .supplierName(saved.getSupplier().getName())
+                    .supplierEmail(saved.getSupplier().getEmail())
                     .totalAmount(saved.getTotalAmount() != null ? saved.getTotalAmount().doubleValue() : 0.0)
                     .currency(saved.getCurrency())
                     .expectedDeliveryDate(saved.getDeliveryDate())
@@ -220,7 +240,10 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     @Transactional
     @Override
     public PurchaseOrderResponse approve(Long id, POApprovalActionRequest request, String approverUsername, List<String> approverRoles) {
-        PurchaseOrder po = poRepository.findById(id)
+        // Row-locked, same as submitForApproval() — without this, two concurrent approve
+        // clicks (double-click, or two approvers racing) can both pass the PENDING_APPROVAL
+        // check before either writes back, corrupting currentApprovalLevel/status.
+        PurchaseOrder po = poRepository.lockById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
 
         if (po.getStatus() != POStatus.PENDING_APPROVAL || po.getCurrentApprovalLevel() == null) {
@@ -244,7 +267,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     @Transactional
     @Override
     public PurchaseOrderResponse reject(Long id, POApprovalActionRequest request, String approverUsername, List<String> approverRoles) {
-        PurchaseOrder po = poRepository.findById(id)
+        // Row-locked for the same reason as approve() above.
+        PurchaseOrder po = poRepository.lockById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
 
         if (po.getStatus() != POStatus.PENDING_APPROVAL || po.getCurrentApprovalLevel() == null) {
@@ -336,6 +360,47 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                         .thenComparingInt(ApprovalHistory::getApprovalLevel))
                 .map(poMapper::toApprovalHistoryDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    @Override
+    public PurchaseOrderResponse resyncApprovalStatus(Long id) {
+        PurchaseOrder po = poRepository.lockById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PO not found with id " + id));
+
+        List<ApprovalHistory> liveRows = approvalEngine.getHistory(MODULE, id).stream()
+                .filter(h -> h.getDocumentVersion() == po.getDocumentVersion())
+                .toList();
+
+        if (liveRows.isEmpty()) {
+            // No chain for this version — nothing to resync against, leave status untouched.
+            return poMapper.toDTO(po);
+        }
+
+        boolean anyRejected = liveRows.stream()
+                .anyMatch(r -> r.getStatus() == com.aerospace.common.approval.ApprovalActionStatus.REJECTED);
+        boolean allApproved = liveRows.stream()
+                .allMatch(r -> r.getStatus() == com.aerospace.common.approval.ApprovalActionStatus.APPROVED);
+
+        if (anyRejected) {
+            po.setStatus(POStatus.DRAFT);
+            po.setCurrentApprovalLevel(null);
+        } else if (allApproved) {
+            po.setStatus(POStatus.APPROVED);
+            po.setCurrentApprovalLevel(null);
+        } else {
+            // Lowest level that hasn't cleared yet is where the chain is really sitting.
+            int liveLevel = liveRows.stream()
+                    .filter(r -> r.getStatus() != com.aerospace.common.approval.ApprovalActionStatus.APPROVED)
+                    .mapToInt(ApprovalHistory::getApprovalLevel)
+                    .min().orElseThrow();
+            po.setStatus(POStatus.PENDING_APPROVAL);
+            po.setCurrentApprovalLevel(liveLevel);
+        }
+
+        log.warn("[ADMIN-RESYNC] PO {} status resynced to {} (level {}) from its own approval history",
+                po.getPoNumber(), po.getStatus(), po.getCurrentApprovalLevel());
+        return poMapper.toDTO(poRepository.save(po));
     }
 
     @Transactional
@@ -558,9 +623,16 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 po.getPoNumber(), rfq.getRfqNumber(), winner.getSupplier().getName(), winner.getUnitPrice());
     }
 
+    // A supplier must never see a PO that hasn't actually been issued to them yet —
+    // DRAFT/PENDING_APPROVAL/APPROVED are still internal. Once it's left SENT_TO_VENDOR
+    // it stays visible (PARTIALLY_RECEIVED/RECEIVED/CLOSED/CANCELLED all imply it was sent).
+    private static final List<POStatus> NOT_YET_SENT =
+            List.of(POStatus.DRAFT, POStatus.PENDING_APPROVAL, POStatus.APPROVED, POStatus.REJECTED);
+
     @Override
     public List<PurchaseOrderResponse> getForSupplier(Long supplierId) {
         return poRepository.findBySupplier_IdOrderByOrderDateDesc(supplierId).stream()
+                .filter(po -> !NOT_YET_SENT.contains(po.getStatus()))
                 .map(poMapper::toDTO)
                 .collect(Collectors.toList());
     }

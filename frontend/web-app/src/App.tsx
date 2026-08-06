@@ -108,8 +108,13 @@ function App() {
             </Route>
 
             {/* Procurement */}
-            <Route element={<ProtectedRoute requiredRoles={['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']} />}>
+            {/* Suppliers gets its own guard (not the shared Procurement one below) because
+                QA_INSPECTOR needs to reach it to confirm/reject new suppliers, but must not
+                gain access to POs/invoices/RFQs/debit notes just from that. */}
+            <Route element={<ProtectedRoute requiredRoles={['PROCUREMENT_OFFICER', 'QA_INSPECTOR', 'MANAGER', 'ADMIN']} />}>
               <Route path="/suppliers" element={<ProcurementSuppliers />} />
+            </Route>
+            <Route element={<ProtectedRoute requiredRoles={['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']} />}>
               <Route path="/purchase-orders" element={<ProcurementOrders />} />
               <Route path="/vendor-invoices" element={<VendorInvoices />} />
               <Route path="/purchase-requisitions" element={<PurchaseRequisitions />} />

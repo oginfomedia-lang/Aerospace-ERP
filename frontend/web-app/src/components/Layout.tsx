@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
@@ -32,7 +32,7 @@ const navItems = [
     label: 'Suppliers',
     icon: <Users size={18} />,
     description: 'Vendor management',
-    roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
+    roles: ['PROCUREMENT_OFFICER', 'QA_INSPECTOR', 'MANAGER', 'ADMIN']
   },
   {
     path: '/purchase-orders',
@@ -214,11 +214,19 @@ const Layout = ({ children }: Props) => {
     !item.roles.length ||
     !user?.roles ||
     user.roles.length === 0 ||
-    item.roles.some(role => hasRole(role))
+    item.roles.some(role => hasRole(role)) 
 );
 
+const mainRef = useRef<HTMLDivElement>(null);  
+//reset scroll position to the top every time the route changes - otherwise
+//this <main> element (which never unmounts, only its page content does)
+//keeps whatevery scroll position the previous page was left at.
+useEffect(() => {
+  mainRef.current?.scrollTo({ top: 0 });
+}, [location.pathname])
+
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="h-screen bg-slate-50 flex">
 
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -305,7 +313,7 @@ const Layout = ({ children }: Props) => {
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
 
         {/* Top bar */}
         <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center gap-4 sticky top-0 z-10">
@@ -355,7 +363,7 @@ const Layout = ({ children }: Props) => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main ref={mainRef} className="flex-1 p-6 overflow-auto">
           {children || <Outlet />}
         </main>
       </div>

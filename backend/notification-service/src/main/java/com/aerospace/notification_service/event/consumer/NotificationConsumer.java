@@ -206,4 +206,62 @@ public class NotificationConsumer {
                     event.getModuleCode(), event.getDocumentId(), ex.getMessage(), ex);
         }
     }
+
+    // ── 13. PO Delivery Overdue ───────────────────────────────────────────────
+    @KafkaListener(
+        topics           = NotificationTopics.PO_DELIVERY_OVERDUE,
+        groupId          = "notification-group",
+        containerFactory = "poDeliveryOverdueListenerFactory"
+    )
+    public void onPoDeliveryOverdue(PoDeliveryOverdueEvent event) {
+        log.info("[CONSUMER] po-delivery-overdue-events -> po={} supplier={} {}h overdue",
+                event.getPoNumber(), event.getSupplierName(), event.getHoursOverdue());
+        try { notificationService.handlePoDeliveryOverdue(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed PoDeliveryOverdueEvent po={}: {}", event.getPoNumber(), ex.getMessage(), ex);
+        }
+    }
+
+    // ── 14. PO Sent to Vendor ─────────────────────────────────────────────────
+    @KafkaListener(
+        topics           = NotificationTopics.PO_CREATED,
+        groupId          = "notification-group",
+        containerFactory = "poCreatedListenerFactory"
+    )
+    public void onPurchaseOrderSentToVendor(PurchaseOrderCreatedEvent event) {
+        log.info("[CONSUMER] procurement-po-created -> po={} supplier={}", event.getPoNumber(), event.getSupplierName());
+        try { notificationService.handlePurchaseOrderSentToVendor(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed PurchaseOrderCreatedEvent po={}: {}", event.getPoNumber(), ex.getMessage(), ex);
+        }
+    }
+
+    // ── 15. Supplier Registered ───────────────────────────────────────────────
+    @KafkaListener(
+        topics           = NotificationTopics.SUPPLIER_REGISTERED,
+        groupId          = "notification-group",
+        containerFactory = "supplierRegisteredListenerFactory"
+    )
+    public void onSupplierRegistered(SupplierRegisteredEvent event) {
+        log.info("[CONSUMER] supplier-registered-events -> supplier={}", event.getSupplierName());
+        try { notificationService.handleSupplierRegistered(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed SupplierRegisteredEvent supplier={}: {}", event.getSupplierName(), ex.getMessage(), ex);
+        }
+    }
+
+    // ── 16. Supplier Confirmation Decided ─────────────────────────────────────
+    @KafkaListener(
+        topics           = NotificationTopics.SUPPLIER_CONFIRMATION_DECIDED,
+        groupId          = "notification-group",
+        containerFactory = "supplierConfirmationDecidedListenerFactory"
+    )
+    public void onSupplierConfirmationDecided(SupplierConfirmationDecidedEvent event) {
+        log.info("[CONSUMER] supplier-confirmation-decided-events -> supplier={} status={}",
+                event.getSupplierName(), event.getStatus());
+        try { notificationService.handleSupplierConfirmationDecided(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed SupplierConfirmationDecidedEvent supplier={}: {}", event.getSupplierName(), ex.getMessage(), ex);
+        }
+    }
 }

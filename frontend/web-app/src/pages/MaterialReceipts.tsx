@@ -131,6 +131,7 @@ const MaterialReceipts = () => {
             <p className="font-bold uppercase tracking-widest text-xs">Nothing waiting at the gate</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
               <tr>
@@ -167,6 +168,7 @@ const MaterialReceipts = () => {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -180,6 +182,7 @@ const MaterialReceipts = () => {
             No GRNs formed yet
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
               <tr>
@@ -215,6 +218,7 @@ const MaterialReceipts = () => {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

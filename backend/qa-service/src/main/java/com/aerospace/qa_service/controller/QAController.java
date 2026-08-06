@@ -1,5 +1,6 @@
 package com.aerospace.qa_service.controller;
 
+import com.aerospace.common.audit.Audited;
 import com.aerospace.qa_service.common.ApiResponse;
 import com.aerospace.qa_service.dto.InspectionRequestDTO;
 import com.aerospace.qa_service.dto.InspectionResponseDTO;
@@ -25,6 +26,7 @@ public class QAController {
     // Core endpoint — QA engineer submits inspection decision
     // Saves to DB + publishes to Kafka → inventory auto-updates
     // POST /api/v1/qa/inspect
+    @Audited(action = "CREATE", entityType = "Inspection")
     @PostMapping("/inspect")
     public ResponseEntity<ApiResponse<InspectionResponseDTO>> submitDecision(
             @Valid @RequestBody InspectionRequestDTO dto) {

@@ -4,10 +4,16 @@ import api from '../api/axios';
 import procurementApi from '../api/procurementAxios';
 import { AuditLogEntry, AuditLogRow, AuditServiceKey } from '../types/audit';
 import toast from 'react-hot-toast';
+import qaApi from '../api/qaAxios';
+import workOrderApi from '../api/workOrderAxios';
+import productionApi from '../api/productionAxios';
 
 const ENTITY_TYPES: Record<AuditServiceKey, string[]> = {
   inventory: ['Part', 'NCR', 'MaterialReceipt'],
   procurement: ['PurchaseOrder', 'PurchaseRequisition'],
+  qa: ['Inspection', 'Equipment', 'CalibrationRecord', 'Fail', 'Coc'],
+  order: ['WorkOrder'],
+  production: ['RoutingTemplate', 'ProductionOrder'],
 };
 
 const actionColor = (action: string) => {
@@ -29,20 +35,32 @@ const AuditTrail: React.FC = () => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [invRes, procRes] = await Promise.allSettled([
+      const [invRes, procRes, qaRes, orderRes, productionRes] = await Promise.allSettled([
         api.get<AuditLogEntry[]>('http://localhost:8081/api/audit-log'),
         procurementApi.get<AuditLogEntry[]>('/audit-log'),
+        qaApi.get<AuditLogEntry[]>('http://localhost:8082/api/audit-log'),
+        workOrderApi.get<AuditLogEntry[]>('http://localhost:8084/api/audit-log'),
+        productionApi.get<AuditLogEntry[]>('http://localhost:8085/api/audit-log')
       ]);
 
       const invRows: AuditLogRow[] =
         invRes.status === 'fulfilled' ? invRes.value.data.map(r => ({ ...r, service: 'inventory' as const })) : [];
       const procRows: AuditLogRow[] =
         procRes.status === 'fulfilled' ? procRes.value.data.map(r => ({ ...r, service: 'procurement' as const })) : [];
+      const qaRows: AuditLogRow[] =
+        qaRes.status === 'fulfilled' ? qaRes.value.data.map(r => ({ ...r, service: 'qa' as const })) : [];
+      const orderRows: AuditLogRow[] =
+        orderRes.status === 'fulfilled' ? orderRes.value.data.map(r => ({ ...r, service: 'order' as const })) : [];
+      const productionRows: AuditLogRow[] =
+        productionRes.status === 'fulfilled' ? productionRes.value.data.map(r => ({ ...r, service: 'production' as const })) : [];
 
       if (invRes.status === 'rejected') toast.error('Inventory audit log unavailable');
       if (procRes.status === 'rejected') toast.error('Procurement audit log unavailable');
+      if (qaRes.status === 'rejected') toast.error('QA audit log unavailable');
+      if (orderRes.status === 'rejected') toast.error('Work Order audit log unavailable');
+      if (productionRes.status === 'rejected') toast.error('Production audit log unavailable');
 
-      setRows([...invRows, ...procRows].sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+      setRows([...invRows, ...procRows, ...qaRows, ...orderRows, ...productionRows].sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
     } catch {
       toast.error('Failed to load audit trail');
     } finally {
@@ -60,7 +78,7 @@ const AuditTrail: React.FC = () => {
   });
 
   const availableEntityTypes = serviceFilter === 'all'
-    ? [...ENTITY_TYPES.inventory, ...ENTITY_TYPES.procurement]
+    ? [...ENTITY_TYPES.inventory, ...ENTITY_TYPES.procurement, ...ENTITY_TYPES.qa, ...ENTITY_TYPES.order, ...ENTITY_TYPES.production]
     : ENTITY_TYPES[serviceFilter];
 
   return (
@@ -81,6 +99,9 @@ const AuditTrail: React.FC = () => {
           <option value="all">All Services</option>
           <option value="inventory">Inventory</option>
           <option value="procurement">Procurement</option>
+          <option value="qa">QA</option>
+          <option value="order">Work Order</option>
+          <option value="production">Production</option>
         </select>
         <select value={entityTypeFilter} onChange={e => setEntityTypeFilter(e.target.value)}
           className="px-3 py-2 rounded-lg border border-slate-200 text-sm">
@@ -95,6 +116,7 @@ const AuditTrail: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr className="text-xs uppercase tracking-wider text-slate-500">
@@ -142,6 +164,7 @@ const AuditTrail: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

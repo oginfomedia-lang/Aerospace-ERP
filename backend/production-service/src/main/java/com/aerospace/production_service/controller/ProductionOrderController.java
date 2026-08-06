@@ -1,5 +1,6 @@
 package com.aerospace.production_service.controller;
 
+import com.aerospace.common.audit.Audited;
 import com.aerospace.production_service.common.ApiResponse;
 import com.aerospace.production_service.dto.*;
 import com.aerospace.production_service.entity.ProductionOrderStatus;
@@ -26,6 +27,7 @@ public class ProductionOrderController {
 
     // ── CRUD ──────────────────────────────────────────────────────────────────
 
+    @Audited(action = "CREATE", entityType = "ProductionOrder")
     @PostMapping
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> create(
             @Valid @RequestBody ProductionOrderRequestDTO dto) {
@@ -59,6 +61,7 @@ public class ProductionOrderController {
                 productionOrderService.getByPoNumber(poNumber)));
     }
 
+    @Audited(action = "UPDATE", entityType = "ProductionOrder")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> update(
             @PathVariable Long id,
@@ -67,6 +70,7 @@ public class ProductionOrderController {
                 productionOrderService.updateOrder(id, dto)));
     }
 
+    @Audited(action = "DELETE", entityType = "ProductionOrder")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         productionOrderService.deleteOrder(id);
@@ -117,6 +121,7 @@ public class ProductionOrderController {
 
     // ── LIFECYCLE TRANSITIONS ─────────────────────────────────────────────────
 
+    @Audited(action = "RELEASE", entityType = "ProductionOrder")
     @PostMapping("/{id}/release")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> release(
             @PathVariable Long id) {
@@ -124,6 +129,7 @@ public class ProductionOrderController {
                 productionOrderService.releaseOrder(id)));
     }
 
+    @Audited(action = "START", entityType = "ProductionOrder")
     @PostMapping("/{id}/start")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> start(
             @PathVariable Long id,
@@ -132,6 +138,7 @@ public class ProductionOrderController {
                 productionOrderService.startProduction(id, skipRoutingForMaterialIds)));
     }
 
+    @Audited(action = "START_ASSEMBLY", entityType = "ProductionOrder")
     @PostMapping("/{id}/start-assembly")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> startAssembly(
             @PathVariable Long id) {
@@ -139,6 +146,7 @@ public class ProductionOrderController {
                 productionOrderService.startAssembly(id)));
     }
 
+    @Audited(action = "QUALITY_CHECK", entityType = "ProductionOrder")
     @PostMapping("/{id}/quality-check")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> moveToQA(
             @PathVariable Long id,
@@ -148,6 +156,7 @@ public class ProductionOrderController {
                 productionOrderService.moveToQualityCheck(id, producedQty, rejectedQty)));
     }
 
+    @Audited(action = "COMPLETE", entityType = "ProductionOrder")
     @PostMapping("/{id}/complete")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> complete(
             @PathVariable Long id,
@@ -160,6 +169,7 @@ public class ProductionOrderController {
                         qualityNotes, closureNotes, outputLocationCode)));
     }
 
+    @Audited(action = "HOLD", entityType = "ProductionOrder")
     @PostMapping("/{id}/hold")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> hold(
             @PathVariable Long id,
@@ -168,6 +178,7 @@ public class ProductionOrderController {
                 productionOrderService.putOnHold(id, reason)));
     }
 
+    @Audited(action = "CANCEL", entityType = "ProductionOrder")
     @PostMapping("/{id}/cancel")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> cancel(
             @PathVariable Long id,
@@ -178,6 +189,7 @@ public class ProductionOrderController {
 
     // ── MATERIAL MANAGEMENT ───────────────────────────────────────────────────
 
+    @Audited(action = "CONSUME_MATERIAL", entityType = "ProductionOrder")
     @PostMapping("/{orderId}/materials/{materialId}/consume")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> consumeMaterial(
             @PathVariable Long orderId,
@@ -190,6 +202,7 @@ public class ProductionOrderController {
                         orderId, materialId, consumed, wasted, remarks)));
     }
 
+    @Audited(action = "RETURN_MATERIAL", entityType = "ProductionOrder")
     @PostMapping("/{orderId}/materials/{materialId}/return")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> returnMaterial(
             @PathVariable Long orderId,
@@ -201,6 +214,7 @@ public class ProductionOrderController {
 
     // ── STAGE LOGGING ─────────────────────────────────────────────────────────
 
+    @Audited(action = "ADD_STAGE", entityType = "ProductionOrder")
     @PostMapping("/{id}/stages")
     public ResponseEntity<ApiResponse<ProductionOrderResponseDTO>> addStage(
             @PathVariable Long id,
@@ -219,6 +233,7 @@ public class ProductionOrderController {
                 productionOrderService.getStagesForMaterial(orderId, materialId)));
     }
 
+    @Audited(action = "START_STAGE", entityType = "ProductionOrder")
     @PostMapping("/{orderId}/materials/{materialId}/stages/{stageId}/start")
     public ResponseEntity<ApiResponse<StageLogResponseDTO>> startStage(
             @PathVariable Long orderId, @PathVariable Long materialId, @PathVariable Long stageId,
@@ -227,6 +242,7 @@ public class ProductionOrderController {
                 productionOrderService.startStage(orderId, materialId, stageId, dto)));
     }
 
+    @Audited(action = "COMPLETE_STAGE", entityType = "ProductionOrder")
     @PostMapping("/{orderId}/materials/{materialId}/stages/{stageId}/complete-production")
     public ResponseEntity<ApiResponse<StageLogResponseDTO>> completeProductionStage(
             @PathVariable Long orderId, @PathVariable Long materialId, @PathVariable Long stageId,
@@ -235,6 +251,7 @@ public class ProductionOrderController {
                 productionOrderService.completeProductionStage(orderId, materialId, stageId, dto)));
     }
 
+    @Audited(action = "COMPLETE_INSPECTION_STAGE", entityType = "ProductionOrder")
     @PostMapping("/{orderId}/materials/{materialId}/stages/{stageId}/complete-inspection")
     public ResponseEntity<ApiResponse<StageLogResponseDTO>> completeInspectionStage(
             @PathVariable Long orderId, @PathVariable Long materialId, @PathVariable Long stageId,

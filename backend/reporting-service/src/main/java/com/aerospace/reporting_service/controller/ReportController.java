@@ -4,10 +4,12 @@ import com.aerospace.reporting_service.dto.*;
 import com.aerospace.reporting_service.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@PreAuthorize("!hasRole('SUPPLIER')")
 @RestController
 @RequestMapping("/api/reports")
 @RequiredArgsConstructor

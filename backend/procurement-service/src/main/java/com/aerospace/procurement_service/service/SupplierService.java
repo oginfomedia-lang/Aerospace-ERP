@@ -11,4 +11,6 @@ public interface SupplierService {
     List<Supplier> getAllSuppliers();
     Supplier updateSupplier(Long id, SupplierRequest request);
     Supplier setActive(Long id, boolean active);
+    Supplier confirmSupplier(Long id, String remarks, String actor);
+    Supplier rejectSupplier(Long id, String remarks, String actor);
 }

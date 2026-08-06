@@ -1,5 +1,6 @@
 package com.aerospace.qa_service.controller;
 
+import com.aerospace.common.audit.Audited;
 import com.aerospace.qa_service.common.ApiResponse;
 import com.aerospace.qa_service.dto.FaiCreateRequestDTO;
 import com.aerospace.qa_service.dto.FaiPerformRequestDTO;
@@ -23,6 +24,7 @@ public class FaiController {
 
     private final FaiService faiService;
 
+    @Audited(action = "CREATE", entityType = "Fai")
     @PostMapping
     public ResponseEntity<ApiResponse<FaiResponseDTO>> createManual(@Valid @RequestBody FaiCreateRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -44,6 +46,7 @@ public class FaiController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", faiService.getByPartId(partId)));
     }
 
+    @Audited(action = "COMPLETE", entityType = "Fai")
     @PostMapping("/{id}/perform")
     public ResponseEntity<ApiResponse<FaiResponseDTO>> perform(
             @PathVariable Long id, @Valid @RequestBody FaiPerformRequestDTO dto) {

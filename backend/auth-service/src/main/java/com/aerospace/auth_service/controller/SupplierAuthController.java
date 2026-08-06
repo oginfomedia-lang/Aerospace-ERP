@@ -46,8 +46,9 @@ public class SupplierAuthController {
         return ResponseEntity.accepted().build();
     }
 
-    //lets the Suppliers page show a per-supplier portal-account badge (NONE/PENDING/ACTIVE)
-    @PreAuthorize("hasAnyRole('PROCUREMENT_OFFICER', 'ADMIN')")
+    //lets the Suppliers page show a per-supplier portal-account badge (NONE/PENDING/ACTIVE) —
+    //QA_INSPECTOR included so their confirm/reject view also shows accurate badges
+    @PreAuthorize("hasAnyRole('PROCUREMENT_OFFICER', 'QA_INSPECTOR', 'MANAGER', 'ADMIN')")
     @GetMapping("/invite-status")
     public ResponseEntity<Map<Long, String>> inviteStatus(@RequestParam List<Long> supplierIds) {
         return ResponseEntity.ok(supplierAuthService.getInviteStatuses(supplierIds));

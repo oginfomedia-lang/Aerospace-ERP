@@ -5,10 +5,12 @@ import com.aerospace.notification_service.entity.NotificationLog;
 import com.aerospace.notification_service.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@PreAuthorize("!hasRole('SUPPLIER')")
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/v1/notifications")

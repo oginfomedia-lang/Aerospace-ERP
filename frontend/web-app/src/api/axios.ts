@@ -62,9 +62,10 @@ api.interceptors.response.use(
                 const refreshToken = tokenStorage.getRefreshToken();
                 
                 if (!refreshToken) {
-                    // No refresh token, clear auth and redirect to login
+                    // No refresh token, clear auth and redirect to login — the right one for
+                    // whichever portal this tab belongs to (see tokenStorage.ts).
                     tokenStorage.clear();
-                    window.location.href = '/login';
+                    window.location.href = (window.location.pathname === '/supplier' || window.location.pathname.startsWith('/supplier/')) ? '/supplier/login' : '/login';
                     return Promise.reject(error);
                 }
 
@@ -83,7 +84,7 @@ api.interceptors.response.use(
                 tokenStorage.clear();
                 processQueue(err, null);
                 isRefreshing = false;
-                window.location.href = '/login';
+                window.location.href = (window.location.pathname === '/supplier' || window.location.pathname.startsWith('/supplier/')) ? '/supplier/login' : '/login';
                 return Promise.reject(err);
             }
         }

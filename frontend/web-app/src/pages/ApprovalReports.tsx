@@ -147,6 +147,7 @@ const ApprovalReports = () => {
         <div className="p-16 text-center"><Loader2 className="animate-spin text-slate-400 mx-auto" size={28} /></div>
       ) : tab === 'PENDING' ? (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-[10px] uppercase tracking-widest font-black text-slate-400">
               <tr>
@@ -182,6 +183,7 @@ const ApprovalReports = () => {
               {pending.length === 0 && <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400 text-xs">No pending approvals</td></tr>}
             </tbody>
           </table>
+          </div>
         </div>
       ) : tab === 'SLA' ? (
         <div className="space-y-4">
@@ -206,6 +208,7 @@ const ApprovalReports = () => {
             </div>
           )}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-[10px] uppercase tracking-widest font-black text-slate-400">
                 <tr>
@@ -235,10 +238,12 @@ const ApprovalReports = () => {
                 {(!sla || sla.details.length === 0) && <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400 text-xs">No completed approvals with an SLA in this period</td></tr>}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-[10px] uppercase tracking-widest font-black text-slate-400">
               <tr>
@@ -268,6 +273,7 @@ const ApprovalReports = () => {
               {turnaround.length === 0 && <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400 text-xs">No completed approvals in this period</td></tr>}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

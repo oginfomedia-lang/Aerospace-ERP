@@ -23,6 +23,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ex.getMessage());
     }
 
+    // Business-state conflicts (e.g. CAPA already open against this NCR) → 409, not 500
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<String> handleConflict(IllegalStateException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<String> handleGeneric(RuntimeException ex) {
         return ResponseEntity.internalServerError().body(ex.getMessage());

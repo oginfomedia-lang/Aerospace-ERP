@@ -19,4 +19,9 @@ public interface ApprovalEngine {
     // been sitting longer than that — reassigns (or just flags) it. Returns the rows
     // that were escalated this run, for the caller to log/notify.
     List<ApprovalHistory> runEscalationSweep();
+
+    // Recomputes the digital signature hash from this row's own currently-stored fields
+    // and compares it to what was recorded at the moment it was signed — the actual
+    // tamper check the hash exists for (previously write-only, never re-verified anywhere).
+    SignatureVerificationResult verifySignature(Long historyId);
 }

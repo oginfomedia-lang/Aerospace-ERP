@@ -18,4 +18,10 @@ public class KafkaTopics {
 
     public static final String PR_STATUS_CHANGED   = "pr-status-events";
     public static final String PO_APPROVAL_STATUS  = "po-approval-status-events";
+
+    // Published by procurement-service's own overdue-delivery sweep.
+    public static final String PO_DELIVERY_OVERDUE = "po-delivery-overdue-events";
+
+    public static final String SUPPLIER_REGISTERED = "supplier-registered-events";
+    public static final String SUPPLIER_CONFIRMATION_DECIDED = "supplier-confirmation-decided-events";  
 }

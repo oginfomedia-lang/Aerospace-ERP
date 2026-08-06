@@ -116,6 +116,7 @@ const MasterDataReports = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 font-black text-sm text-slate-700">Inactive Parts ({inactiveParts.length})</div>
+            <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <tbody className="divide-y divide-slate-100">
                 {inactiveParts.map(p => (
@@ -124,9 +125,11 @@ const MasterDataReports = () => {
                 {inactiveParts.length === 0 && <tr><td className="px-5 py-6 text-center text-slate-400 text-xs">None</td></tr>}
               </tbody>
             </table>
+            </div>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 font-black text-sm text-slate-700">Inactive Suppliers ({inactiveSuppliers.length})</div>
+            <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <tbody className="divide-y divide-slate-100">
                 {inactiveSuppliers.map(s => (
@@ -135,12 +138,14 @@ const MasterDataReports = () => {
                 {inactiveSuppliers.length === 0 && <tr><td className="px-5 py-6 text-center text-slate-400 text-xs">None</td></tr>}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       ) : tab === 'DUPLICATE' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 font-black text-sm text-slate-700">Duplicate-Named Parts ({duplicateParts.length})</div>
+            <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <tbody className="divide-y divide-slate-100">
                 {duplicateParts.map(p => (
@@ -149,9 +154,11 @@ const MasterDataReports = () => {
                 {duplicateParts.length === 0 && <tr><td className="px-5 py-6 text-center text-slate-400 text-xs">None found</td></tr>}
               </tbody>
             </table>
+            </div>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 font-black text-sm text-slate-700">Duplicate-Named Suppliers ({duplicateSuppliers.length})</div>
+            <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <tbody className="divide-y divide-slate-100">
                 {duplicateSuppliers.map(s => (
@@ -160,10 +167,12 @@ const MasterDataReports = () => {
                 {duplicateSuppliers.length === 0 && <tr><td className="px-5 py-6 text-center text-slate-400 text-xs">None found</td></tr>}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-[10px] uppercase tracking-widest font-black text-slate-400">
               <tr>
@@ -187,6 +196,7 @@ const MasterDataReports = () => {
               {auditLog.length === 0 && <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400 text-xs">No audit entries yet</td></tr>}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

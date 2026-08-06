@@ -57,6 +57,7 @@ const RfqDetail: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
             <tr>
@@ -97,6 +98,7 @@ const RfqDetail: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <InviteMoreSuppliersModal rfq={showInvite ? rfq : null} onClose={() => setShowInvite(false)}

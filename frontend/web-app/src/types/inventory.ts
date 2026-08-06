@@ -273,6 +273,7 @@ export interface NonConformanceReport {
   dispositionedBy: string | null;
   createdAt: string;
   dispositionedAt: string | null;
+  hasActiveCapa: boolean;
 }
 
 // ============================================================

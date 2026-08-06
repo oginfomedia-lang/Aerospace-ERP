@@ -7,6 +7,8 @@ import com.aerospace.procurement_service.exception.ResourceNotFoundException;
 import com.aerospace.procurement_service.mapper.SupplierMapper;
 import com.aerospace.procurement_service.repository.SupplierRepository;
 import com.aerospace.procurement_service.service.SupplierService;
+import com.aerospace.procurement_service.event.producer.ProcurementEventPublisher;
+import com.aerospace.procurement_service.entity.SupplierConfirmationStatus;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,20 +21,98 @@ public class SupplierServiceImpl implements SupplierService {
 
     private final SupplierRepository supplierRepository;
     private final SupplierMapper supplierMapper;
+    private final ProcurementEventPublisher eventPublisher;
 
     public Supplier createSupplier(SupplierRequest request) {
-        // Business Rule: We cannot have two suppliers with the same Vendor Code
         if (supplierRepository.existsByVendorCode(request.getVendorCode())) {
             throw new DuplicateResourceException("Supplier with code " + request.getVendorCode() + " already exists!");
         }
 
-        // Convert the Request DTO into a Database Entity
         Supplier supplier = supplierMapper.toEntity(request);
-        
-        // Save to database
+        Supplier saved = supplierRepository.save(supplier);
+
+        // Tells QA a new supplier is sitting in their queue.
+        eventPublisher.publishSupplierRegistered(
+                com.aerospace.procurement_service.event.SupplierRegisteredEvent.builder()
+                        .supplierId(saved.getId())
+                        .supplierName(saved.getName())
+                        .vendorCode(saved.getVendorCode())
+                        .registeredBy(saved.getCreatedBy())
+                        .build());
+
+        return saved;
+    }
+
+    @Override
+    public Supplier updateSupplier(Long id, SupplierRequest request) {
+        Supplier supplier = getSupplierById(id);
+
+        if (!supplier.getVendorCode().equals(request.getVendorCode())
+                && supplierRepository.existsByVendorCode(request.getVendorCode())) {
+            throw new DuplicateResourceException("Supplier with code " + request.getVendorCode() + " already exists!");
+        }
+
+        supplierMapper.updateEntity(supplier, request);
+
+        // A rejected supplier that gets edited goes back into the QA queue instead
+        // of staying rejected forever with no way back in.
+        if (supplier.getConfirmationStatus() == SupplierConfirmationStatus.REJECTED) {
+            supplier.setConfirmationStatus(SupplierConfirmationStatus.PENDING);
+            supplier.setConfirmationRemarks(null);
+            supplier.setConfirmedBy(null);
+            supplier.setConfirmedAt(null);
+        }
+
         return supplierRepository.save(supplier);
     }
 
+    @Override
+    public Supplier confirmSupplier(Long id, String remarks, String actor) {
+        Supplier supplier = getSupplierById(id);
+        if (supplier.getConfirmationStatus() == SupplierConfirmationStatus.CONFIRMED) {
+            throw new IllegalStateException("Supplier is already confirmed");
+        }
+        supplier.setConfirmationStatus(SupplierConfirmationStatus.CONFIRMED);
+        supplier.setConfirmationRemarks(remarks);
+        supplier.setConfirmedBy(actor);
+        supplier.setConfirmedAt(java.time.LocalDateTime.now());
+        Supplier saved = supplierRepository.save(supplier);
+
+        eventPublisher.publishSupplierConfirmationDecided(
+                com.aerospace.procurement_service.event.SupplierConfirmationDecidedEvent.builder()
+                        .supplierId(saved.getId())
+                        .supplierName(saved.getName())
+                        .status("CONFIRMED")
+                        .decidedBy(actor)
+                        .remarks(remarks)
+                        .registeredBy(saved.getCreatedBy())
+                        .build());
+        return saved;
+    }
+
+    @Override
+    public Supplier rejectSupplier(Long id, String remarks, String actor) {
+        if (remarks == null || remarks.isBlank()) {
+            throw new IllegalArgumentException("Rejection remarks are mandatory");
+        }
+        Supplier supplier = getSupplierById(id);
+        supplier.setConfirmationStatus(SupplierConfirmationStatus.REJECTED);
+        supplier.setConfirmationRemarks(remarks);
+        supplier.setConfirmedBy(actor);
+        supplier.setConfirmedAt(java.time.LocalDateTime.now());
+        Supplier saved = supplierRepository.save(supplier);
+
+        eventPublisher.publishSupplierConfirmationDecided(
+                com.aerospace.procurement_service.event.SupplierConfirmationDecidedEvent.builder()
+                        .supplierId(saved.getId())
+                        .supplierName(saved.getName())
+                        .status("REJECTED")
+                        .decidedBy(actor)
+                        .remarks(remarks)
+                        .registeredBy(saved.getCreatedBy())
+                        .build());
+        return saved;
+    }
     public Supplier getSupplierById(Long id) {
         return supplierRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with ID: " + id));
@@ -40,20 +120,6 @@ public class SupplierServiceImpl implements SupplierService {
 
     public List<Supplier> getAllSuppliers() {
         return supplierRepository.findAll();
-    }
-
-    @Override
-    public Supplier updateSupplier(Long id, SupplierRequest request) {
-        Supplier supplier = getSupplierById(id);
-
-        // Vendor code must stay unique, but changing it to itself is fine
-        if (!supplier.getVendorCode().equals(request.getVendorCode())
-                && supplierRepository.existsByVendorCode(request.getVendorCode())) {
-            throw new DuplicateResourceException("Supplier with code " + request.getVendorCode() + " already exists!");
-        }
-
-        supplierMapper.updateEntity(supplier, request);
-        return supplierRepository.save(supplier);
     }
 
     @Override

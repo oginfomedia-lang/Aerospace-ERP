@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Clock, RefreshCw, AlertOctagon, ShieldAlert } from 'lucide-react';
+import { Clock, RefreshCw, AlertOctagon, ShieldAlert, Truck } from 'lucide-react';
 import api from '../api/axios';
 import notificationApi from '../api/notificationAxios';
 import { CapaRecord } from '../types/inventory';
@@ -12,15 +12,17 @@ const SlaTracking: React.FC = () => {
   const [overdueCapas, setOverdueCapas] = useState<CapaRecord[]>([]);
   const [capaAlerts, setCapaAlerts] = useState<NotificationLog[]>([]);
   const [escalations, setEscalations] = useState<NotificationLog[]>([]);
+  const [overduePOs, setOverduePOs] = useState<NotificationLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [capaRes, capaAlertRes, escalationRes] = await Promise.allSettled([
+      const [capaRes, capaAlertRes, escalationRes, poOverdueRes] = await Promise.allSettled([
         api.get<ApiResponse<CapaRecord[]>>('/inventory/capa'),
-        notificationApi.get<NotificationLog[]>('/notifications/type/CAPA_OVERDUE'),
-        notificationApi.get<NotificationLog[]>('/notifications/type/APPROVAL_ESCALATED'),
+        notificationApi.get<ApiResponse<NotificationLog[]>>('/notifications/type/CAPA_OVERDUE'),
+        notificationApi.get<ApiResponse<NotificationLog[]>>('/notifications/type/APPROVAL_ESCALATED'),
+        notificationApi.get<ApiResponse<NotificationLog[]>>('/notifications/type/PO_DELIVERY_OVERDUE'),
       ]);
 
       if (capaRes.status === 'fulfilled') {
@@ -34,8 +36,9 @@ const SlaTracking: React.FC = () => {
         toast.error('CAPA data unavailable');
       }
 
-      if (capaAlertRes.status === 'fulfilled') setCapaAlerts(capaAlertRes.value.data);
-      if (escalationRes.status === 'fulfilled') setEscalations(escalationRes.value.data);
+      if (capaAlertRes.status === 'fulfilled') setCapaAlerts(capaAlertRes.value.data.data);
+      if (escalationRes.status === 'fulfilled') setEscalations(escalationRes.value.data.data);
+      if(poOverdueRes.status === 'fulfilled') setOverduePOs(poOverdueRes.value.data.data);
     } catch {
       toast.error('Failed to load SLA tracking data');
     } finally {
@@ -65,6 +68,7 @@ const SlaTracking: React.FC = () => {
           <AlertOctagon size={16} className="text-rose-500" /> Overdue CAPAs ({overdueCapas.length})
         </h2>
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr className="text-xs uppercase tracking-wider text-slate-500">
@@ -98,6 +102,7 @@ const SlaTracking: React.FC = () => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </section>
 
@@ -114,6 +119,23 @@ const SlaTracking: React.FC = () => {
           ))}
           {!loading && escalations.length === 0 && (
             <div className="text-center py-8 text-slate-400">No approvals have escalated.</div>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-sm font-black uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
+          <Truck size={16} className="text-cyan-500" /> Overdue Purchase Orders ({overduePOs.length})
+        </h2>
+        <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 shadow-sm">
+          {overduePOs.map(n => (
+            <div key={n.id} className="px-4 py-3 flex items-center justify-between">
+              <span className="text-sm text-slate-700">{n.message}</span>
+              <span className="text-xs text-slate-400 whitespace-nowrap ml-4">{new Date(n.createdAt).toLocaleString()}</span>
+            </div>
+          ))}
+          {!loading && overduePOs.length === 0 && (
+            <div className="text-center py-8 text-slate-400">No purchase orders are overdue.</div>
           )}
         </div>
       </section>

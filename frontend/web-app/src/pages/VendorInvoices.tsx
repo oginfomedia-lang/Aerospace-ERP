@@ -188,6 +188,7 @@ const VendorInvoices = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
             <tr>
@@ -320,6 +321,7 @@ const VendorInvoices = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Record Invoice Modal */}

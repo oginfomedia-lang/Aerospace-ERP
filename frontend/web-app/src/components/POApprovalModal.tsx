@@ -28,8 +28,8 @@ export const POApprovalModal: React.FC<Props> = ({ po, onClose, onSuccess }) => 
     setLoading(true);
     try {
       const res = await procurementApi.get<POApprovalHistoryEntry[]>(`/purchase-orders/${po.id}/approval-history`);
-      setHistory(res.data.filter(h => h.documentVersion === po.documentVersion)
-        .sort((a, b) => a.approvalLevel - b.approvalLevel));
+      setHistory(res.data.sort((a, b) =>
+        b.documentVersion - a.documentVersion || a.approvalLevel - b.approvalLevel));
     } catch {
       // toast handled by axios interceptor
     } finally {
@@ -42,7 +42,8 @@ export const POApprovalModal: React.FC<Props> = ({ po, onClose, onSuccess }) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [po.id]);
 
-  const pendingRow = history.find(h => h.status === 'PENDING');
+  // Only the CURRENT version can ever have an actionable row — old versions are frozen audit trail.
+  const pendingRow = history.find(h => h.documentVersion === po.documentVersion && h.status === 'PENDING');
 
   const handleAction = async (action: 'approve' | 'reject') => {
     if (action === 'reject' && !remarks.trim()) {
@@ -85,31 +86,43 @@ export const POApprovalModal: React.FC<Props> = ({ po, onClose, onSuccess }) => 
             <div className="flex justify-center py-10"><Loader2 className="animate-spin text-indigo-500" size={28} /></div>
           ) : history.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-10">No approval chain for this PO (auto-approved or not yet submitted).</p>
-          ) : history.map(h => (
-            <div key={h.approvalLevel} className={`p-4 rounded-xl border ${statusStyle[h.status] || statusStyle.WAITING}`}>
-              <div className="flex items-center justify-between">
-                <span className="font-black text-sm flex items-center gap-2">
-                  Level {h.approvalLevel} — {h.approverRole}
-                  {h.escalated && (
-                    <span className="px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded bg-orange-100 text-orange-700 border border-orange-200">
-                      ⚠ Escalated
-                    </span>
-                  )}
-                </span>
-                <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider">
-                  {h.status === 'APPROVED' && <CheckCircle2 size={12} />}
-                  {h.status === 'REJECTED' && <XCircle size={12} />}
-                  {h.status === 'PENDING' && <Clock size={12} />}
-                  {h.status}
-                </span>
+          ) : Array.from(new Set(history.map(h => h.documentVersion))).map(version => (
+            <div key={version} className="space-y-2">
+              <div className="flex items-center gap-2 pt-1 first:pt-0">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Version {version}</span>
+                {version === po.documentVersion && (
+                  <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-indigo-100 text-indigo-700 border border-indigo-200">
+                    Current
+                  </span>
+                )}
               </div>
-              {h.approverUsername && (
-                <p className="text-xs mt-1 font-medium opacity-80">
-                  {h.status === 'REJECTED' ? 'Rejected' : 'Approved'} by {h.approverUsername}
-                  {h.approvedAt && ` on ${new Date(h.approvedAt).toLocaleString()}`}
-                </p>
-              )}
-              {h.remarks && <p className="text-xs mt-1 italic opacity-80">"{h.remarks}"</p>}
+              {history.filter(h => h.documentVersion === version).map(h => (
+                <div key={`${version}-${h.approvalLevel}`} className={`p-4 rounded-xl border ${statusStyle[h.status] || statusStyle.WAITING}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-sm flex items-center gap-2">
+                      Level {h.approvalLevel} — {h.approverRole}
+                      {h.escalated && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded bg-orange-100 text-orange-700 border border-orange-200">
+                          ⚠ Escalated
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider">
+                      {h.status === 'APPROVED' && <CheckCircle2 size={12} />}
+                      {h.status === 'REJECTED' && <XCircle size={12} />}
+                      {h.status === 'PENDING' && <Clock size={12} />}
+                      {h.status}
+                    </span>
+                  </div>
+                  {h.approverUsername && (
+                    <p className="text-xs mt-1 font-medium opacity-80">
+                      {h.status === 'REJECTED' ? 'Rejected' : 'Approved'} by {h.approverUsername}
+                      {h.approvedAt && ` on ${new Date(h.approvedAt).toLocaleString()}`}
+                    </p>
+                  )}
+                  {h.remarks && <p className="text-xs mt-1 italic opacity-80">"{h.remarks}"</p>}
+                </div>
+              ))}
             </div>
           ))}
         </div>

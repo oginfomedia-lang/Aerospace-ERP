@@ -22,7 +22,9 @@ export type NotificationType =
   | 'CALIBRATION_DUE'
   | 'CAPA_STATUS_CHANGED'
   | 'CAPA_OVERDUE'
-  | 'APPROVAL_ESCALATED';
+  | 'APPROVAL_ESCALATED'
+  | 'PO_DELIVERY_OVERDUE'
+  | 'PO_SENT_TO_VENDOR';
 
 export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED';
 

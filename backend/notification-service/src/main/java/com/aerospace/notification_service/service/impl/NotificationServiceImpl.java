@@ -444,4 +444,102 @@ public class NotificationServiceImpl implements NotificationService {
                 .severity("WARNING")
                 .build(), message);
     }
+
+    @Override
+    public void handlePoDeliveryOverdue(PoDeliveryOverdueEvent event) {
+        log.info("[NOTIFY] PO_DELIVERY_OVERDUE → po={}, supplier={}, {}h overdue",
+                event.getPoNumber(), event.getSupplierName(), event.getHoursOverdue());
+
+        String message = String.format(
+                "🚚 PO DELIVERY OVERDUE: %s from %s was due %s and hasn't arrived (%dh overdue).",
+                event.getPoNumber(), event.getSupplierName() != null ? event.getSupplierName() : "supplier",
+                event.getDeliveryDate(), event.getHoursOverdue());
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.PO_DELIVERY_OVERDUE)
+                .partName(event.getPoNumber())   // reusing partName for the PO number, same convention WO events use
+                .message(message)
+                .severity("WARNING")
+                .build(), message);
+    }
+
+    @Override
+    public void handlePurchaseOrderSentToVendor(PurchaseOrderCreatedEvent event) {
+        log.info("[NOTIFY] PO_SENT_TO_VENDOR → po={}, supplier={}, amount={} {}",
+                event.getPoNumber(), event.getSupplierName(), event.getCurrency(), event.getTotalAmount());
+
+        String message = String.format(
+                "📤 PO SENT TO VENDOR: %s issued to %s — %s %.2f, expected delivery %s.",
+                event.getPoNumber(), event.getSupplierName() != null ? event.getSupplierName() : "supplier",
+                event.getCurrency(), event.getTotalAmount() != null ? event.getTotalAmount() : 0.0,
+                event.getExpectedDeliveryDate());
+
+        // Internal visibility — same in-app/ops-email path every other notification uses.
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.PO_SENT_TO_VENDOR)
+                .partName(event.getPoNumber())
+                .message(message)
+                .severity("INFO")
+                .build(), message);
+
+        // dispatch() above only ever emails the internal ops list (notification.email.recipients) —
+        // this is the part that actually reaches the vendor, sent directly to their own address.
+        if (event.getSupplierEmail() != null && !event.getSupplierEmail().isBlank()) {
+            String subject = "Purchase Order " + event.getPoNumber() + " from Aerospace ERP";
+            String html = String.format("""
+                    <p>Dear %s,</p>
+                    <p>Purchase Order <b>%s</b> has been issued to you.</p>
+                    <ul>
+                      <li>Amount: %s %.2f</li>
+                      <li>Expected delivery: %s</li>
+                    </ul>
+                    <p>Please log in to the Supplier Portal to view full details and confirm.</p>
+                    """,
+                    event.getSupplierName() != null ? event.getSupplierName() : "Supplier",
+                    event.getPoNumber(),
+                    event.getCurrency(), event.getTotalAmount() != null ? event.getTotalAmount() : 0.0,
+                    event.getExpectedDeliveryDate());
+            emailService.sendCustomEmail(event.getSupplierEmail(), subject, html);
+        } else {
+            log.warn("[NOTIFY] No email on file for supplier {} — PO {} not emailed, only logged internally.",
+                    event.getSupplierName(), event.getPoNumber());
+        }
+    }
+
+    @Override
+    public void handleSupplierRegistered(SupplierRegisteredEvent event) {
+        log.info("[NOTIFY] SUPPLIER_PENDING_CONFIRMATION → supplier={}", event.getSupplierName());
+
+        String message = String.format(
+                "🕵️ NEW SUPPLIER PENDING CONFIRMATION: '%s' (Code: %s) was added by %s and needs QA/authority "
+                        + "sign-off before it can be invited to the Supplier Portal.",
+                event.getSupplierName(), event.getVendorCode(),
+                event.getRegisteredBy() != null ? event.getRegisteredBy() : "System");
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.SUPPLIER_PENDING_CONFIRMATION)
+                .partName(event.getSupplierName())
+                .message(message)
+                .severity("INFO")
+                .build(), message);
+    }
+
+    @Override
+    public void handleSupplierConfirmationDecided(SupplierConfirmationDecidedEvent event) {
+        boolean confirmed = "CONFIRMED".equalsIgnoreCase(event.getStatus());
+        log.info("[NOTIFY] SUPPLIER_{} → supplier={}, by={}", event.getStatus(), event.getSupplierName(), event.getDecidedBy());
+
+        String message = String.format(
+                "%s SUPPLIER %s: '%s' was %s by %s. Remarks: %s",
+                confirmed ? "✅" : "❌", event.getStatus(), event.getSupplierName(),
+                confirmed ? "confirmed" : "rejected", event.getDecidedBy(),
+                event.getRemarks() != null ? event.getRemarks() : "—");
+
+        dispatch(NotificationLog.builder()
+                .type(confirmed ? NotificationType.SUPPLIER_CONFIRMED : NotificationType.SUPPLIER_REJECTED)
+                .partName(event.getSupplierName())
+                .message(message)
+                .severity(confirmed ? "SUCCESS" : "WARNING")
+                .build(), message);
+    }
 }

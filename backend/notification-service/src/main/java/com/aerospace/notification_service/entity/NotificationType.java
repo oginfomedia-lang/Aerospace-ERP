@@ -24,5 +24,12 @@ public enum NotificationType {
     CAPA_STATUS_CHANGED,  // CAPA record stage updated
     CAPA_OVERDUE,
 
-    APPROVAL_ESCALATED
+    APPROVAL_ESCALATED,
+    PO_DELIVERY_OVERDUE,
+    PO_SENT_TO_VENDOR,
+
+    // ── Supplier onboarding events ────────────────────────────────────────────
+    SUPPLIER_PENDING_CONFIRMATION, // new supplier added, waiting on QA/authority sign-off
+    SUPPLIER_CONFIRMED,
+    SUPPLIER_REJECTED
 }

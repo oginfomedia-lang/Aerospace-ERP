@@ -14,6 +14,7 @@ export const CAN_APPROVE_PROCUREMENT = ['MANAGER', 'ADMIN'];
 export const CAN_MANAGE_ORG_SETTINGS = ['MANAGER', 'ADMIN'];
 export const CAN_MANAGE_QA = ['QA_INSPECTOR', 'MANAGER', 'ADMIN'];
 export const CAN_MANAGE_PRODUCTION = ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN'];
+export const CAN_CONFIRM_SUPPLIERS = ['QA_INSPECTOR', 'MANAGER', 'ADMIN'];
 
 export function hasAnyRole(userRoles: string[] | undefined | null, allowed: string[]): boolean {
   if (!userRoles || userRoles.length === 0) return false;

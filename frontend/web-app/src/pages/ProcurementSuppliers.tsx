@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Loader2, RefreshCw, Edit3, Ban, RotateCcw, ChevronDown, ChevronRight, Package, Send, RefreshCcw } from 'lucide-react';
+import { Users, Plus, Loader2, RefreshCw, Edit3, Ban, RotateCcw, ChevronDown, ChevronRight, Package, Send, RefreshCcw, CheckCircle, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import procurementApi from '../api/procurementAxios';
 import { authApi } from '../api/authAxios';
@@ -7,7 +7,7 @@ import api from '../api/axios';
 import { Supplier, SupplierRequest } from '../types/procurement';
 import { PartBasic } from '../types/inventory';
 import { useAuth } from '../context/AuthContext';
-import { CAN_MANAGE_PROCUREMENT, hasAnyRole } from '../utils/permissions';
+import { CAN_MANAGE_PROCUREMENT, CAN_CONFIRM_SUPPLIERS, hasAnyRole } from '../utils/permissions';
 
 type PortalStatus = 'NONE' | 'PENDING' | 'ACTIVE';
 
@@ -36,6 +36,7 @@ const emptyForm = {
 const ProcurementSuppliers = () => {
   const { user } = useAuth();
   const canManage = hasAnyRole(user?.roles, CAN_MANAGE_PROCUREMENT);
+  const canConfirm = hasAnyRole(user?.roles, CAN_CONFIRM_SUPPLIERS);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -173,6 +174,29 @@ const ProcurementSuppliers = () => {
     }
   };
 
+  const handleConfirmSupplier = async (supplier: Supplier) => {
+    if (!window.confirm(`Confirm ${supplier.name} for Supplier Portal access?`)) return;
+    try {
+      const res = await procurementApi.post(`/suppliers/${supplier.id}/confirm`, {});
+      setSuppliers(suppliers.map(s => s.id === supplier.id ? res.data : s));
+      toast.success('Supplier confirmed');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to confirm supplier');
+    }
+  };
+
+  const handleRejectSupplier = async (supplier: Supplier) => {
+    const remarks = window.prompt(`Reason for rejecting ${supplier.name}? (required)`);
+    if (!remarks) return;
+    try {
+      const res = await procurementApi.post(`/suppliers/${supplier.id}/reject`, { remarks });
+      setSuppliers(suppliers.map(s => s.id === supplier.id ? res.data : s));
+      toast.success('Supplier rejected');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to reject supplier');
+    }
+  };
+
   const handleInviteToPortal = async (supplier: Supplier) => {
     if (!supplier.email) {
       toast.error('This supplier has no email on file — add one via Edit first.');
@@ -258,6 +282,7 @@ const ProcurementSuppliers = () => {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
               <tr>
@@ -314,6 +339,17 @@ const ProcurementSuppliers = () => {
                           INACTIVE
                         </span>
                       )}
+                      {supplier.confirmationStatus === 'PENDING' && (
+                        <span className="px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full bg-amber-100 text-amber-700">
+                          Pending Confirmation
+                        </span>
+                      )}
+                      {supplier.confirmationStatus === 'REJECTED' && (
+                        <span className="px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full bg-red-100 text-red-700"
+                              title={supplier.confirmationRemarks || ''}>
+                          Confirmation Rejected
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right font-medium text-slate-900">
@@ -322,6 +358,33 @@ const ProcurementSuppliers = () => {
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end items-center gap-1">
                       {(() => {
+                        if (supplier.confirmationStatus !== 'CONFIRMED') {
+                          return (
+                            <>
+                              <span className="mr-1 px-2.5 py-1 text-[10px] font-black tracking-wider uppercase rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                                {supplier.confirmationStatus === 'REJECTED' ? 'Not Eligible' : 'Awaiting Confirmation'}
+                              </span>
+                              {canConfirm && supplier.confirmationStatus === 'PENDING' && (
+                                <>
+                                  <button
+                                    onClick={() => handleConfirmSupplier(supplier)}
+                                    title="Confirm supplier"
+                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition"
+                                  >
+                                    <CheckCircle size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectSupplier(supplier)}
+                                    title="Reject supplier"
+                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"
+                                  >
+                                    <XCircle size={16} />
+                                  </button>
+                                </>
+                              )}
+                            </>
+                          );
+                        }
                         const status = portalStatus[supplier.id] || 'NONE';
                         if (status === 'ACTIVE') {
                           return (
@@ -414,6 +477,7 @@ const ProcurementSuppliers = () => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

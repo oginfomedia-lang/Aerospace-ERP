@@ -26,6 +26,10 @@ export interface Supplier {
   certifyingBody?: string | null;
   certificationExpiryDate?: string | null; // ISO date, e.g. "2027-03-15"
   active: boolean;
+  confirmationStatus: 'PENDING' | 'CONFIRMED' | 'REJECTED';
+  confirmationRemarks?: string | null;
+  confirmedBy?: string | null;
+  confirmedAt?: string | null;
 }
 
 export interface SupplierRequest {
@@ -276,6 +280,7 @@ export interface ApprovalMatrix {
   amountFrom: number;
   amountTo: number;
   approverRole: string;
+  approverUsername?: string | null;
   levelSequence: number;
   isActive: boolean;
   escalationHours?: number | null;
@@ -287,6 +292,7 @@ export interface ApprovalMatrixRequest {
   amountFrom: number;
   amountTo: number;
   approverRole: string;
+  approverUsername?: string | null;
   levelSequence: number;
   isActive?: boolean;
   escalationHours?: number | null;

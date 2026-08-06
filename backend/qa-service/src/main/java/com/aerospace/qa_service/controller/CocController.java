@@ -1,5 +1,6 @@
 package com.aerospace.qa_service.controller;
 
+import com.aerospace.common.audit.Audited;
 import com.aerospace.qa_service.common.ApiResponse;
 import com.aerospace.qa_service.dto.CocGenerateRequest;
 import com.aerospace.qa_service.dto.CocResponse;
@@ -22,6 +23,7 @@ public class CocController {
 
     private final CocService cocService;
 
+    @Audited(action = "CREATE", entityType = "Coc")
     @PostMapping
     public ResponseEntity<ApiResponse<CocResponse>> generate(@Valid @RequestBody CocGenerateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)

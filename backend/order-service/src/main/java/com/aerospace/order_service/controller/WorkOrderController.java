@@ -1,5 +1,6 @@
 package com.aerospace.order_service.controller;
 
+import com.aerospace.common.audit.Audited;
 import com.aerospace.order_service.dto.ApiResponse;
 import com.aerospace.order_service.dto.WorkOrderDTOs.*;
 import com.aerospace.order_service.service.WorkOrderService;
@@ -29,6 +30,7 @@ public class WorkOrderController {
      * POST /api/v1/work-orders
      * Create a new work order with optional material line items.
      */
+    @Audited(action = "CREATE", entityType = "WorkOrder")
     @PostMapping
     public ResponseEntity<ApiResponse<WorkOrderResponse>> create(
             @Valid @RequestBody CreateWorkOrderRequest request) {
@@ -64,6 +66,7 @@ public class WorkOrderController {
     /**
      * PUT /api/v1/work-orders/{id}
      */
+    @Audited(action = "UPDATE", entityType = "WorkOrder")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<WorkOrderResponse>> update(
             @PathVariable Long id,
@@ -74,6 +77,7 @@ public class WorkOrderController {
     /**
      * DELETE /api/v1/work-orders/{id}
      */
+    @Audited(action = "DELETE", entityType = "WorkOrder")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         workOrderService.deleteWorkOrder(id);
@@ -91,6 +95,7 @@ public class WorkOrderController {
      *   IN_PROGRESS → ON_HOLD | COMPLETED | CANCELLED
      *   ON_HOLD → IN_PROGRESS | CANCELLED
      */
+    @Audited(action = "STATUS_CHANGE", entityType = "WorkOrder")
     @PostMapping("/{id}/transition")
     public ResponseEntity<ApiResponse<WorkOrderResponse>> transition(
             @PathVariable Long id,
@@ -104,6 +109,7 @@ public class WorkOrderController {
      * POST /api/v1/work-orders/{id}/material-items
      * Add a material line item to an existing WO.
      */
+    @Audited(action = "ADD_LINE_ITEM", entityType = "WorkOrder")
     @PostMapping("/{id}/material-items")
     public ResponseEntity<ApiResponse<WorkOrderResponse>> addLineItem(
             @PathVariable Long id,
@@ -116,6 +122,7 @@ public class WorkOrderController {
      * Mark a line item as issued (after inventory has issued the stock).
      * Body: { "lineItemId": 3, "quantityIssued": 5, "batchNumber": "BTH-001", "issuedBy": "..." }
      */
+    @Audited(action = "ISSUE_MATERIAL", entityType = "WorkOrder")
     @PostMapping("/{id}/issue-material")
     public ResponseEntity<ApiResponse<WorkOrderResponse>> issueMaterial(
             @PathVariable Long id,

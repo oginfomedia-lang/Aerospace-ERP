@@ -1,5 +1,5 @@
 package com.aerospace.production_service.controller;
-
+import com.aerospace.common.audit.Audited;
 import com.aerospace.production_service.common.ApiResponse;
 import com.aerospace.production_service.dto.RoutingTemplateRequestDTO;
 import com.aerospace.production_service.dto.RoutingTemplateResponseDTO;
@@ -22,6 +22,7 @@ public class RoutingTemplateController {
 
     private final RoutingTemplateService service;
 
+    @Audited(action = "CREATE", entityType = "RoutingTemplate")
     @PostMapping
     public ResponseEntity<ApiResponse<RoutingTemplateResponseDTO>> create(
             @Valid @RequestBody RoutingTemplateRequestDTO dto) {
@@ -43,12 +44,14 @@ public class RoutingTemplateController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", service.getById(id)));
     }
 
+    @Audited(action = "UPDATE", entityType = "RoutingTemplate")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<RoutingTemplateResponseDTO>> update(
             @PathVariable Long id, @Valid @RequestBody RoutingTemplateRequestDTO dto) {
         return ResponseEntity.ok(new ApiResponse<>("UPDATED", service.update(id, dto)));
     }
 
+    @Audited(action = "DELETE", entityType = "RoutingTemplate")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         service.delete(id);

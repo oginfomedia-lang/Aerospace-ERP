@@ -65,6 +65,7 @@ const ApprovalMatrixPage = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
             <tr>
@@ -85,7 +86,9 @@ const ApprovalMatrixPage = () => {
                 <td className="px-6 py-4 text-slate-600">{band.levelSequence}</td>
                 <td className="px-6 py-4 text-right font-mono text-slate-700">{band.amountFrom.toLocaleString()}</td>
                 <td className="px-6 py-4 text-right font-mono text-slate-700">{band.amountTo.toLocaleString()}</td>
-                <td className="px-6 py-4 font-bold text-slate-800">{band.approverRole}</td>
+                <td className="px-6 py-4 font-bold text-slate-800">{band.approverRole} {band.approverUsername && (
+                  <div className="text-[10px] font-normal text-blue-600 mt-0.5">+ {band.approverUsername}</div>
+                )}</td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 text-[11px] font-black tracking-wider uppercase rounded-full ${
                     band.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
@@ -121,6 +124,7 @@ const ApprovalMatrixPage = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <ApprovalMatrixModal

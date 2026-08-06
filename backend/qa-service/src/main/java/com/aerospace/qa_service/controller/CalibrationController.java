@@ -1,5 +1,6 @@
 package com.aerospace.qa_service.controller;
 
+import com.aerospace.common.audit.Audited;
 import com.aerospace.qa_service.common.ApiResponse;
 import com.aerospace.qa_service.dto.CalibrationRecordResponseDTO;
 import com.aerospace.qa_service.dto.CalibrationRequestDTO;
@@ -25,6 +26,7 @@ public class CalibrationController {
     private final CalibrationService calibrationService;
 
     // POST /api/v1/qa/calibration/equipment — register a new gauge/tool/instrument
+    @Audited(action = "CREATE", entityType = "Equipment")
     @PostMapping("/equipment")
     public ResponseEntity<ApiResponse<EquipmentResponseDTO>> registerEquipment(
             @Valid @RequestBody EquipmentRequestDTO dto) {

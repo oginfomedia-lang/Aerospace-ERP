@@ -317,6 +317,7 @@ const ProcurementOrders = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
             <tr>
@@ -384,7 +385,13 @@ const ProcurementOrders = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-slate-600">
-                  {new Date(order.deliveryDate).toLocaleDateString()}
+                  {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '-'}
+                  {order.deliveryDate && ['APPROVED', 'SENT_TO_VENDOR', 'PARTIALLY_RECEIVED'].includes(order.status) && 
+                     new Date(order.deliveryDate).getTime() < Date.now() && (
+                      <span className="ml-2 px-2 py-0.5 text-[10px] font-black uppercase rounded bg-rose-700 border border-rose-200">
+                        OVERDUE
+                      </span>  
+                     )}
                 </td>
                 <td className="px-6 py-4 text-right font-bold text-slate-900">
                   {order.currency} {order.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -546,6 +553,7 @@ const ProcurementOrders = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Modal */}

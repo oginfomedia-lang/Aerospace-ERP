@@ -131,6 +131,7 @@ const SupplierDashboard: React.FC = () => {
             <div>
               <h2 className="text-sm font-black text-slate-900 uppercase tracking-wide mb-3">Quotation History</h2>
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
                     <tr>
@@ -162,6 +163,7 @@ const SupplierDashboard: React.FC = () => {
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
 
@@ -170,6 +172,7 @@ const SupplierDashboard: React.FC = () => {
                 <Truck size={16} className="text-slate-400" /> Your Purchase Orders
               </h2>
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
                     <tr>
@@ -199,6 +202,7 @@ const SupplierDashboard: React.FC = () => {
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           </>

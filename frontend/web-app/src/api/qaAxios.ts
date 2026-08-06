@@ -1,5 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { tokenStorage } from '../utils/tokenStorage';
 
 // Separate axios instance for qa-service (port 8082)
 // Your existing api/axios.ts points to inventory-service (port 8081)
@@ -15,7 +16,7 @@ const qaApi = axios.create({
 // ✅ Request interceptor – attach JWT token
 qaApi.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = tokenStorage.getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

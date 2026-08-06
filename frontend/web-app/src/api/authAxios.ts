@@ -15,7 +15,7 @@ export const authApi = axios.create({
 // at that point, so the header is simply omitted.
 authApi.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('auth_token');
+        const token = tokenStorage.getAccessToken();
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }

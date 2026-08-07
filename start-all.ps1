@@ -31,6 +31,7 @@ $Services = @(
     [PSCustomObject]@{ Name = "production-service";   Port = 8085; Dir = "production-service"   },
     [PSCustomObject]@{ Name = "procurement-service";  Port = 8086; Dir = "procurement-service"  },
     [PSCustomObject]@{ Name = "reporting-service";    Port = 8088; Dir = "reporting-service"    },
+    [PSCustomObject]@{ Name = "production-resource-service";  Port = 8090; Dir = "production-resource-service"  },
     [PSCustomObject]@{ Name = "api-gateway";          Port = 8089; Dir = "api-gateway"          }
 )
 

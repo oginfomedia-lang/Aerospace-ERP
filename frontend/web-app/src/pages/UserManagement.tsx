@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { UserPlus } from 'lucide-react';
 import { authApi } from '../api/authAxios';
 
-const ALL_ROLES = ['STORE_KEEPER', 'QA_INSPECTOR', 'PRODUCTION_ENGINEER', 'PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN'];
+const ALL_ROLES = ['STORE_KEEPER', 'QA_INSPECTOR', 'PRODUCTION_ENGINEER', 'PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN', 'PRODUCTION_SUPERVISOR', 'MAINTENANCE_ENGINEER'];
 
 const UserManagement: React.FC = () => {
   const [form, setForm] = useState({ username: '', password: '', email: '' });

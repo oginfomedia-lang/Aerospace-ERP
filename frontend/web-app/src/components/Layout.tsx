@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
-  FileCheck2, ClipboardList, Database, UserCog, History, Clock, Archive
+  FileCheck2, ClipboardList, Database, UserCog, History, Clock, Archive, Cog
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -146,6 +146,13 @@ const navItems = [
     icon: <Factory size={18} />,
     description: 'Manufacturing order tracking',
     roles: ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/machines',
+    label: 'Machines',
+    icon: <Cog size={18} />,
+    description: 'Machine registry & maintenance',
+    roles: ['PRODUCTION_SUPERVISOR', 'MAINTENANCE_ENGINEER', 'MANAGER', 'ADMIN']
   },
   {
     path: '/routing-templates',
@@ -335,6 +342,7 @@ useEffect(() => {
               {location.pathname === '/fai' && 'First Article Inspection'}
               {location.pathname === '/notifications' && 'Notifications'}
               {location.pathname === '/production' && 'Production'}
+              {location.pathname === '/machines' && 'Machine Maintenance'}
               {location.pathname === '/routing-templates' && 'Routing Templates'}
               {location.pathname === '/suppliers' && 'Suppliers'}
               {location.pathname === '/purchase-orders' && 'Purchase Orders'}

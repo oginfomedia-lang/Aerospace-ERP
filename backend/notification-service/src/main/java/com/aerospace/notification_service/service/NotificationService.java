@@ -39,4 +39,6 @@ public interface NotificationService {
 
     void handleSupplierRegistered(SupplierRegisteredEvent event);
     void handleSupplierConfirmationDecided(SupplierConfirmationDecidedEvent event);
+
+    void handleMaintenanceDue(MaintenanceDueEvent event);
 }

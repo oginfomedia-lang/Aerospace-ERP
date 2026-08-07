@@ -23,4 +23,6 @@ public class NotificationTopics {
     // Published by procurement-service when a supplier is added / confirmed / rejected.
     public static final String SUPPLIER_REGISTERED = "supplier-registered-events";
     public static final String SUPPLIER_CONFIRMATION_DECIDED = "supplier-confirmation-decided-events";
+
+    public static final String MAINTENANCE_DUE = "production-resource.maintenance.due";
 }

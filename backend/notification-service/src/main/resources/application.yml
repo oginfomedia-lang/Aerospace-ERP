@@ -67,6 +67,7 @@ notification:
       calibration-due:      qa.calibration.due
 
       approval-escalated:   approval-escalated-events
+      maintenance-due: production-resource.maintenance.due
 
 logging:
   level:

@@ -264,4 +264,19 @@ public class NotificationConsumer {
             log.error("[CONSUMER] Failed SupplierConfirmationDecidedEvent supplier={}: {}", event.getSupplierName(), ex.getMessage(), ex);
         }
     }
+
+    // ── 17. Maintenance Due ───────────────────────────────────────────────────
+    @KafkaListener(
+        topics           = "${notification.kafka.topics.maintenance-due}",
+        groupId          = "notification-group",
+        containerFactory = "maintenanceDueListenerFactory"
+    )
+    public void onMaintenanceDue(MaintenanceDueEvent event) {
+        log.info("[CONSUMER] production-resource.maintenance.due -> machineCode={}, overdue={}",
+                event.getMachineCode(), event.isOverdue());
+        try { notificationService.handleMaintenanceDue(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed MaintenanceDueEvent machineCode={}: {}", event.getMachineCode(), ex.getMessage(), ex);
+        }
+    }
 }

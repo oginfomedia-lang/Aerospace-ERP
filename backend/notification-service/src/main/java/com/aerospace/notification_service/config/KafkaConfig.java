@@ -148,6 +148,12 @@ public class KafkaConfig {
     }
 
     @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, MaintenanceDueEvent>
+    maintenanceDueListenerFactory() {
+        return factory(MaintenanceDueEvent.class);
+    }
+
+    @Bean
     public ConcurrentKafkaListenerContainerFactory<String, FaiResultEvent>
     faiResultListenerFactory() {
         return factory(FaiResultEvent.class);

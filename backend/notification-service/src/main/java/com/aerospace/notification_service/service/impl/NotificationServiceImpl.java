@@ -542,4 +542,30 @@ public class NotificationServiceImpl implements NotificationService {
                 .severity(confirmed ? "SUCCESS" : "WARNING")
                 .build(), message);
     }
+
+        @Override
+        public void handleMaintenanceDue(MaintenanceDueEvent event) {
+        log.info("[NOTIFY] MAINTENANCE_DUE → machineCode={}, overdue={}, daysUntilDue={}",
+                event.getMachineCode(), event.isOverdue(), event.getDaysUntilDue());
+
+        String severity = event.isOverdue() ? "ERROR" : "WARNING";
+        String message = event.isOverdue()
+                ? String.format(
+                        "🔧 MAINTENANCE OVERDUE: %s ('%s', %s) was due for maintenance on %s. Location: %s",
+                        event.getMachineCode(), event.getMachineName(), event.getMachineType(),
+                        event.getNextMaintenanceDueAt(), event.getLocation())
+                : String.format(
+                        "🔧 MAINTENANCE DUE SOON: %s ('%s', %s) is due for maintenance in %d day(s) (%s). Location: %s",
+                        event.getMachineCode(), event.getMachineName(), event.getMachineType(),
+                        event.getDaysUntilDue(), event.getNextMaintenanceDueAt(), event.getLocation());
+
+        dispatch(NotificationLog.builder()
+                .type(NotificationType.MAINTENANCE_DUE)
+                .partName(event.getMachineName())
+                .batchNumber(event.getMachineCode())
+                .message(message)
+                .location(event.getLocation())
+                .severity(severity)
+                .build(), message);
+        }
 }

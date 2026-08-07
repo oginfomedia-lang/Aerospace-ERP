@@ -31,5 +31,6 @@ public enum NotificationType {
     // ── Supplier onboarding events ────────────────────────────────────────────
     SUPPLIER_PENDING_CONFIRMATION, // new supplier added, waiting on QA/authority sign-off
     SUPPLIER_CONFIRMED,
-    SUPPLIER_REJECTED
+    SUPPLIER_REJECTED,
+    MAINTENANCE_DUE,
 }

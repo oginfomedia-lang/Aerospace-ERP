@@ -1,6 +1,7 @@
 com\aerospace\auth_service\entity\SupplierInvite$SupplierInviteBuilder.class
 com\aerospace\auth_service\dto\AuthResponse$AuthResponseBuilder.class
 com\aerospace\auth_service\event\KafkaTopics.class
+com\aerospace\auth_service\config\RestClientConfig.class
 com\aerospace\auth_service\dto\SupplierAuthDTOs$SupplierInviteRequest.class
 com\aerospace\auth_service\repository\SupplierInviteRepository.class
 com\aerospace\auth_service\entity\User.class
@@ -13,6 +14,7 @@ com\aerospace\auth_service\dto\RefreshTokenRequest.class
 com\aerospace\auth_service\event\producer\AuthEventProducer.class
 com\aerospace\auth_service\entity\Role$RoleBuilder.class
 com\aerospace\auth_service\security\CustomUserDetailsService.class
+com\aerospace\auth_service\dto\SupplierLookupResponse.class
 com\aerospace\auth_service\dto\TokenValidationResponse.class
 com\aerospace\auth_service\event\SupplierInviteCreatedEvent.class
 com\aerospace\auth_service\entity\User$UserBuilder.class

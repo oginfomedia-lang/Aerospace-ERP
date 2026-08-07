@@ -21,8 +21,9 @@ import java.util.Set;
 public class DataSeeder implements CommandLineRunner {
 
     private static final List<String> ALL_ROLES = List.of(
-            "STORE_KEEPER", "QA_INSPECTOR", "PRODUCTION_ENGINEER",
-            "PROCUREMENT_OFFICER", "MANAGER", "ADMIN", "SUPPLIER"
+        "STORE_KEEPER", "QA_INSPECTOR", "PRODUCTION_ENGINEER",
+        "PROCUREMENT_OFFICER", "MANAGER", "ADMIN", "SUPPLIER",
+        "PRODUCTION_SUPERVISOR", "MAINTENANCE_ENGINEER"
     );
 
     private final RoleRepository roleRepository;

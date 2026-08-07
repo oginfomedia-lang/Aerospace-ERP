@@ -16,6 +16,7 @@ import ProcurementOrders from './pages/ProcurementOrders';
 import MaterialReceipts from './pages/MaterialReceipts';
 import NCRPage from './pages/NCRPage';
 import CalibrationPage from './pages/CalibrationPage';
+import MachineMaintenancePage from './pages/MachineMaintenancePage';
 import OrgSettings from './pages/OrgSettings';
 import VendorInvoices from './pages/VendorInvoices';
 import { useAuth } from './context/AuthContext';
@@ -105,6 +106,11 @@ function App() {
               <Route path="/work-orders" element={<WorkOrders />} />
               <Route path="/production" element={<ProductionOrders />} />
               <Route path="/routing-templates" element={<RoutingTemplates />} />
+            </Route>
+
+            {/* Machine registry & maintenance — own guard, different roles from Production */}
+            <Route element={<ProtectedRoute requiredRoles={['PRODUCTION_SUPERVISOR', 'MAINTENANCE_ENGINEER', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/machines" element={<MachineMaintenancePage />} />
             </Route>
 
             {/* Procurement */}

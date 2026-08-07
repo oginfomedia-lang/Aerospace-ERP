@@ -1,0 +1,52 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: production-resource-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/production_resource_db
+    username: postgres
+    password: postgres@123
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+logging:
+  level:
+    com.aerospace.production_resource_service: DEBUG
+    org.apache.kafka: WARN
+
+app:
+  jwt:
+    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+
+production:
+  resource:
+    maintenance:
+      alert-window-days: 30
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30

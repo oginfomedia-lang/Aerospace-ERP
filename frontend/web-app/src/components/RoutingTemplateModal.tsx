@@ -3,8 +3,10 @@ import { X, Plus, Trash2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import productionApi from '../api/productionAxios';
+import productionResourceApi from '../api/productionResourceAxios';
 import { ApiResponse, RoutingOperation, RoutingTemplate, RoutingTemplateRequest } from '../types/production';
 import { Part } from '../types/inventory';
+import { Machine, Employee, Skill } from '../types/productionResource';
 
 interface Props {
   isOpen: boolean;
@@ -26,10 +28,23 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
   const [operations, setOperations] = useState<RoutingOperation[]>([emptyOperation(1)]);
   const [saving, setSaving] = useState(false);
   const [parts, setParts] = useState<Part[]>([]);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  // Transient, per-row "narrow the employee list by this skill" filter — never sent
+  // to the backend, only the finally-chosen preferredEmployeeId/Name are.
+  const [skillFilterByRow, setSkillFilterByRow] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (isOpen) {
       api.get('/inventory').then(res => setParts(res.data.data)).catch(() => {});
+      productionResourceApi.get<ApiResponse<Machine[]>>('/resources/machines')
+        .then(res => setMachines(res.data.data.filter(m => m.status === 'ACTIVE'))).catch(() => {});
+      productionResourceApi.get<ApiResponse<Employee[]>>('/resources/employees')
+        .then(res => setEmployees(res.data.data)).catch(() => {});
+      productionResourceApi.get<ApiResponse<Skill[]>>('/resources/skills')
+        .then(res => setSkills(res.data.data)).catch(() => {});
+      setSkillFilterByRow({});
       if (template) {
         setPartNumber(template.partNumber);
         setName(template.name);
@@ -157,34 +172,66 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               {operations.map((op, idx) => {
                 const isLast = idx === operations.length - 1;
                 const isQa = op.operationType === 'QA_INSPECTION';
+                const skillFilter = skillFilterByRow[idx] || '';
+                const filteredEmployees = skillFilter
+                  ? employees.filter(e => e.skills.some(s => String(s.id) === skillFilter))
+                  : employees;
                 return (
-                  <div key={idx} className={`flex items-center gap-2 border rounded-xl p-2 ${isQa ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
-                    <div className="flex flex-col text-slate-300">
-                      <button onClick={() => moveOp(idx, -1)} disabled={idx === 0} className="hover:text-slate-600 disabled:opacity-30">▲</button>
-                      <button onClick={() => moveOp(idx, 1)} disabled={idx === operations.length - 1} className="hover:text-slate-600 disabled:opacity-30">▼</button>
+                  <div key={idx} className={`border rounded-xl p-2 space-y-1.5 ${isQa ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col text-slate-300">
+                        <button onClick={() => moveOp(idx, -1)} disabled={idx === 0} className="hover:text-slate-600 disabled:opacity-30">▲</button>
+                        <button onClick={() => moveOp(idx, 1)} disabled={idx === operations.length - 1} className="hover:text-slate-600 disabled:opacity-30">▼</button>
+                      </div>
+                      <span className="w-6 text-center text-xs font-black text-slate-400">{op.sequenceNumber}</span>
+                      <input placeholder="Operation (e.g. Cutting)" value={op.operationName}
+                        onChange={e => updateOp(idx, { operationName: e.target.value })}
+                        className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                      <select value={op.operationType}
+                        onChange={e => updateOp(idx, { operationType: e.target.value as RoutingOperation['operationType'] })}
+                        className={`px-2 py-1.5 border rounded-lg text-[11px] font-bold ${isQa ? 'bg-indigo-100 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}>
+                        <option value="PRODUCTION">Production</option>
+                        <option value="QA_INSPECTION">QA Inspection</option>
+                      </select>
+                      <input placeholder="Code" value={op.operationCode || ''}
+                        onChange={e => updateOp(idx, { operationCode: e.target.value })}
+                        className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                      <input placeholder="Mins" type="number" value={op.expectedDurationMinutes ?? ''}
+                        onChange={e => updateOp(idx, { expectedDurationMinutes: e.target.value ? Number(e.target.value) : undefined })}
+                        className="w-16 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                      <button onClick={() => removeOp(idx)} className="text-slate-300 hover:text-red-500">
+                        <Trash2 size={14} />
+                      </button>
+                      {isLast && !isQa && (
+                        <span className="text-[9px] font-black text-red-500 uppercase whitespace-nowrap">Must be QA</span>
+                      )}
                     </div>
-                    <span className="w-6 text-center text-xs font-black text-slate-400">{op.sequenceNumber}</span>
-                    <input placeholder="Operation (e.g. Cutting)" value={op.operationName}
-                      onChange={e => updateOp(idx, { operationName: e.target.value })}
-                      className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
-                    <select value={op.operationType}
-                      onChange={e => updateOp(idx, { operationType: e.target.value as RoutingOperation['operationType'] })}
-                      className={`px-2 py-1.5 border rounded-lg text-[11px] font-bold ${isQa ? 'bg-indigo-100 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}>
-                      <option value="PRODUCTION">Production</option>
-                      <option value="QA_INSPECTION">QA Inspection</option>
-                    </select>
-                    <input placeholder="Code" value={op.operationCode || ''}
-                      onChange={e => updateOp(idx, { operationCode: e.target.value })}
-                      className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
-                    <input placeholder="Mins" type="number" value={op.expectedDurationMinutes ?? ''}
-                      onChange={e => updateOp(idx, { expectedDurationMinutes: e.target.value ? Number(e.target.value) : undefined })}
-                      className="w-16 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
-                    <button onClick={() => removeOp(idx)} className="text-slate-300 hover:text-red-500">
-                      <Trash2 size={14} />
-                    </button>
-                    {isLast && !isQa && (
-                      <span className="text-[9px] font-black text-red-500 uppercase whitespace-nowrap">Must be QA</span>
-                    )}
+                    <div className="flex items-center gap-2 pl-8">
+                      <select value={op.preferredMachineId ?? ''}
+                        onChange={e => {
+                          const m = machines.find(mm => mm.id === Number(e.target.value));
+                          updateOp(idx, { preferredMachineId: m?.id ?? null, preferredMachineCode: m?.machineCode ?? null });
+                        }}
+                        className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-600">
+                        <option value="">— Preferred machine —</option>
+                        {machines.map(m => <option key={m.id} value={m.id}>{m.machineCode} — {m.name}</option>)}
+                      </select>
+                      <select value={skillFilter}
+                        onChange={e => setSkillFilterByRow(prev => ({ ...prev, [idx]: e.target.value }))}
+                        className="w-36 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-600">
+                        <option value="">— Filter by skill —</option>
+                        {skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                      <select value={op.preferredEmployeeId ?? ''}
+                        onChange={e => {
+                          const emp = employees.find(ee => ee.id === Number(e.target.value));
+                          updateOp(idx, { preferredEmployeeId: emp?.id ?? null, preferredEmployeeName: emp?.name ?? null });
+                        }}
+                        className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-600">
+                        <option value="">— Preferred employee —</option>
+                        {filteredEmployees.map(e => <option key={e.id} value={e.id}>{e.name}{e.designation ? ` (${e.designation})` : ''}</option>)}
+                      </select>
+                    </div>
                   </div>
                 );
               })}

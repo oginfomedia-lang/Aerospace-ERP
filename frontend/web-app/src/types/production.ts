@@ -154,6 +154,11 @@ export interface RoutingOperation {
   expectedDurationMinutes?: number | null;
   workstation?: string | null;
   instructions?: string | null;
+  // Loose cross-service references into production-resource-service — see Machine/Employee.
+  preferredMachineId?: number | null;
+  preferredMachineCode?: string | null;
+  preferredEmployeeId?: number | null;
+  preferredEmployeeName?: string | null;
 }
 
 export interface RoutingTemplateRequest {

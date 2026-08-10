@@ -17,6 +17,7 @@ import MaterialReceipts from './pages/MaterialReceipts';
 import NCRPage from './pages/NCRPage';
 import CalibrationPage from './pages/CalibrationPage';
 import MachineMaintenancePage from './pages/MachineMaintenancePage';
+import EmployeeDirectoryPage from './pages/EmployeeDirectoryPage';
 import OrgSettings from './pages/OrgSettings';
 import VendorInvoices from './pages/VendorInvoices';
 import { useAuth } from './context/AuthContext';
@@ -111,6 +112,12 @@ function App() {
             {/* Machine registry & maintenance — own guard, different roles from Production */}
             <Route element={<ProtectedRoute requiredRoles={['PRODUCTION_SUPERVISOR', 'MAINTENANCE_ENGINEER', 'MANAGER', 'ADMIN']} />}>
               <Route path="/machines" element={<MachineMaintenancePage />} />
+            </Route>
+
+            {/* Employee & Skill registry — roles match who can write to it; PRODUCTION_ENGINEER
+                gets API read-access for the Routing Template picker but not this nav page. */}
+            <Route element={<ProtectedRoute requiredRoles={['PRODUCTION_SUPERVISOR', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/employees" element={<EmployeeDirectoryPage />} />
             </Route>
 
             {/* Procurement */}

@@ -33,4 +33,13 @@ public class RoutingOperation {
     private Integer expectedDurationMinutes;
     private String workstation;
     private String instructions;
+
+    // Loose cross-service references into production-resource-service — no FK, no
+    // validation call. The denormalized code/name is populated by the frontend
+    // alongside the id whenever the user picks from a dropdown, same as how
+    // partNumber selection already auto-fills Name/Description elsewhere.
+    private Long preferredMachineId;
+    private String preferredMachineCode;
+    private Long preferredEmployeeId;
+    private String preferredEmployeeName;
 }

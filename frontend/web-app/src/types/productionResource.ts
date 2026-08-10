@@ -52,3 +52,29 @@ export interface MaintenanceRequest {
   result: string;
   remarks: string;
 }
+
+// Matches: SkillResponseDTO.java / EmployeeResponseDTO.java (production-resource-service)
+export interface Skill {
+  id: number;
+  name: string;
+  description?: string | null;
+}
+
+export interface Employee {
+  id: number;
+  employeeCode: string;
+  name: string;
+  designation?: string;
+  department?: string;
+  status: string;
+  skills: Skill[];
+  createdAt: string;
+}
+
+export interface EmployeeRequest {
+  name: string;
+  designation?: string;
+  department?: string;
+  status?: string;
+  skillIds: number[];
+}

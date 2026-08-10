@@ -32,6 +32,9 @@ public class MachineController {
                 .body(new ApiResponse<>("MACHINE_REGISTERED", machineService.registerMachine(dto)));
     }
 
+    // PRODUCTION_ENGINEER needs read access to populate the Preferred Machine picker
+    // in the Routing Template editor, without gaining any write access to the registry.
+    @PreAuthorize("hasAnyRole('PRODUCTION_SUPERVISOR','MAINTENANCE_ENGINEER','PRODUCTION_ENGINEER','MANAGER','ADMIN')")
     @GetMapping
     public ResponseEntity<ApiResponse<List<MachineResponseDTO>>> listMachines(
             @RequestParam(required = false) String status) {
@@ -44,6 +47,7 @@ public class MachineController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", machineService.getDueList(withinDays)));
     }
 
+    @PreAuthorize("hasAnyRole('PRODUCTION_SUPERVISOR','MAINTENANCE_ENGINEER','PRODUCTION_ENGINEER','MANAGER','ADMIN')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<MachineResponseDTO>> getMachine(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", machineService.getMachineById(id)));

@@ -42,6 +42,10 @@ public class RoutingTemplateMapper {
                 .expectedDurationMinutes(op.getExpectedDurationMinutes())
                 .workstation(op.getWorkstation())
                 .instructions(op.getInstructions())
+                .preferredMachineId(op.getPreferredMachineId())
+                .preferredMachineCode(op.getPreferredMachineCode())
+                .preferredEmployeeId(op.getPreferredEmployeeId())
+                .preferredEmployeeName(op.getPreferredEmployeeName())
                 .build();
     }
 }

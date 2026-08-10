@@ -117,6 +117,10 @@ public class RoutingTemplateServiceImpl implements RoutingTemplateService {
                     .expectedDurationMinutes(d.getExpectedDurationMinutes())
                     .workstation(d.getWorkstation())
                     .instructions(d.getInstructions())
+                    .preferredMachineId(d.getPreferredMachineId())
+                    .preferredMachineCode(d.getPreferredMachineCode())
+                    .preferredEmployeeId(d.getPreferredEmployeeId())
+                    .preferredEmployeeName(d.getPreferredEmployeeName())
                     .build());
         }
         return ops;

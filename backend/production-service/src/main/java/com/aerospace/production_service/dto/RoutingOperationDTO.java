@@ -20,4 +20,9 @@ public class RoutingOperationDTO {
     private Integer expectedDurationMinutes;
     private String workstation;
     private String instructions;
+
+    private Long preferredMachineId;
+    private String preferredMachineCode;
+    private Long preferredEmployeeId;
+    private String preferredEmployeeName;
 }

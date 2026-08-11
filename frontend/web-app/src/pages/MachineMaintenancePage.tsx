@@ -2,13 +2,19 @@ import React, { useEffect, useState } from 'react';
 import productionResourceApi from '../api/productionResourceAxios';
 import toast from 'react-hot-toast';
 import {
-  Wrench, Clock, CheckCircle2, Loader2, ChevronRight, AlertTriangle, PlusCircle, History,
+  Wrench, Clock, CheckCircle2, Loader2, ChevronRight, AlertTriangle, PlusCircle, History, Unlock,
 } from 'lucide-react';
 import { ApiResponse } from '../types/inventory';
 import { Machine, MaintenanceRecord, MaintenanceRequest } from '../types/productionResource';
 import { RegisterMachineModal } from '../components/RegisterMachineModal';
+import { useAuth } from '../context/AuthContext';
+import { hasAnyRole } from '../utils/permissions';
+
+const CAN_FORCE_RELEASE = ['PRODUCTION_SUPERVISOR', 'MANAGER', 'ADMIN'];
 
 const MachineMaintenancePage = () => {
+  const { user } = useAuth();
+  const canForceRelease = hasAnyRole(user?.roles, CAN_FORCE_RELEASE);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Machine | null>(null);
@@ -37,6 +43,18 @@ const MachineMaintenancePage = () => {
   };
 
   useEffect(() => { fetchMachines(); }, [dueOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Escape hatch for a stuck IN_OPERATION status (crash, forgotten completion) —
+  // only reachable by supervisors/managers/admins, never by a regular engineer.
+  const handleForceRelease = async (m: Machine) => {
+    try {
+      await toast.promise(
+        productionResourceApi.post(`/resources/machines/${m.id}/force-release`),
+        { loading: `Releasing ${m.machineCode}...`, success: `${m.machineCode} released`, error: 'Failed to release machine' }
+      );
+      await fetchMachines();
+    } catch {}
+  };
 
   const handleSelect = async (m: Machine) => {
     setSelected(m);
@@ -148,6 +166,11 @@ const MachineMaintenancePage = () => {
                       {m.overdue && <AlertTriangle size={10} className="inline mr-1 -mt-0.5" />}
                       {badge.text}
                     </span>
+                    {m.occupancy === 'IN_OPERATION' && (
+                      <span className="inline-block mt-2 ml-1.5 text-[10px] font-black px-2.5 py-1 rounded-full border bg-orange-50 text-orange-700 border-orange-200">
+                        IN OPERATION
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -171,7 +194,15 @@ const MachineMaintenancePage = () => {
             ) : (
               <form onSubmit={handleSubmit} className="p-5 space-y-4">
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className="font-black text-slate-900">{selected.name}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="font-black text-slate-900">{selected.name}</div>
+                    {selected.occupancy === 'IN_OPERATION' && canForceRelease && (
+                      <button type="button" onClick={() => handleForceRelease(selected)}
+                        className="flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-orange-500 text-white hover:bg-orange-600">
+                        <Unlock size={10} /> Force Release
+                      </button>
+                    )}
+                  </div>
                   <div className="text-xs text-slate-500 font-medium mt-0.5">
                     {selected.machineCode} · every {selected.maintenanceFrequencyDays} days
                   </div>

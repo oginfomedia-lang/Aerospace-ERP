@@ -29,6 +29,7 @@ public class SkillServiceImpl implements SkillService {
         Skill skill = Skill.builder()
                 .name(dto.getName())
                 .description(dto.getDescription())
+                .certificationRequired(dto.isCertificationRequired())
                 .build();
         Skill saved = skillRepository.save(skill);
         log.info("Skill created — name: {}", saved.getName());
@@ -55,6 +56,7 @@ public class SkillServiceImpl implements SkillService {
                 .id(s.getId())
                 .name(s.getName())
                 .description(s.getDescription())
+                .certificationRequired(s.isCertificationRequired())
                 .build();
     }
 }

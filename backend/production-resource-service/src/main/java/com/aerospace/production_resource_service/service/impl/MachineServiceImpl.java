@@ -1,5 +1,7 @@
 package com.aerospace.production_resource_service.service.impl;
 
+import com.aerospace.production_resource_service.client.QaServiceClient;
+import com.aerospace.production_resource_service.client.dto.EquipmentInfo;
 import com.aerospace.production_resource_service.dto.*;
 import com.aerospace.production_resource_service.entity.*;
 import com.aerospace.production_resource_service.exception.ResourceNotFoundException;
@@ -21,6 +23,7 @@ public class MachineServiceImpl implements MachineService {
 
     private final MachineRepository machineRepository;
     private final MachineMaintenanceRecordRepository maintenanceRecordRepository;
+    private final QaServiceClient qaServiceClient;
 
     @Override
     @Transactional
@@ -104,6 +107,61 @@ public class MachineServiceImpl implements MachineService {
                 .stream().map(this::toMachineDTO).toList();
     }
 
+    @Override
+    @Transactional
+    public MachineResponseDTO occupyMachine(Long id, Long stageLogId) {
+        Machine machine = findMachineOrThrow(id);
+        if (machine.getStatus() != MachineStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Machine " + machine.getMachineCode() + " is not ACTIVE (current: " + machine.getStatus() + ")");
+        }
+        boolean overdue = machine.getNextMaintenanceDueAt() != null
+                && machine.getNextMaintenanceDueAt().isBefore(LocalDateTime.now());
+        if (overdue) {
+            throw new IllegalStateException(
+                    "Machine " + machine.getMachineCode() + " is overdue for maintenance and cannot be assigned");
+        }
+        if (machine.getOccupancy() == MachineOccupancy.IN_OPERATION) {
+            throw new IllegalStateException(
+                    "Machine " + machine.getMachineCode() + " is currently in use on another operation");
+        }
+        if (machine.getLinkedEquipmentId() != null) {
+            // Best-effort by design: if qa-service is unreachable, don't block every
+            // machine assignment in the plant on a second service being up — log and
+            // proceed. If it IS reachable and says overdue, that's a hard block.
+            try {
+                EquipmentInfo equipment = qaServiceClient.getEquipment(machine.getLinkedEquipmentId());
+                if (equipment != null && equipment.isOverdue()) {
+                    throw new IllegalStateException(
+                            "Machine " + machine.getMachineCode() + "'s linked calibration ("
+                                    + equipment.getAssetTag() + ") is overdue and must be recalibrated before use");
+                }
+            } catch (IllegalStateException ex) {
+                throw ex; // the overdue rejection above — let it propagate
+            } catch (org.springframework.web.client.RestClientException ex) {
+                log.warn("[QA_SERVICE] Could not verify calibration for machine {} (linkedEquipmentId={}): {}",
+                        machine.getMachineCode(), machine.getLinkedEquipmentId(), ex.getMessage());
+            }
+        }
+
+        machine.setOccupancy(MachineOccupancy.IN_OPERATION);
+        machine.setCurrentStageLogId(stageLogId);
+        Machine saved = machineRepository.save(machine);
+        log.info("Machine occupied — machineCode: {}, stageLogId: {}", saved.getMachineCode(), stageLogId);
+        return toMachineDTO(saved);
+    }
+
+    @Override
+    @Transactional
+    public MachineResponseDTO releaseMachine(Long id) {
+        Machine machine = findMachineOrThrow(id);
+        machine.setOccupancy(MachineOccupancy.FREE);
+        machine.setCurrentStageLogId(null);
+        Machine saved = machineRepository.save(machine);
+        log.info("Machine released — machineCode: {}", saved.getMachineCode());
+        return toMachineDTO(saved);
+    }
+
     private Machine findMachineOrThrow(Long id) {
         return machineRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Machine not found with ID: " + id));
@@ -126,6 +184,9 @@ public class MachineServiceImpl implements MachineService {
                 .lastMaintenanceAt(m.getLastMaintenanceAt())
                 .nextMaintenanceDueAt(m.getNextMaintenanceDueAt())
                 .overdue(overdue)
+                .occupancy(m.getOccupancy().name())
+                .currentStageLogId(m.getCurrentStageLogId())
+                .version(m.getVersion())
                 .createdAt(m.getCreatedAt())
                 .build();
     }

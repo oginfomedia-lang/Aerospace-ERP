@@ -46,6 +46,11 @@ public class RoutingTemplateMapper {
                 .preferredMachineCode(op.getPreferredMachineCode())
                 .preferredEmployeeId(op.getPreferredEmployeeId())
                 .preferredEmployeeName(op.getPreferredEmployeeName())
+                .requiredSkillId(op.getRequiredSkillId())
+                .requiredSkillName(op.getRequiredSkillName())
+                .minimumSkillLevel(op.getMinimumSkillLevel())
+                .requiredToolingId(op.getRequiredToolingId())
+                .requiredToolingName(op.getRequiredToolingName())
                 .build();
     }
 }

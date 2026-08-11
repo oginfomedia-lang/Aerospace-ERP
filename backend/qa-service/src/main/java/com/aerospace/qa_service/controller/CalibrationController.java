@@ -48,7 +48,10 @@ public class CalibrationController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", calibrationService.getDueList(withinDays)));
     }
 
-    // GET /api/v1/qa/calibration/equipment/5
+    // GET /api/v1/qa/calibration/equipment/5 — also called by production-resource-service
+    // (forwarding the caller's own JWT) to check a Machine's linked equipment before
+    // letting it be assigned to a stage, so PRODUCTION_ENGINEER needs read access too.
+    @PreAuthorize("hasAnyRole('QA_INSPECTOR','PRODUCTION_ENGINEER','MANAGER','ADMIN')")
     @GetMapping("/equipment/{id}")
     public ResponseEntity<ApiResponse<EquipmentResponseDTO>> getEquipment(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", calibrationService.getEquipmentById(id)));

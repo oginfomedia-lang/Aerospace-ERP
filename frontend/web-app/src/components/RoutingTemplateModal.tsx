@@ -6,7 +6,7 @@ import productionApi from '../api/productionAxios';
 import productionResourceApi from '../api/productionResourceAxios';
 import { ApiResponse, RoutingOperation, RoutingTemplate, RoutingTemplateRequest } from '../types/production';
 import { Part } from '../types/inventory';
-import { Machine, Employee, Skill } from '../types/productionResource';
+import { Machine, Employee, Skill, Tooling } from '../types/productionResource';
 
 interface Props {
   isOpen: boolean;
@@ -31,6 +31,7 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
   const [machines, setMachines] = useState<Machine[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [toolingList, setToolingList] = useState<Tooling[]>([]);
   // Transient, per-row "narrow the employee list by this skill" filter — never sent
   // to the backend, only the finally-chosen preferredEmployeeId/Name are.
   const [skillFilterByRow, setSkillFilterByRow] = useState<Record<number, string>>({});
@@ -44,6 +45,8 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
         .then(res => setEmployees(res.data.data)).catch(() => {});
       productionResourceApi.get<ApiResponse<Skill[]>>('/resources/skills')
         .then(res => setSkills(res.data.data)).catch(() => {});
+      productionResourceApi.get<ApiResponse<Tooling[]>>('/resources/tooling')
+        .then(res => setToolingList(res.data.data.filter(t => t.status === 'ACTIVE'))).catch(() => {});
       setSkillFilterByRow({});
       if (template) {
         setPartNumber(template.partNumber);
@@ -174,7 +177,7 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                 const isQa = op.operationType === 'QA_INSPECTION';
                 const skillFilter = skillFilterByRow[idx] || '';
                 const filteredEmployees = skillFilter
-                  ? employees.filter(e => e.skills.some(s => String(s.id) === skillFilter))
+                  ? employees.filter(e => e.skills.some(s => String(s.skillId) === skillFilter))
                   : employees;
                 return (
                   <div key={idx} className={`border rounded-xl p-2 space-y-1.5 ${isQa ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
@@ -230,6 +233,35 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
                         className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-600">
                         <option value="">— Preferred employee —</option>
                         {filteredEmployees.map(e => <option key={e.id} value={e.id}>{e.name}{e.designation ? ` (${e.designation})` : ''}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2 pl-8">
+                      <span className="text-[9px] font-black text-slate-400 uppercase whitespace-nowrap">Required *</span>
+                      <select value={op.requiredSkillId ?? ''}
+                        onChange={e => {
+                          const s = skills.find(ss => ss.id === Number(e.target.value));
+                          updateOp(idx, { requiredSkillId: s?.id ?? null, requiredSkillName: s?.name ?? null });
+                        }}
+                        className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-600">
+                        <option value="">— No formal requirement —</option>
+                        {skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                      {op.requiredSkillId != null && (
+                        <input type="number" min={1} max={5} placeholder="Min level" value={op.minimumSkillLevel ?? ''}
+                          onChange={e => updateOp(idx, { minimumSkillLevel: e.target.value ? Number(e.target.value) : undefined })}
+                          className="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px]" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 pl-8">
+                      <span className="text-[9px] font-black text-slate-400 uppercase whitespace-nowrap">Tool</span>
+                      <select value={op.requiredToolingId ?? ''}
+                        onChange={e => {
+                          const t = toolingList.find(tt => tt.id === Number(e.target.value));
+                          updateOp(idx, { requiredToolingId: t?.id ?? null, requiredToolingName: t?.name ?? null });
+                        }}
+                        className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-600">
+                        <option value="">— None / Not Required —</option>
+                        {toolingList.map(t => <option key={t.id} value={t.id}>{t.toolCode} — {t.name}</option>)}
                       </select>
                     </div>
                   </div>

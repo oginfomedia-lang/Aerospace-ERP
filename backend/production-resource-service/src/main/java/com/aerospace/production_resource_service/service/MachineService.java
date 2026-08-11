@@ -10,4 +10,6 @@ public interface MachineService {
     MaintenanceRecordResponseDTO recordMaintenance(Long machineId, MaintenanceRequestDTO dto);
     List<MaintenanceRecordResponseDTO> getMaintenanceHistory(Long machineId);
     List<MachineResponseDTO> getDueList(int withinDays);
+    MachineResponseDTO occupyMachine(Long id, Long stageLogId);
+    MachineResponseDTO releaseMachine(Long id);
 }

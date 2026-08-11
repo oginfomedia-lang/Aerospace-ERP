@@ -40,6 +40,11 @@ public class RoutingTemplate {
     @Builder.Default
     private List<RoutingOperation> operations = new ArrayList<>();
 
+    // Optimistic locking — two engineers editing the same template at once now fail
+    // loudly instead of one silently overwriting the other's changes.
+    @Version
+    private Long version;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

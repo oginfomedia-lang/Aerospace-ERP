@@ -54,6 +54,9 @@ export interface ProductionStageLog {
   quantityIn: number | null;
   quantityOut: number | null;
   scrapCount: number | null;
+  machineId?: number | null;
+  employeeId?: number | null;
+  toolingId?: number | null;
   operatorName?: string | null;
   remarks?: string | null;
   startedAt?: string | null;
@@ -101,7 +104,9 @@ export interface ProductionOrder {
 // Matches: StartStageRequestDTO / CompleteStageRequestDTO (production-service)
 // ============================================================
 export interface StartStageRequest {
-  operatorName: string;
+  machineId: number;
+  employeeId: number;
+  operatorName?: string;
 }
 
 // A PRODUCTION-type stage just reports quantity produced — no accept/reject decision.
@@ -159,6 +164,15 @@ export interface RoutingOperation {
   preferredMachineCode?: string | null;
   preferredEmployeeId?: number | null;
   preferredEmployeeName?: string | null;
+  // A formal requirement (unlike "preferred" above) — enforced server-side at stage start.
+  requiredSkillId?: number | null;
+  requiredSkillName?: string | null;
+  minimumSkillLevel?: number | null;
+
+  // A specific required tool/fixture/jig — unlike requiredSkillId (a category match),
+  // this points at ONE exact Tooling row, auto-occupied when the stage starts.
+  requiredToolingId?: number | null;
+  requiredToolingName?: string | null;
 }
 
 export interface RoutingTemplateRequest {

@@ -61,6 +61,13 @@ public class ProductionStageLog {
     private Integer quantityOut;  // units leaving this stage (after scrap)
     private Integer scrapCount;   // rejected at this stage
 
+    // Loose cross-service references into production-resource-service — no FK, same
+    // pattern as routingOperationId above. operatorName stays too, as a denormalized
+    // snapshot that survives even if the employee record changes later.
+    private Long machineId;
+    private Long employeeId;
+    private Long toolingId; // set only when the routing operation had a requiredToolingId
+
     private String operatorName;
     private String remarks;
 

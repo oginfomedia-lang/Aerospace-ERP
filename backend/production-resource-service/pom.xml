@@ -16,6 +16,7 @@
 		<java.version>17</java.version>
 		<maven.compiler.release>${java.version}</maven.compiler.release>
 		<spring-boot.version>3.4.5</spring-boot.version>
+		<spring-kafka.version>3.3.7</spring-kafka.version>
 		<jjwt.version>0.12.6</jjwt.version>
 		<spring-cloud.version>2024.0.1</spring-cloud.version>
 	</properties>
@@ -34,6 +35,16 @@
 				<artifactId>common-lib</artifactId>
 				<version>0.0.1-SNAPSHOT</version>
 			</dependency>
+			<dependency>
+				<groupId>org.springframework.kafka</groupId>
+				<artifactId>spring-kafka</artifactId>
+				<version>${spring-kafka.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.springframework.kafka</groupId>
+				<artifactId>spring-kafka-test</artifactId>
+				<version>${spring-kafka.version}</version>
+			</dependency>
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -48,6 +59,7 @@
 		<dependency>
 			<groupId>com.aerospace</groupId>
 			<artifactId>common-lib</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

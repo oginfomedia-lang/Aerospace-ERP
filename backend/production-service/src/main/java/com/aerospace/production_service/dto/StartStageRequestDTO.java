@@ -4,5 +4,7 @@ import lombok.Data;
 
 @Data
 public class StartStageRequestDTO {
-    private String operatorName;
+    private Long machineId;
+    private Long employeeId;
+    private String operatorName; // optional — server fills it from the employee's name if left blank
 }

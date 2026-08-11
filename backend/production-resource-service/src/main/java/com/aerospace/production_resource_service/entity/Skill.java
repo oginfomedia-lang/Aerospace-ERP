@@ -19,4 +19,9 @@ public class Skill {
     private String name;
 
     private String description;
+
+    // If true, an employee needs a non-expired EmployeeSkillCertification row (with a
+    // certificate number) to count as eligible for this skill — not just a level.
+    @Builder.Default
+    private boolean certificationRequired = false;
 }

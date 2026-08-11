@@ -40,6 +40,10 @@ production:
     maintenance:
       alert-window-days: 30
 
+services:
+  qa:
+    base-url: http://localhost:8082/api/v1
+
 eureka:
   client:
     service-url:

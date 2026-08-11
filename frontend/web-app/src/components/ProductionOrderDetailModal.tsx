@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import productionApi from '../api/productionAxios';
 import api from '../api/axios';
+import productionResourceApi from '../api/productionResourceAxios';
 import { useAuth } from '../context/AuthContext';
 import { IssueMaterialPickerModal } from './IssueMaterialPickerModal';
 import { Part as PartType, Location } from '../types/inventory';
@@ -15,6 +16,7 @@ import {
   ProductionOrder, ProductionOrderStatus,
   ApiResponse, ProductionStageLog, ShopFloorNcr
 } from '../types/production';
+import { Machine, Employee } from '../types/productionResource';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -47,6 +49,8 @@ const stageStatusStyle: Record<string, string> = {
 };
 
 interface StageForm {
+  machineId: string;
+  employeeId: string;
   operatorName: string;
   quantityProduced: string;
   quantityGood: string;
@@ -57,6 +61,7 @@ interface StageForm {
 }
 
 const emptyForm: StageForm = {
+  machineId: '', employeeId: '',
   operatorName: '', quantityProduced: '', quantityGood: '', quantityRework: '', quantityScrap: '', inspectedBy: '', remarks: '',
 };
 
@@ -75,11 +80,17 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
   const [issueMaterialId, setIssueMaterialId] = useState<number | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [outputLocationCode, setOutputLocationCode] = useState('');
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
 
   useEffect(() => {
     if (isOpen) {
       api.get<Location[]>('/inventory/locations', { params: { activeOnly: true } })
         .then(res => setLocations(res.data)).catch(() => {});
+      productionResourceApi.get<ApiResponse<Machine[]>>('/resources/machines')
+        .then(res => setMachines(res.data.data.filter(m => m.status === 'ACTIVE'))).catch(() => {});
+      productionResourceApi.get<ApiResponse<Employee[]>>('/resources/employees', { params: { status: 'ACTIVE' } })
+        .then(res => setEmployees(res.data.data)).catch(() => {});
     }
   }, [isOpen]);
 
@@ -166,11 +177,16 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
 
   const handleStartStage = async (materialId: number, stage: ProductionStageLog) => {
     const f = getForm(stage.id);
+    if (!f.machineId || !f.employeeId) {
+      toast.error('Select a machine and an employee to start this stage.');
+      return;
+    }
     setStageBusy(stage.id);
     try {
       await toast.promise(
         productionApi.post(`/production/${order.id}/materials/${materialId}/stages/${stage.id}/start`, {
-          operatorName: f.operatorName || 'Operator',
+          machineId: Number(f.machineId), employeeId: Number(f.employeeId),
+          operatorName: f.operatorName,
         }),
         {
           loading: `Starting ${stage.stageName}...`,
@@ -659,10 +675,19 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
                         <div className="mt-3 pt-3 border-t border-slate-200">
                           {actionable.status === 'PENDING' && (
                             openStageId === actionable.id ? (
-                              <div className="flex items-center gap-2">
-                                <input placeholder="Operator name" className="px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs flex-1"
-                                  value={getForm(actionable.id).operatorName}
-                                  onChange={e => setForm(actionable!.id, { operatorName: e.target.value })} />
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <select className="px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs flex-1 min-w-[140px]"
+                                  value={getForm(actionable.id).machineId}
+                                  onChange={e => setForm(actionable!.id, { machineId: e.target.value })}>
+                                  <option value="">— Machine —</option>
+                                  {machines.map(mm => <option key={mm.id} value={mm.id}>{mm.machineCode} — {mm.name}</option>)}
+                                </select>
+                                <select className="px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs flex-1 min-w-[140px]"
+                                  value={getForm(actionable.id).employeeId}
+                                  onChange={e => setForm(actionable!.id, { employeeId: e.target.value })}>
+                                  <option value="">— Employee —</option>
+                                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}{e.designation ? ` (${e.designation})` : ''}</option>)}
+                                </select>
                                 <button disabled={stageBusy === actionable.id}
                                   onClick={() => handleStartStage(m.id, actionable!)}
                                   className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold">

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
-  FileCheck2, ClipboardList, Database, UserCog, History, Clock, Archive, Cog, HardHat
+  FileCheck2, ClipboardList, Database, UserCog, History, Clock, Archive, Cog, HardHat, Hammer, CalendarClock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -160,6 +160,20 @@ const navItems = [
     icon: <HardHat size={18} />,
     description: 'Employee roster & skills',
     roles: ['PRODUCTION_SUPERVISOR', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/tooling',
+    label: 'Tooling',
+    icon: <Hammer size={18} />,
+    description: 'Cutting tools, fixtures & jigs',
+    roles: ['PRODUCTION_SUPERVISOR', 'MAINTENANCE_ENGINEER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/scheduling',
+    label: 'Scheduling',
+    icon: <CalendarClock size={18} />,
+    description: 'Advance machine & employee reservations',
+    roles: ['PRODUCTION_SUPERVISOR', 'PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
   },
   {
     path: '/routing-templates',
@@ -351,6 +365,8 @@ useEffect(() => {
               {location.pathname === '/production' && 'Production'}
               {location.pathname === '/machines' && 'Machine Maintenance'}
               {location.pathname === '/employees' && 'Employee Directory'}
+              {location.pathname === '/tooling' && 'Tooling & Fixtures'}
+              {location.pathname === '/scheduling' && 'Machine & Employee Scheduling'}
               {location.pathname === '/routing-templates' && 'Routing Templates'}
               {location.pathname === '/suppliers' && 'Suppliers'}
               {location.pathname === '/purchase-orders' && 'Purchase Orders'}

@@ -18,6 +18,8 @@ import NCRPage from './pages/NCRPage';
 import CalibrationPage from './pages/CalibrationPage';
 import MachineMaintenancePage from './pages/MachineMaintenancePage';
 import EmployeeDirectoryPage from './pages/EmployeeDirectoryPage';
+import ToolingRegistryPage from './pages/ToolingRegistryPage';
+import SchedulingPage from './pages/SchedulingPage';
 import OrgSettings from './pages/OrgSettings';
 import VendorInvoices from './pages/VendorInvoices';
 import { useAuth } from './context/AuthContext';
@@ -109,9 +111,16 @@ function App() {
               <Route path="/routing-templates" element={<RoutingTemplates />} />
             </Route>
 
+            {/* Machine & Employee Scheduling (advance reservations) — separate guard,
+                PRODUCTION_SUPERVISOR needs it but isn't in the Production group above */}
+            <Route element={<ProtectedRoute requiredRoles={['PRODUCTION_SUPERVISOR', 'PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/scheduling" element={<SchedulingPage />} />
+            </Route>
+
             {/* Machine registry & maintenance — own guard, different roles from Production */}
             <Route element={<ProtectedRoute requiredRoles={['PRODUCTION_SUPERVISOR', 'MAINTENANCE_ENGINEER', 'MANAGER', 'ADMIN']} />}>
               <Route path="/machines" element={<MachineMaintenancePage />} />
+              <Route path="/tooling" element={<ToolingRegistryPage />} />
             </Route>
 
             {/* Employee & Skill registry — roles match who can write to it; PRODUCTION_ENGINEER

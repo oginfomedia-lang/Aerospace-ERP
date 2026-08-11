@@ -49,7 +49,25 @@ public class Machine {
     private LocalDateTime lastMaintenanceAt;
     private LocalDateTime nextMaintenanceDueAt;
 
+    // Busy-right-now tracking — separate from `status` above on purpose (see
+    // MachineOccupancy). Set/cleared automatically by production-service when a
+    // stage using this machine starts/ends; occupy/release/force-release endpoints
+    // are the only way this changes.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private MachineOccupancy occupancy = MachineOccupancy.FREE;
+
+    // Which ProductionStageLog currently holds this machine, if any — lets a
+    // release call target something unambiguous instead of trusting the caller.
+    private Long currentStageLogId;
+
     private LocalDateTime createdAt;
+
+    // Optimistic locking — two supervisors editing/occupying the same machine at
+    // once now fail loudly instead of silently overwriting each other.
+    @Version
+    private Long version;
 
     @PrePersist
     protected void onCreate() {

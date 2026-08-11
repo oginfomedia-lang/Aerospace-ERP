@@ -65,4 +65,31 @@ public class MachineController {
     public ResponseEntity<ApiResponse<List<MaintenanceRecordResponseDTO>>> getHistory(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", machineService.getMaintenanceHistory(id)));
     }
+
+    // Called by production-service (forwarding the real caller's JWT) when a stage
+    // actually starts using this machine — not intended to be called by a human directly.
+    @Audited(action = "OCCUPY", entityType = "Machine")
+    @PreAuthorize("hasAnyRole('PRODUCTION_ENGINEER','MANAGER','ADMIN')")
+    @PostMapping("/{id}/occupy")
+    public ResponseEntity<ApiResponse<MachineResponseDTO>> occupyMachine(
+            @PathVariable Long id, @RequestBody OccupyRequestDTO dto) {
+        return ResponseEntity.ok(new ApiResponse<>("MACHINE_OCCUPIED", machineService.occupyMachine(id, dto.getStageLogId())));
+    }
+
+    // Called automatically when the stage using this machine finishes.
+    @Audited(action = "RELEASE", entityType = "Machine")
+    @PreAuthorize("hasAnyRole('PRODUCTION_ENGINEER','MANAGER','ADMIN')")
+    @PostMapping("/{id}/release")
+    public ResponseEntity<ApiResponse<MachineResponseDTO>> releaseMachine(@PathVariable Long id) {
+        return ResponseEntity.ok(new ApiResponse<>("MACHINE_RELEASED", machineService.releaseMachine(id)));
+    }
+
+    // Supervisor-only escape hatch for a stuck/forgotten release (crash, bug, abandoned
+    // stage) — deliberately narrower than /release, not reachable by PRODUCTION_ENGINEER.
+    @Audited(action = "FORCE_RELEASE", entityType = "Machine")
+    @PreAuthorize("hasAnyRole('PRODUCTION_SUPERVISOR','MANAGER','ADMIN')")
+    @PostMapping("/{id}/force-release")
+    public ResponseEntity<ApiResponse<MachineResponseDTO>> forceReleaseMachine(@PathVariable Long id) {
+        return ResponseEntity.ok(new ApiResponse<>("MACHINE_RELEASED", machineService.releaseMachine(id)));
+    }
 }

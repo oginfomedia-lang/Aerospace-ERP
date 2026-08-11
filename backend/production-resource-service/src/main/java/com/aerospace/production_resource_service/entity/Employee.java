@@ -4,8 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 
 @Entity
 @Table(name = "employees")
@@ -33,20 +31,36 @@ public class Employee {
     @Builder.Default
     private EmployeeStatus status = EmployeeStatus.ACTIVE;
 
-    // Unidirectional — no mappedBy back-collection on Skill. Keeps this as simple as
-    // Machine's one relationship (a plain @ManyToOne), and avoids Lombok @Data's
-    // equals/hashCode/toString cycling into Skill the way RoutingOperation needs
-    // @ToString.Exclude on its own bidirectional parent link.
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(name = "employee_skills",
-            joinColumns = @JoinColumn(name = "employee_id"),
-            inverseJoinColumns = @JoinColumn(name = "skill_id"))
-    @Builder.Default
+    // Skills are no longer a flat set here — see EmployeeSkillCertification (queried
+    // via its own repository, same pattern Machine uses for MachineMaintenanceRecord,
+    // not a collection field on this entity) for level/certification/expiry/history.
+
+    // Which Shift this employee normally works, if any — a real relationship (unlike
+    // Machine.linkedEquipmentId, which is cross-SERVICE and can't be a JPA relation).
+    // Shift lives in this same service/database, so a proper @ManyToOne is the correct
+    // choice here — it lets occupyEmployee read employee.getShift() directly without a
+    // separate repository lookup. Null means "no shift assigned yet", which
+    // occupyEmployee treats as "no shift-window restriction," not a block.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shift_id")
     @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    private Set<Skill> skills = new HashSet<>();
+    private Shift shift;
+
+    // Busy-right-now tracking — separate from `status` above on purpose, same
+    // reasoning as Machine.occupancy. Set/cleared automatically by production-service
+    // when a stage using this employee starts/ends.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private EmployeeOccupancy occupancy = EmployeeOccupancy.FREE;
+
+    // Which ProductionStageLog currently holds this employee, if any.
+    private Long currentStageLogId;
 
     private LocalDateTime createdAt;
+
+    @Version
+    private Long version;
 
     @PrePersist
     protected void onCreate() {

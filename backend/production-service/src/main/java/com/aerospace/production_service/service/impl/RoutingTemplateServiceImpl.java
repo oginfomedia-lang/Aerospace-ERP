@@ -121,6 +121,11 @@ public class RoutingTemplateServiceImpl implements RoutingTemplateService {
                     .preferredMachineCode(d.getPreferredMachineCode())
                     .preferredEmployeeId(d.getPreferredEmployeeId())
                     .preferredEmployeeName(d.getPreferredEmployeeName())
+                    .requiredSkillId(d.getRequiredSkillId())
+                    .requiredSkillName(d.getRequiredSkillName())
+                    .minimumSkillLevel(d.getMinimumSkillLevel())
+                    .requiredToolingId(d.getRequiredToolingId())
+                    .requiredToolingName(d.getRequiredToolingName())
                     .build());
         }
         return ops;

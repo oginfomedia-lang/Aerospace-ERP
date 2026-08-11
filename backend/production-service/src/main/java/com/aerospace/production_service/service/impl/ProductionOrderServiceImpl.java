@@ -1,5 +1,10 @@
 package com.aerospace.production_service.service.impl;
 
+import com.aerospace.production_service.client.ProductionResourceClient;
+import com.aerospace.production_service.client.dto.EmployeeInfo;
+import com.aerospace.production_service.client.dto.MachineInfo;
+import com.aerospace.production_service.client.dto.ReservationConflictInfo;
+import com.aerospace.production_service.client.dto.ToolingInfo;
 import com.aerospace.production_service.dto.*;
 import com.aerospace.production_service.entity.*;
 import com.aerospace.production_service.entity.ProductionMaterial.MaterialStatus;
@@ -35,11 +40,13 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     private final ProductionMaterialRepository materialRepository;
     private final ProductionStageLogRepository stageLogRepository;
     private final RoutingTemplateRepository routingTemplateRepository;
+    private final RoutingOperationRepository routingOperationRepository;
     private final ShopFloorNcrRepository shopFloorNcrRepository;
     private final ProductionOrderMapper mapper;
     private final ShopFloorNcrMapper ncrMapper;
     private final ProductionProducer producer;
     private final DocumentSequenceService documentSequenceService;
+    private final ProductionResourceClient productionResourceClient;
 
     // ── CREATE ────────────────────────────────────────────────────────────────
 
@@ -426,9 +433,22 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         assertStatus(order, ProductionOrderStatus.QUALITY_CHECK, "complete");
         if(order.getOutputPartId() == null) {
             throw new IllegalStateException(
-                "Cannot complete: no output part set on this order. Edit the order and select which " + 
+                "Cannot complete: no output part set on this order. Edit the order and select which " +
                 "Part this run produces before completing."
             );
+        }
+        // Don't just trust the caller's flag — a "quality passed" claim must be backed
+        // by every BOM line actually having a completed, passing final QA inspection
+        // (readyForAssembly is only ever set true by completeInspectionStage on a real
+        // passing result, so this is the same signal that gate already relies on).
+        if (Boolean.TRUE.equals(qualityPassed)) {
+            boolean allInspected = order.getMaterials().stream()
+                    .allMatch(m -> Boolean.TRUE.equals(m.getReadyForAssembly()));
+            if (!allInspected) {
+                throw new IllegalStateException(
+                        "Cannot mark this order as quality-passed — not every BOM line has a completed, " +
+                        "passing final QA inspection yet.");
+            }
         }
         order.setStatus(ProductionOrderStatus.COMPLETED);
         order.setActualEndDate(LocalDateTime.now());
@@ -595,6 +615,9 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         if (stage.getStatus() != StageStatus.PENDING) {
             throw new IllegalStateException("Stage must be PENDING to start (current: " + stage.getStatus() + ")");
         }
+        if (dto.getMachineId() == null || dto.getEmployeeId() == null) {
+            throw new IllegalArgumentException("A machine and an employee must be selected to start this stage");
+        }
 
         int quantityIn;
         if (stage.getSequenceNumber() != null && stage.getSequenceNumber() == 1) {
@@ -612,12 +635,111 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             quantityIn = prior.getQuantityOut() != null ? prior.getQuantityOut() : 0;
         }
 
+        // Real eligibility check — not a UI dropdown filter — then lock both so nothing
+        // else can start using them while this stage is running.
+        MachineInfo machine = productionResourceClient.getMachine(dto.getMachineId());
+        if (!"ACTIVE".equals(machine.getStatus())) {
+            throw new IllegalStateException(
+                    "Machine " + machine.getMachineCode() + " is not ACTIVE (current: " + machine.getStatus() + ")");
+        }
+        if (machine.isOverdue()) {
+            throw new IllegalStateException(
+                    "Machine " + machine.getMachineCode() + " is overdue for maintenance and cannot be assigned");
+        }
+        EmployeeInfo employee = productionResourceClient.getEmployee(dto.getEmployeeId());
+        if (!"ACTIVE".equals(employee.getStatus())) {
+            throw new IllegalStateException(
+                    "Employee " + employee.getEmployeeCode() + " is not ACTIVE (current: " + employee.getStatus() + ")");
+        }
+
+        // Reservations are advance bookings, separate from occupancy — but a stage
+        // must not start on a machine/employee someone else has reserved for the
+        // exact time it's trying to start. excludeProductionOrderId=orderId means a
+        // reservation that DOES belong to this order never blocks its own stage.
+        ReservationConflictInfo machineConflict = productionResourceClient.getMachineReservationConflict(dto.getMachineId(), orderId);
+        if (machineConflict != null) {
+            throw new IllegalStateException(
+                    "Machine " + machine.getMachineCode() + " is reserved by another order ("
+                            + machineConflict.getReservedFrom() + " to " + machineConflict.getReservedTo()
+                            + ", booked by " + machineConflict.getCreatedBy() + ")");
+        }
+        ReservationConflictInfo employeeConflict = productionResourceClient.getEmployeeReservationConflict(dto.getEmployeeId(), orderId);
+        if (employeeConflict != null) {
+            throw new IllegalStateException(
+                    "Employee " + employee.getEmployeeCode() + " is reserved by another order ("
+                            + employeeConflict.getReservedFrom() + " to " + employeeConflict.getReservedTo()
+                            + ", booked by " + employeeConflict.getCreatedBy() + ")");
+        }
+
+        // Formal skill/tooling requirements — only enforced if the routing step
+        // actually set one (both optional; a step with neither accepts any active
+        // employee and needs no tool). Looked up once and reused by both checks below.
+        RoutingOperation routingOp = stage.getRoutingOperationId() != null
+                ? routingOperationRepository.findById(stage.getRoutingOperationId()).orElse(null)
+                : null;
+
+        if (routingOp != null && routingOp.getRequiredSkillId() != null) {
+            int minLevel = routingOp.getMinimumSkillLevel() != null ? routingOp.getMinimumSkillLevel() : 1;
+            boolean qualified = employee.getSkills() != null && employee.getSkills().stream().anyMatch(s ->
+                    routingOp.getRequiredSkillId().equals(s.getSkillId())
+                            && !"EXPIRED".equals(s.getStatus()) && !"REVOKED".equals(s.getStatus())
+                            && s.getLevel() != null && s.getLevel() >= minLevel);
+            if (!qualified) {
+                throw new IllegalStateException(
+                        "Employee " + employee.getEmployeeCode() + " does not hold '" + routingOp.getRequiredSkillName()
+                                + "' at level " + minLevel + " or higher (required for this operation)");
+            }
+        }
+
+        // A required tool is a specific instance (unlike the skill category match
+        // above) — resolved from the routing step itself, not chosen by the operator.
+        Long requiredToolingId = routingOp != null ? routingOp.getRequiredToolingId() : null;
+        if (requiredToolingId != null) {
+            ToolingInfo tooling = productionResourceClient.getTooling(requiredToolingId);
+            if (!"ACTIVE".equals(tooling.getStatus())) {
+                throw new IllegalStateException(
+                        "Tool " + tooling.getToolCode() + " (required for this operation) is not ACTIVE (current: "
+                                + tooling.getStatus() + ")");
+            }
+            if ("IN_OPERATION".equals(tooling.getOccupancy())) {
+                throw new IllegalStateException(
+                        "Tool " + tooling.getToolCode() + " (required for this operation) is currently in use on another operation");
+            }
+        }
+
+        productionResourceClient.occupyMachine(dto.getMachineId(), stage.getId());
+        try {
+            productionResourceClient.occupyEmployee(dto.getEmployeeId(), stage.getId());
+        } catch (RuntimeException ex) {
+            // Employee lock failed after the machine lock succeeded — release the machine
+            // rather than leave it falsely held for a stage that never actually started.
+            productionResourceClient.releaseMachine(dto.getMachineId());
+            throw ex;
+        }
+        if (requiredToolingId != null) {
+            try {
+                productionResourceClient.occupyTooling(requiredToolingId, stage.getId());
+            } catch (RuntimeException ex) {
+                // Tooling lock failed after machine+employee locks succeeded — release
+                // both rather than leave them falsely held for a stage that never started.
+                productionResourceClient.releaseEmployee(dto.getEmployeeId());
+                productionResourceClient.releaseMachine(dto.getMachineId());
+                throw ex;
+            }
+        }
+
         stage.setQuantityIn(quantityIn);
         stage.setStatus(StageStatus.IN_PROGRESS);
         stage.setStartedAt(LocalDateTime.now());
-        stage.setOperatorName(dto.getOperatorName());
-        log.info("[STAGE] Started — order={} material={} stage={} (seq {}) qtyIn={}",
-                orderId, materialId, stage.getStageName(), stage.getSequenceNumber(), quantityIn);
+        stage.setMachineId(dto.getMachineId());
+        stage.setEmployeeId(dto.getEmployeeId());
+        stage.setToolingId(requiredToolingId);
+        stage.setOperatorName(dto.getOperatorName() != null && !dto.getOperatorName().isBlank()
+                ? dto.getOperatorName() : employee.getName());
+        log.info("[STAGE] Started — order={} material={} stage={} (seq {}) qtyIn={} machine={} employee={}{}",
+                orderId, materialId, stage.getStageName(), stage.getSequenceNumber(), quantityIn,
+                machine.getMachineCode(), employee.getEmployeeCode(),
+                requiredToolingId != null ? " tooling=" + requiredToolingId : "");
         return mapper.toStageLogDTO(stageLogRepository.save(stage));
     }
 
@@ -649,9 +771,26 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             stage.setOperatorName(dto.getOperatorName());
         }
 
+        StageLogResponseDTO result = mapper.toStageLogDTO(stageLogRepository.save(stage));
+        releaseResources(stage);
         log.info("[STAGE] Production completed — order={} material={} stage={} qtyProduced={}",
                 orderId, materialId, stage.getStageName(), quantityProduced);
-        return mapper.toStageLogDTO(stageLogRepository.save(stage));
+        return result;
+    }
+
+    // Frees the machine/employee this stage was holding — called on every exit path
+    // (success and failure alike), so a rejected inspection still releases resources
+    // for the next job. Best-effort: see ProductionResourceClient.releaseMachine/Employee.
+    private void releaseResources(ProductionStageLog stage) {
+        if (stage.getMachineId() != null) {
+            productionResourceClient.releaseMachine(stage.getMachineId());
+        }
+        if (stage.getEmployeeId() != null) {
+            productionResourceClient.releaseEmployee(stage.getEmployeeId());
+        }
+        if (stage.getToolingId() != null) {
+            productionResourceClient.releaseTooling(stage.getToolingId());
+        }
     }
 
     // The quality gate — splits quantityIn into good/rework/scrap, raises a
@@ -693,6 +832,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             stage.setOperatorName(dto.getInspectedBy());
         }
         ProductionStageLog savedStage = stageLogRepository.save(stage);
+        releaseResources(savedStage); // release on both COMPLETED and FAILED — not just success
 
         if (scrap > 0) {
             shopFloorNcrRepository.save(ShopFloorNcr.builder()

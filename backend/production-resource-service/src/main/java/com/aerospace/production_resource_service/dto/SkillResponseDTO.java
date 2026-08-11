@@ -9,4 +9,5 @@ public class SkillResponseDTO {
     private Long id;
     private String name;
     private String description;
+    private boolean certificationRequired;
 }

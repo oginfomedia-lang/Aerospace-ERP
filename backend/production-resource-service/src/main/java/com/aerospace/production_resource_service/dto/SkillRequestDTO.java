@@ -9,4 +9,5 @@ public class SkillRequestDTO {
     private String name;
 
     private String description;
+    private boolean certificationRequired;
 }

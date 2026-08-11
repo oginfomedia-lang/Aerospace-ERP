@@ -25,4 +25,11 @@ public class RoutingOperationDTO {
     private String preferredMachineCode;
     private Long preferredEmployeeId;
     private String preferredEmployeeName;
+
+    private Long requiredSkillId;
+    private String requiredSkillName;
+    private Integer minimumSkillLevel;
+
+    private Long requiredToolingId;
+    private String requiredToolingName;
 }

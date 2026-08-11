@@ -21,5 +21,8 @@ public class MachineResponseDTO {
     private LocalDateTime lastMaintenanceAt;
     private LocalDateTime nextMaintenanceDueAt;
     private boolean overdue;
+    private String occupancy;
+    private Long currentStageLogId;
+    private Long version;
     private LocalDateTime createdAt;
 }

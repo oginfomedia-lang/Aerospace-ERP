@@ -24,6 +24,9 @@ public class StageLogResponseDTO {
     private Integer quantityIn;
     private Integer quantityOut;
     private Integer scrapCount;
+    private Long machineId;
+    private Long employeeId;
+    private Long toolingId;
     private String operatorName;
     private String remarks;
     private LocalDateTime startedAt;

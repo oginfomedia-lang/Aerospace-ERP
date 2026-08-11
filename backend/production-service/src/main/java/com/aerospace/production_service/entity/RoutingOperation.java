@@ -42,4 +42,18 @@ public class RoutingOperation {
     private String preferredMachineCode;
     private Long preferredEmployeeId;
     private String preferredEmployeeName;
+
+    // A formal requirement, unlike the "preferred" fields above — if set, startStage
+    // rejects any employee who doesn't hold this skill at this level. Null means no
+    // formal requirement (any active employee is eligible, same as before this existed).
+    private Long requiredSkillId;
+    private String requiredSkillName;
+    private Integer minimumSkillLevel;
+
+    // A formal requirement pointing at ONE specific tool/fixture/jig in
+    // production-resource-service's Tooling registry (not a category match like
+    // requiredSkillId) — if set, startStage automatically occupies this exact tool
+    // and blocks if it isn't ACTIVE and FREE. Null means no tool is required.
+    private Long requiredToolingId;
+    private String requiredToolingName;
 }

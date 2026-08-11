@@ -15,6 +15,11 @@ public class EmployeeResponseDTO {
     private String designation;
     private String department;
     private String status;
-    private List<SkillResponseDTO> skills;
+    private List<EmployeeSkillSummaryDTO> skills;
+    private Long shiftId;
+    private String shiftName;
+    private String occupancy;
+    private Long currentStageLogId;
+    private Long version;
     private LocalDateTime createdAt;
 }

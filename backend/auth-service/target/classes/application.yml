@@ -44,6 +44,7 @@ app:
     password: ${ADMIN_BOOTSTRAP_PASSWORD:}
 
 app.frontend.supplier-portal-base-url: http://localhost:3000
+app.frontend.base-url: http://localhost:3000
 
 # Cross-service HTTP client — used to verify a supplier's confirmation status
 # with procurement-service before inviting them to the Supplier Portal.

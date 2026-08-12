@@ -12,4 +12,5 @@ public interface RoutingTemplateService {
     RoutingTemplateResponseDTO getById(Long id);
     List<RoutingTemplateResponseDTO> getAll();
     List<RoutingTemplateResponseDTO> getByPartNumber(String partNumber);
+    List<RoutingTemplateResponseDTO> getHistory(String partNumber);
 }

@@ -154,6 +154,12 @@ public class KafkaConfig {
     }
 
     @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, PasswordResetRequestedEvent>
+    passwordResetRequestedListenerFactory() {
+        return factory(PasswordResetRequestedEvent.class);
+    }
+
+    @Bean
     public ConcurrentKafkaListenerContainerFactory<String, FaiResultEvent>
     faiResultListenerFactory() {
         return factory(FaiResultEvent.class);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Route, RefreshCw, PlusCircle, Edit3, Trash2, Search } from 'lucide-react';
+import { Route, RefreshCw, PlusCircle, Edit3, Trash2, Search, History, X, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import productionApi from '../api/productionAxios';
 import { ApiResponse, RoutingTemplate } from '../types/production';
@@ -11,6 +11,25 @@ const RoutingTemplates = () => {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<RoutingTemplate | null>(null);
+  const [historyFor, setHistoryFor] = useState<RoutingTemplate | null>(null);
+  const [history, setHistory] = useState<RoutingTemplate[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [viewingRevision, setViewingRevision] = useState<RoutingTemplate | null>(null);
+
+  const openHistory = async (t: RoutingTemplate) => {
+    setHistoryFor(t);
+    setLoadingHistory(true);
+    try {
+      const res = await productionApi.get<ApiResponse<RoutingTemplate[]>>('/production/routing-templates/history', {
+        params: { partNumber: t.partNumber },
+      });
+      setHistory(res.data.data);
+    } catch {
+      toast.error('Failed to load revision history.');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -85,7 +104,12 @@ const RoutingTemplates = () => {
           <tbody className="divide-y divide-slate-100">
             {filtered.map(t => (
               <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-6 py-4 font-mono font-bold text-slate-900">{t.partNumber}</td>
+                <td className="px-6 py-4 font-mono font-bold text-slate-900">
+                  {t.partNumber}
+                  <span className="ml-2 px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
+                    Rev {t.revisionNumber}
+                  </span>
+                </td>
                 <td className="px-6 py-4 font-medium text-slate-700">{t.name}</td>
                 <td className="px-6 py-4 text-slate-500">
                   {t.operations.slice().sort((a, b) => a.sequenceNumber - b.sequenceNumber).map(o => o.operationName).join(' → ') || '—'}
@@ -99,6 +123,10 @@ const RoutingTemplates = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-1">
+                    <button onClick={() => openHistory(t)} title="Revision history"
+                      className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all">
+                      <History size={15} />
+                    </button>
                     <button onClick={() => { setEditing(t); setModalOpen(true); }}
                       className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
                       <Edit3 size={15} />
@@ -131,6 +159,58 @@ const RoutingTemplates = () => {
         onSuccess={fetchData}
         template={editing}
       />
+
+      {historyFor && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 flex flex-col max-h-[80vh]">
+            <div className="bg-slate-50 px-6 py-4 border-b flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Revision History</h2>
+                <p className="text-xs text-slate-500 font-mono">{historyFor.partNumber} — {historyFor.name}</p>
+              </div>
+              <button onClick={() => setHistoryFor(null)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1 space-y-2">
+              {loadingHistory ? (
+                <p className="text-center text-sm text-slate-400 py-6">Loading...</p>
+              ) : history.length === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-6">No revisions found.</p>
+              ) : (
+                history.map(rev => (
+                  <div key={rev.id} className={`flex items-center justify-between p-3 rounded-xl border ${
+                    rev.isCurrentRevision ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <div>
+                      <p className="text-sm font-black text-slate-800">
+                        Rev {rev.revisionNumber} {rev.isCurrentRevision && <span className="ml-1 text-[9px] font-black uppercase text-emerald-600">Current</span>}
+                      </p>
+                      <p className="text-[11px] text-slate-400 font-bold">
+                        {new Date(rev.createdAt).toLocaleString()} · {rev.operations.length} operation{rev.operations.length === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <button onClick={() => setViewingRevision(rev)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                      <Eye size={13} /> View
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingRevision && (
+        <RoutingTemplateModal
+          isOpen={true}
+          onClose={() => setViewingRevision(null)}
+          onSuccess={() => {}}
+          template={viewingRevision}
+          readOnly
+        />
+      )}
     </div>
   );
 };

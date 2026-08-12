@@ -15,19 +15,28 @@ public final class ShiftWindowUtil {
     }
 
     // Handles overnight shifts (e.g. 22:00-06:00): a same-day shift needs `instant`
-    // BETWEEN start and end; an overnight one needs `instant` AFTER start OR BEFORE end.
+    // BETWEEN start and end, on a listed day. An overnight shift's early-morning portion
+    // (e.g. 00:00-06:00) falls on the calendar day AFTER the listed day — a shift listing
+    // only "MON" with hours 22:00-06:00 must still cover Tuesday 03:00, since that's still
+    // Monday night's shift. So the overnight case checks BOTH: today listed AND t >= start,
+    // OR yesterday listed AND t <= end.
     public static boolean isWithin(Shift shift, LocalDateTime instant) {
-        String day = instant.getDayOfWeek().name().substring(0, 3);
-        boolean dayMatches = Arrays.stream(shift.getDaysOfWeek().split(","))
-                .map(String::trim).anyMatch(d -> d.equalsIgnoreCase(day));
-        if (!dayMatches) return false;
-
         LocalTime t = instant.toLocalTime();
         LocalTime start = shift.getStartTime();
         LocalTime end = shift.getEndTime();
+
         if (start.isBefore(end) || start.equals(end)) {
-            return !t.isBefore(start) && !t.isAfter(end);
+            return dayMatches(shift, instant) && !t.isBefore(start) && !t.isAfter(end);
         }
-        return !t.isBefore(start) || !t.isAfter(end);
+
+        boolean eveningPortion = dayMatches(shift, instant) && !t.isBefore(start);
+        boolean morningPortion = dayMatches(shift, instant.minusDays(1)) && !t.isAfter(end);
+        return eveningPortion || morningPortion;
+    }
+
+    private static boolean dayMatches(Shift shift, LocalDateTime instant) {
+        String day = instant.getDayOfWeek().name().substring(0, 3);
+        return Arrays.stream(shift.getDaysOfWeek().split(","))
+                .map(String::trim).anyMatch(d -> d.equalsIgnoreCase(day));
     }
 }

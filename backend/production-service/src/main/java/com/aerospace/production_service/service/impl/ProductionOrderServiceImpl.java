@@ -76,6 +76,12 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                             .build())
                     .toList();
             materialRepository.saveAll(materials);
+            // saved.materials is EAGER-fetched and was already initialized empty at the
+            // first orderRepository.save() above — findById() below returns the SAME
+            // managed instance from the persistence context (JPA identity map) rather
+            // than re-querying, so without this the response would report an empty
+            // materials list even though the rows are correctly persisted.
+            saved.setMaterials(materials);
         }
 
         // Reload with associations
@@ -328,7 +334,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                 continue; // supervisor override — e.g. a bought-complete part needs no routing
             }
             RoutingTemplate template = routingTemplateRepository
-                    .findFirstByPartNumberAndIsActiveTrue(material.getPartNumber())
+                    .findFirstByPartNumberAndIsActiveTrueAndIsCurrentRevisionTrue(material.getPartNumber())
                     .orElseThrow(() -> new IllegalStateException(
                             "No active Routing Template found for part '" + material.getPartNumber()
                             + "' (BOM line id " + material.getId() + "). Create one, or pass its id in "
@@ -450,6 +456,15 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                         "passing final QA inspection yet.");
             }
         }
+        List<ShopFloorNcr> openNcrs = shopFloorNcrRepository.findByProductionOrderIdAndStatus(id, NcrStatus.OPEN);
+        if (!openNcrs.isEmpty()) {
+            ShopFloorNcr first = openNcrs.get(0);
+            throw new IllegalStateException(
+                "Cannot complete: " + openNcrs.size() + " unresolved NCR(s) exist (e.g. " + first.getDisposition() +
+                (first.getProductionMaterial() != null ? " on " + first.getProductionMaterial().getPartName() : "") +
+                "). Resolve them first.");
+        }
+
         order.setStatus(ProductionOrderStatus.COMPLETED);
         order.setActualEndDate(LocalDateTime.now());
         order.setQualityPassed(qualityPassed);
@@ -773,9 +788,28 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
 
         StageLogResponseDTO result = mapper.toStageLogDTO(stageLogRepository.save(stage));
         releaseResources(stage);
+        autoResolveReworkNcr(stage.getId());
         log.info("[STAGE] Production completed — order={} material={} stage={} qtyProduced={}",
                 orderId, materialId, stage.getStageName(), quantityProduced);
         return result;
+    }
+
+    // A REWORK NCR names the redo stage that would clear it (reworkStageLogId) — once
+    // that redo stage actually finishes successfully, the reject it was raised for has
+    // genuinely been dealt with, so auto-close it rather than make someone click Resolve
+    // for a real, already-completed signal. SCRAP/FINISHED_GOODS_REJECT have no such
+    // signal and stay OPEN until a manual Resolve.
+    private void autoResolveReworkNcr(Long completedStageId) {
+        shopFloorNcrRepository.findByReworkStageLogId(completedStageId).ifPresent(ncr -> {
+            if (ncr.getStatus() == NcrStatus.OPEN) {
+                ncr.setStatus(NcrStatus.RESOLVED);
+                ncr.setResolvedBy("SYSTEM (rework completed)");
+                ncr.setResolvedAt(LocalDateTime.now());
+                shopFloorNcrRepository.save(ncr);
+                log.info("[NCR] Auto-resolved on rework completion — ncrId={} reworkStageLogId={}",
+                        ncr.getId(), completedStageId);
+            }
+        });
     }
 
     // Frees the machine/employee this stage was holding — called on every exit path
@@ -833,6 +867,9 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         }
         ProductionStageLog savedStage = stageLogRepository.save(stage);
         releaseResources(savedStage); // release on both COMPLETED and FAILED — not just success
+        if (savedStage.getStatus() == StageStatus.COMPLETED) {
+            autoResolveReworkNcr(savedStage.getId());
+        }
 
         if (scrap > 0) {
             shopFloorNcrRepository.save(ShopFloorNcr.builder()
@@ -1010,6 +1047,23 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     @Transactional(readOnly = true)
     public List<ShopFloorNcrResponseDTO> getNcrsForMaterial(Long materialId) {
         return shopFloorNcrRepository.findByProductionMaterial_Id(materialId).stream().map(ncrMapper::toDTO).toList();
+    }
+
+    @Override
+    @Transactional
+    public ShopFloorNcrResponseDTO resolveNcr(Long ncrId, String resolvedBy, String resolutionRemarks) {
+        ShopFloorNcr ncr = shopFloorNcrRepository.findById(ncrId)
+                .orElseThrow(() -> new ResourceNotFoundException("NCR not found: " + ncrId));
+        if (ncr.getStatus() == NcrStatus.RESOLVED) {
+            throw new IllegalStateException("NCR " + ncrId + " is already resolved");
+        }
+        ncr.setStatus(NcrStatus.RESOLVED);
+        ncr.setResolvedBy(resolvedBy);
+        ncr.setResolvedAt(LocalDateTime.now());
+        ncr.setResolutionRemarks(resolutionRemarks);
+        ShopFloorNcr saved = shopFloorNcrRepository.save(ncr);
+        log.info("[NCR] Resolved manually — ncrId={} resolvedBy={}", ncrId, resolvedBy);
+        return ncrMapper.toDTO(saved);
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────

@@ -64,6 +64,7 @@ public interface ProductionOrderService {
     // ── Shop-floor NCRs ───────────────────────────────────────────────────────
     List<ShopFloorNcrResponseDTO> getNcrsForOrder(Long orderId);
     List<ShopFloorNcrResponseDTO> getNcrsForMaterial(Long materialId);
+    ShopFloorNcrResponseDTO resolveNcr(Long ncrId, String resolvedBy, String resolutionRemarks);
 
     // ── Queries ───────────────────────────────────────────────────────────────
     List<ProductionOrderResponseDTO> getByStatus(ProductionOrderStatus status);

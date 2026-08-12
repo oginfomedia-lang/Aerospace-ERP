@@ -143,6 +143,10 @@ export interface ShopFloorNcr {
   reportedBy?: string | null;
   reportedAt: string;
   reworkStageLogId?: number | null;
+  status: 'OPEN' | 'RESOLVED';
+  resolvedBy?: string | null;
+  resolvedAt?: string | null;
+  resolutionRemarks?: string | null;
 }
 
 // ============================================================
@@ -189,6 +193,9 @@ export interface RoutingTemplate {
   name: string;
   description?: string | null;
   isActive: boolean;
+  revisionNumber: number;
+  supersedesId?: number | null;
+  isCurrentRevision: boolean;
   createdAt: string;
   updatedAt?: string | null;
   operations: RoutingOperation[];

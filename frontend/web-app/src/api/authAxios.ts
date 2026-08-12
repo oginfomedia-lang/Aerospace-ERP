@@ -79,3 +79,15 @@ export const validateToken = async (token: string) => {
     const response = await authApi.post('/validate', { token });
     return response.data;
 };
+
+//request a password reset email
+export const forgotPassword = async (email: string) => {
+    const response = await authApi.post('/forgot-password', { email });
+    return response.data;
+};
+
+//reset password using the token from the emailed link
+export const resetPassword = async (token: string, newPassword: string) => {
+    const response = await authApi.post('/reset-password', { token, newPassword });
+    return response.data;
+};

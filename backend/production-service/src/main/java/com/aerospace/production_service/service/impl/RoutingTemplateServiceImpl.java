@@ -47,18 +47,31 @@ public class RoutingTemplateServiceImpl implements RoutingTemplateService {
     @Transactional
     public RoutingTemplateResponseDTO update(Long id, RoutingTemplateRequestDTO dto) {
         assertEndsWithQaInspection(dto.getOperations());
-        RoutingTemplate template = findOrThrow(id);
-        template.setPartNumber(dto.getPartNumber());
-        template.setName(dto.getName());
-        template.setDescription(dto.getDescription());
-        if (dto.getIsActive() != null) template.setIsActive(dto.getIsActive());
+        RoutingTemplate previous = findOrThrow(id);
 
-        // Replace the operation list wholesale — simplest correct behavior for a
-        // small, supervisor-edited ordered list (orphanRemoval clears the old rows).
-        template.getOperations().clear();
-        template.getOperations().addAll(toOperationEntities(dto.getOperations(), template));
+        // Never mutate a template's operations in place — ProductionStageLog.routingOperationId
+        // is a live, non-FK reference re-resolved at stage-start time (startStage's required-
+        // skill/tooling checks); clearing+recreating operations on every edit (the old
+        // orphanRemoval-driven behavior) would silently orphan those references for any
+        // in-flight order. An edit creates the next revision instead — old rows, and every
+        // id inside them, live forever.
+        previous.setIsCurrentRevision(false);
+        repository.save(previous);
 
-        return mapper.toDTO(repository.save(template));
+        RoutingTemplate next = RoutingTemplate.builder()
+                .partNumber(previous.getPartNumber())
+                .name(dto.getName())
+                .description(dto.getDescription())
+                .isActive(dto.getIsActive() != null ? dto.getIsActive() : previous.getIsActive())
+                .revisionNumber(previous.getRevisionNumber() + 1)
+                .supersedesId(previous.getId())
+                .isCurrentRevision(true)
+                .build();
+        next.setOperations(toOperationEntities(dto.getOperations(), next));
+        RoutingTemplate saved = repository.save(next);
+        log.info("[ROUTING] Template revised — partNumber={}, revision={} (supersedes id {})",
+                saved.getPartNumber(), saved.getRevisionNumber(), previous.getId());
+        return mapper.toDTO(saved);
     }
 
     // A routing must end in a QA Inspection step — otherwise a BOM line could reach
@@ -95,13 +108,26 @@ public class RoutingTemplateServiceImpl implements RoutingTemplateService {
     @Override
     @Transactional(readOnly = true)
     public List<RoutingTemplateResponseDTO> getAll() {
-        return repository.findAll().stream().map(mapper::toDTO).toList();
+        // Only the current revision per part number — superseded revisions are reachable
+        // via getHistory(partNumber), not the main list, so the list stays one row per part.
+        return repository.findAll().stream()
+                .filter(t -> Boolean.TRUE.equals(t.getIsCurrentRevision()))
+                .map(mapper::toDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<RoutingTemplateResponseDTO> getByPartNumber(String partNumber) {
-        return repository.findByPartNumber(partNumber).stream().map(mapper::toDTO).toList();
+        return repository.findByPartNumber(partNumber).stream()
+                .filter(t -> Boolean.TRUE.equals(t.getIsCurrentRevision()))
+                .map(mapper::toDTO).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoutingTemplateResponseDTO> getHistory(String partNumber) {
+        return repository.findByPartNumberOrderByRevisionNumberDesc(partNumber).stream()
+                .map(mapper::toDTO).toList();
     }
 
     private List<RoutingOperation> toOperationEntities(List<RoutingOperationDTO> dtos, RoutingTemplate template) {

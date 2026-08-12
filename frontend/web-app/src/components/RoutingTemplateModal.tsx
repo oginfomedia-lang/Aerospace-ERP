@@ -13,6 +13,7 @@ interface Props {
   onClose: () => void;
   onSuccess: () => void;
   template: RoutingTemplate | null; // null = create
+  readOnly?: boolean; // viewing a past (superseded) revision — inspect only, no save
 }
 
 const emptyOperation = (sequenceNumber: number): RoutingOperation => ({
@@ -20,7 +21,7 @@ const emptyOperation = (sequenceNumber: number): RoutingOperation => ({
   expectedDurationMinutes: undefined, workstation: '', instructions: '',
 });
 
-export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, template }) => {
+export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, template, readOnly = false }) => {
   const [partNumber, setPartNumber] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -131,12 +132,15 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 flex flex-col max-h-[90vh]">
         <div className="bg-slate-50 px-6 py-4 border-b flex justify-between items-center shrink-0">
-          <h2 className="text-lg font-black text-slate-900">{template ? 'Edit' : 'New'} Routing Template</h2>
+          <h2 className="text-lg font-black text-slate-900">
+            {readOnly ? `Viewing Rev ${template?.revisionNumber ?? ''}` : template ? 'Edit' : 'New'} Routing Template
+          </h2>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors">
             <X size={20} />
           </button>
         </div>
 
+        <fieldset disabled={readOnly} className="contents">
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -270,15 +274,24 @@ export const RoutingTemplateModal: React.FC<Props> = ({ isOpen, onClose, onSucce
             </div>
           </div>
         </div>
+        </fieldset>
 
         <div className="flex gap-3 p-6 pt-4 border-t border-slate-100 shrink-0">
-          <button onClick={onClose} className="flex-1 py-2.5 text-slate-500 font-bold text-sm hover:bg-slate-50 rounded-xl transition-all">
-            Cancel
-          </button>
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition-all disabled:opacity-60">
-            {saving ? <Loader2 size={16} className="animate-spin" /> : null} {template ? 'Save Changes' : 'Create Template'}
-          </button>
+          {readOnly ? (
+            <button onClick={onClose} className="flex-1 py-2.5 text-slate-500 font-bold text-sm hover:bg-slate-50 rounded-xl transition-all">
+              Close
+            </button>
+          ) : (
+            <>
+              <button onClick={onClose} className="flex-1 py-2.5 text-slate-500 font-bold text-sm hover:bg-slate-50 rounded-xl transition-all">
+                Cancel
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition-all disabled:opacity-60">
+                {saving ? <Loader2 size={16} className="animate-spin" /> : null} {template ? 'Save Changes' : 'Create Template'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ package com.aerospace.auth_service.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -36,6 +37,18 @@ public class GlobalExceptionHandler {
         error.put("error", "Conflict");
         error.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    // Handles 403 — Spring Security @PreAuthorize denial. Must be its own handler:
+    // AccessDeniedException extends RuntimeException (which Exception.class below also
+    // catches), so without this it was being swallowed by the generic Exception handler
+    // and returned as 500 instead of 403.
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", "Forbidden");
+        error.put("message", "You do not have permission to perform this action");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

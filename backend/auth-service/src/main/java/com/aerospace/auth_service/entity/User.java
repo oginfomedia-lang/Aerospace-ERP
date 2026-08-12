@@ -66,4 +66,7 @@ public class User {
     public boolean isEnabled() {
         return enabled;
     }
+
+    private String resetToken;
+    private LocalDateTime resetTokenExpiry;
 }

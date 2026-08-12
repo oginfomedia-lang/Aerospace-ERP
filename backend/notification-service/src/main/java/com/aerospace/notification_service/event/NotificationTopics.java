@@ -25,4 +25,7 @@ public class NotificationTopics {
     public static final String SUPPLIER_CONFIRMATION_DECIDED = "supplier-confirmation-decided-events";
 
     public static final String MAINTENANCE_DUE = "production-resource.maintenance.due";
+
+    // Published by auth-service when a user requests a password reset.
+    public static final String PASSWORD_RESET_REQUESTED = "password-reset-requested-events";
 }

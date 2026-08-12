@@ -275,4 +275,15 @@ public class ProductionOrderController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS",
                 productionOrderService.getNcrsForMaterial(materialId)));
     }
+
+    // Resolving is a QA-adjacent decision — the class default (PRODUCTION_ENGINEER,
+    // MANAGER, ADMIN) doesn't include QA_INSPECTOR, so this needs its own override.
+    @Audited(action = "RESOLVE_NCR", entityType = "ShopFloorNcr")
+    @PreAuthorize("hasAnyRole('QA_INSPECTOR','MANAGER','ADMIN')")
+    @PostMapping("/ncrs/{ncrId}/resolve")
+    public ResponseEntity<ApiResponse<ShopFloorNcrResponseDTO>> resolveNcr(
+            @PathVariable Long ncrId, @Valid @RequestBody ResolveNcrRequestDTO dto) {
+        return ResponseEntity.ok(new ApiResponse<>("NCR_RESOLVED",
+                productionOrderService.resolveNcr(ncrId, dto.getResolvedBy(), dto.getResolutionRemarks())));
+    }
 }

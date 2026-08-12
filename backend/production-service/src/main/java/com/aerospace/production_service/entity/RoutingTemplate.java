@@ -32,6 +32,19 @@ public class RoutingTemplate {
     @Builder.Default
     private Boolean isActive = true;
 
+    // Versioning — separate from isActive (a user-controlled "retire this routing"
+    // flag, unrelated to versioning). Editing a template never mutates these rows;
+    // it supersedes this one and creates the next revision instead (see
+    // RoutingTemplateServiceImpl.update) so a ProductionStageLog.routingOperationId
+    // captured before an edit never goes dangling.
+    @Builder.Default
+    private Integer revisionNumber = 1;
+
+    private Long supersedesId;
+
+    @Builder.Default
+    private Boolean isCurrentRevision = true;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

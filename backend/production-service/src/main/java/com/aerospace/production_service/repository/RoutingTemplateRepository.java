@@ -8,5 +8,6 @@ import java.util.Optional;
 
 public interface RoutingTemplateRepository extends JpaRepository<RoutingTemplate, Long> {
     List<RoutingTemplate> findByPartNumber(String partNumber);
-    Optional<RoutingTemplate> findFirstByPartNumberAndIsActiveTrue(String partNumber);
+    Optional<RoutingTemplate> findFirstByPartNumberAndIsActiveTrueAndIsCurrentRevisionTrue(String partNumber);
+    List<RoutingTemplate> findByPartNumberOrderByRevisionNumberDesc(String partNumber);
 }

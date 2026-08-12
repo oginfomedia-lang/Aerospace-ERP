@@ -1,5 +1,6 @@
 package com.aerospace.production_service.dto;
 
+import com.aerospace.production_service.entity.NcrStatus;
 import com.aerospace.production_service.entity.ShopFloorDisposition;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,4 +27,8 @@ public class ShopFloorNcrResponseDTO {
     private String reportedBy;
     private LocalDateTime reportedAt;
     private Long reworkStageLogId;
+    private NcrStatus status;
+    private String resolvedBy;
+    private LocalDateTime resolvedAt;
+    private String resolutionRemarks;
 }

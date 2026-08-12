@@ -25,6 +25,8 @@ import VendorInvoices from './pages/VendorInvoices';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import DebitNotes from './pages/DebitNotes';
 import ApprovalMatrix from './pages/ApprovalMatrix';
@@ -64,6 +66,8 @@ function App() {
         {/* Public routes (no Layout) */}
         <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />} />
         <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/forgot-password" element={!isAuthenticated ? <ForgotPassword /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/reset-password" element={!isAuthenticated ? <ResetPassword /> : <Navigate to="/dashboard" replace />} />
         <Route path="/supplier/login" element={<SupplierLogin />} />
         <Route path="/supplier/activate" element={<SupplierActivate />} />
         <Route element={<ProtectedRoute requiredRoles={['SUPPLIER']} />}>

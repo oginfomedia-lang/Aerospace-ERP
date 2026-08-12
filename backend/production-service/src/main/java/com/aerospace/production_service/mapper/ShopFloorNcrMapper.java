@@ -23,6 +23,10 @@ public class ShopFloorNcrMapper {
                 .reportedBy(ncr.getReportedBy())
                 .reportedAt(ncr.getReportedAt())
                 .reworkStageLogId(ncr.getReworkStageLogId())
+                .status(ncr.getStatus())
+                .resolvedBy(ncr.getResolvedBy())
+                .resolvedAt(ncr.getResolvedAt())
+                .resolutionRemarks(ncr.getResolutionRemarks())
                 .build();
     }
 }

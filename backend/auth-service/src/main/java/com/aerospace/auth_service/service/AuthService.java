@@ -228,4 +228,55 @@ public class AuthService {
                 .createdAt(savedUser.getCreatedAt())
                 .build();
     }
+
+    public List<UserResponse> listAllUsers() {
+        return userRepository.findAll().stream()
+                .map(u -> UserResponse.builder()
+                        .id(u.getId()).username(u.getUsername()).email(u.getEmail())
+                        .roles(u.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
+                        .enabled(u.getEnabled()).createdAt(u.getCreatedAt())
+                        .build())
+                .toList();
+    }
+
+    @Transactional
+    public UserResponse setUserEnabled(Long id, boolean enabled) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + id));
+        user.setEnabled(enabled);
+        User saved = userRepository.save(user);
+        return UserResponse.builder()
+                .id(saved.getId()).username(saved.getUsername()).email(saved.getEmail())
+                .roles(saved.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
+                .enabled(saved.getEnabled()).createdAt(saved.getCreatedAt())
+                .build();
+    }
+
+    @Transactional
+    public UserResponse updateUserRoles(Long id, List<String> roleNames) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + id));
+
+        Set<Role> roles = new HashSet<>();
+        if (roleNames != null) {
+            for (String roleName : roleNames) {
+                if (roleName == null || roleName.isBlank()) {
+                    continue;
+                }
+                Role role = roleRepository.findByName(roleName.trim())
+                        .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleName));
+                roles.add(role);
+            }
+        }
+
+        user.setRoles(roles);
+        User saved = userRepository.save(user);
+        log.info("Admin updated roles for user: {} -> {}", saved.getUsername(),
+                saved.getRoles().stream().map(Role::getName).collect(Collectors.joining(",")));
+        return UserResponse.builder()
+                .id(saved.getId()).username(saved.getUsername()).email(saved.getEmail())
+                .roles(saved.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
+                .enabled(saved.getEnabled()).createdAt(saved.getCreatedAt())
+                .build();
+    }
 }

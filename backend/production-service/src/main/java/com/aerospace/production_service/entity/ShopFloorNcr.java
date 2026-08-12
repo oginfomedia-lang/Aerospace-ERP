@@ -52,6 +52,21 @@ public class ShopFloorNcr {
     // Set only for REWORK — points at the new same-sequence redo attempt row.
     private Long reworkStageLogId;
 
+    // Not @Builder.Default'd to NOT NULL at the column level — this table already has
+    // rows from before this field existed, and ddl-auto:update silently fails to backfill
+    // a NOT NULL column on a non-empty table (hit this exact bug twice already this
+    // session). Existing rows need a manual `UPDATE shop_floor_ncrs SET status='OPEN'
+    // WHERE status IS NULL` after deploy. REWORK NCRs auto-resolve when their
+    // reworkStageLogId's stage later completes successfully; SCRAP/FINISHED_GOODS_REJECT
+    // need a manual Resolve action since there's no automatic "dealt with" signal for those.
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private NcrStatus status = NcrStatus.OPEN;
+
+    private String resolvedBy;
+    private LocalDateTime resolvedAt;
+    private String resolutionRemarks;
+
     @PrePersist
     protected void onCreate() {
         if (this.reportedAt == null) this.reportedAt = LocalDateTime.now();

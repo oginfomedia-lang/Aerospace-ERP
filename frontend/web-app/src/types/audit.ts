@@ -12,7 +12,7 @@ export interface AuditLogEntry {
   timestamp: string;
 }
 
-export type AuditServiceKey = 'inventory' | 'procurement' | 'qa' | 'order' | 'production';
+export type AuditServiceKey = 'inventory' | 'procurement' | 'qa' | 'order' | 'production' | 'productionResource';
 
 export interface AuditLogRow extends AuditLogEntry {
   service: AuditServiceKey;

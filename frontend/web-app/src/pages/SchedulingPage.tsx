@@ -107,7 +107,7 @@ const SchedulingPage = () => {
     setLinkedOrder(null);
     setSelectedStageId(0);
     try {
-      const res = await productionApi.get<ApiResponse<ProductionOrder>>(`/production/orders/${linkOrderInput.trim()}`);
+      const res = await productionApi.get<ApiResponse<ProductionOrder>>(`/production/${linkOrderInput.trim()}`);
       setLinkedOrder(res.data.data);
     } catch {
       toast.error('Could not find that production order.');

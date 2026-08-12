@@ -18,6 +18,9 @@ public class RoutingTemplateResponseDTO {
     private String name;
     private String description;
     private Boolean isActive;
+    private Integer revisionNumber;
+    private Long supersedesId;
+    private Boolean isCurrentRevision;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<RoutingOperationDTO> operations;

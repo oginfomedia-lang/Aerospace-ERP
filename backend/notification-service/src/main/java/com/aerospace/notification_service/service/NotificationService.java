@@ -41,4 +41,6 @@ public interface NotificationService {
     void handleSupplierConfirmationDecided(SupplierConfirmationDecidedEvent event);
 
     void handleMaintenanceDue(MaintenanceDueEvent event);
+
+    void handlePasswordResetRequested(PasswordResetRequestedEvent event);
 }

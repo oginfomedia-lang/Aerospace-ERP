@@ -279,4 +279,18 @@ public class NotificationConsumer {
             log.error("[CONSUMER] Failed MaintenanceDueEvent machineCode={}: {}", event.getMachineCode(), ex.getMessage(), ex);
         }
     }
+
+    // ── 18. Password Reset Requested ──────────────────────────────────────────
+    @KafkaListener(
+        topics           = "${notification.kafka.topics.password-reset-requested}",
+        groupId          = "notification-group",
+        containerFactory = "passwordResetRequestedListenerFactory"
+    )
+    public void onPasswordResetRequested(PasswordResetRequestedEvent event) {
+        log.info("[CONSUMER] password-reset-requested-events → email={}", event.getEmail());
+        try { notificationService.handlePasswordResetRequested(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed PasswordResetRequestedEvent email={}: {}", event.getEmail(), ex.getMessage(), ex);
+        }
+    }
 }

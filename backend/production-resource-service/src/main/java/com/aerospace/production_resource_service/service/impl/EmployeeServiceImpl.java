@@ -151,9 +151,32 @@ public class EmployeeServiceImpl implements EmployeeService {
         return toDTO(saved);
     }
 
+    // Public entry point (the direct controller endpoint) — blocks a bare level
+    // increase, since that now requires an approved SkillUpgradeRequest instead. First-
+    // time certification (no existing row for this skill) and same/lower-level
+    // re-evaluations (corrections, re-tests, REVOKE) are unaffected — those aren't
+    // "upgrades". SkillUpgradeServiceImpl.approve calls recordSkillCertificationInternal
+    // directly to bypass this guard, since approval IS the sanctioned upgrade path.
     @Override
     @Transactional
     public EmployeeSkillCertificationResponseDTO recordSkillCertification(Long employeeId, EmployeeSkillCertificationRequestDTO dto) {
+        List<EmployeeSkillCertification> existing = certificationRepository.findByEmployeeIdOrderByCreatedAtDesc(employeeId);
+        EmployeeSkillCertification current = existing.stream()
+                .filter(c -> c.getSkill().getId().equals(dto.getSkillId()))
+                .findFirst().orElse(null);
+        if (current != null && dto.getLevel() != null && dto.getLevel() > current.getLevel()) {
+            throw new IllegalStateException(
+                    "Increasing " + current.getSkill().getName() + " from level " + current.getLevel() + " to "
+                            + dto.getLevel() + " requires an approved skill upgrade request — submit one via "
+                            + "POST /employees/" + employeeId + "/skill-upgrade-requests.");
+        }
+        return recordSkillCertificationInternal(employeeId, dto);
+    }
+
+    // Unguarded write path — only SkillUpgradeServiceImpl.approve should call this
+    // directly (same package, injected as the concrete impl for exactly this one call).
+    @Transactional
+    EmployeeSkillCertificationResponseDTO recordSkillCertificationInternal(Long employeeId, EmployeeSkillCertificationRequestDTO dto) {
         Employee employee = findOrThrow(employeeId);
         Skill skill = skillRepository.findById(dto.getSkillId())
                 .orElseThrow(() -> new ResourceNotFoundException("Skill not found with ID: " + dto.getSkillId()));

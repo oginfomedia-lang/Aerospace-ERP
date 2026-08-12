@@ -7,13 +7,15 @@ import toast from 'react-hot-toast';
 import qaApi from '../api/qaAxios';
 import workOrderApi from '../api/workOrderAxios';
 import productionApi from '../api/productionAxios';
+import productionResourceApi from '../api/productionResourceAxios';
 
 const ENTITY_TYPES: Record<AuditServiceKey, string[]> = {
   inventory: ['Part', 'NCR', 'MaterialReceipt'],
   procurement: ['PurchaseOrder', 'PurchaseRequisition'],
   qa: ['Inspection', 'Equipment', 'CalibrationRecord', 'Fail', 'Coc'],
   order: ['WorkOrder'],
-  production: ['RoutingTemplate', 'ProductionOrder'],
+  production: ['RoutingTemplate', 'ProductionOrder', 'ShopFloorNcr'],
+  productionResource: ['Employee', 'Machine', 'Tooling', 'Shift'],
 };
 
 const actionColor = (action: string) => {
@@ -35,12 +37,13 @@ const AuditTrail: React.FC = () => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [invRes, procRes, qaRes, orderRes, productionRes] = await Promise.allSettled([
+      const [invRes, procRes, qaRes, orderRes, productionRes, productionResourceRes] = await Promise.allSettled([
         api.get<AuditLogEntry[]>('http://localhost:8081/api/audit-log'),
         procurementApi.get<AuditLogEntry[]>('/audit-log'),
         qaApi.get<AuditLogEntry[]>('http://localhost:8082/api/audit-log'),
         workOrderApi.get<AuditLogEntry[]>('http://localhost:8084/api/audit-log'),
-        productionApi.get<AuditLogEntry[]>('http://localhost:8085/api/audit-log')
+        productionApi.get<AuditLogEntry[]>('http://localhost:8085/api/audit-log'),
+        productionResourceApi.get<AuditLogEntry[]>('http://localhost:8090/api/audit-log')
       ]);
 
       const invRows: AuditLogRow[] =
@@ -53,14 +56,18 @@ const AuditTrail: React.FC = () => {
         orderRes.status === 'fulfilled' ? orderRes.value.data.map(r => ({ ...r, service: 'order' as const })) : [];
       const productionRows: AuditLogRow[] =
         productionRes.status === 'fulfilled' ? productionRes.value.data.map(r => ({ ...r, service: 'production' as const })) : [];
+      const productionResourceRows: AuditLogRow[] =
+        productionResourceRes.status === 'fulfilled' ? productionResourceRes.value.data.map(r => ({ ...r, service: 'productionResource' as const })) : [];
 
       if (invRes.status === 'rejected') toast.error('Inventory audit log unavailable');
       if (procRes.status === 'rejected') toast.error('Procurement audit log unavailable');
       if (qaRes.status === 'rejected') toast.error('QA audit log unavailable');
       if (orderRes.status === 'rejected') toast.error('Work Order audit log unavailable');
       if (productionRes.status === 'rejected') toast.error('Production audit log unavailable');
+      if (productionResourceRes.status === 'rejected') toast.error('Production Resource audit log unavailable');
 
-      setRows([...invRows, ...procRows, ...qaRows, ...orderRows, ...productionRows].sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+      setRows([...invRows, ...procRows, ...qaRows, ...orderRows, ...productionRows, ...productionResourceRows]
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
     } catch {
       toast.error('Failed to load audit trail');
     } finally {
@@ -78,7 +85,7 @@ const AuditTrail: React.FC = () => {
   });
 
   const availableEntityTypes = serviceFilter === 'all'
-    ? [...ENTITY_TYPES.inventory, ...ENTITY_TYPES.procurement, ...ENTITY_TYPES.qa, ...ENTITY_TYPES.order, ...ENTITY_TYPES.production]
+    ? [...ENTITY_TYPES.inventory, ...ENTITY_TYPES.procurement, ...ENTITY_TYPES.qa, ...ENTITY_TYPES.order, ...ENTITY_TYPES.production, ...ENTITY_TYPES.productionResource]
     : ENTITY_TYPES[serviceFilter];
 
   return (
@@ -102,6 +109,7 @@ const AuditTrail: React.FC = () => {
           <option value="qa">QA</option>
           <option value="order">Work Order</option>
           <option value="production">Production</option>
+          <option value="productionResource">Production Resources</option>
         </select>
         <select value={entityTypeFilter} onChange={e => setEntityTypeFilter(e.target.value)}
           className="px-3 py-2 rounded-lg border border-slate-200 text-sm">

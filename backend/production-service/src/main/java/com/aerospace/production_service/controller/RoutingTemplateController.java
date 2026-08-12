@@ -44,6 +44,12 @@ public class RoutingTemplateController {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", service.getById(id)));
     }
 
+    @GetMapping("/history")
+    public ResponseEntity<ApiResponse<List<RoutingTemplateResponseDTO>>> getHistory(
+            @RequestParam String partNumber) {
+        return ResponseEntity.ok(new ApiResponse<>("SUCCESS", service.getHistory(partNumber)));
+    }
+
     @Audited(action = "UPDATE", entityType = "RoutingTemplate")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<RoutingTemplateResponseDTO>> update(

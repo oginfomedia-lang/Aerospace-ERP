@@ -175,6 +175,36 @@ export interface EmployeeSkillCertification {
   createdAt: string;
 }
 
+// Matches: SkillUpgradeRequestCreateDTO.java / SkillUpgradeResponseDTO.java — a
+// PENDING -> APPROVED/REJECTED request gating a skill-level INCREASE. Approval writes
+// a real EmployeeSkillCertification row server-side; this only tracks the decision.
+export interface SkillUpgradeRequestCreate {
+  skillId: number;
+  toLevel: number;
+  reason?: string;
+  requestedBy?: string;
+}
+
+export interface SkillUpgradeDecision {
+  decidedBy: string;
+}
+
+export interface SkillUpgradeRequest {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  skillId: number;
+  skillName: string;
+  fromLevel: number;
+  toLevel: number;
+  status: string; // PENDING, APPROVED, REJECTED
+  reason?: string | null;
+  requestedBy?: string | null;
+  createdAt: string;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+}
+
 // Matches: ToolingRequestDTO.java / ToolingResponseDTO.java (production-resource-service)
 export interface Tooling {
   id: number;

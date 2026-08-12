@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import productionResourceApi from '../api/productionResourceAxios';
 import toast from 'react-hot-toast';
-import { HardHat, Loader2, ChevronRight, CheckCircle2, PlusCircle, Plus, Unlock, History, CalendarDays, Check, X } from 'lucide-react';
+import { HardHat, Loader2, ChevronRight, CheckCircle2, PlusCircle, Plus, Unlock, History, CalendarDays, Check, X, TrendingUp } from 'lucide-react';
 import { ApiResponse } from '../types/inventory';
 import {
   Employee, Skill, EmployeeSkillCertification, EmployeeSkillCertificationRequest,
-  Shift, EmployeeLeave, EmployeeLeaveRequest,
+  Shift, EmployeeLeave, EmployeeLeaveRequest, SkillUpgradeRequest, SkillUpgradeRequestCreate,
 } from '../types/productionResource';
 import { RegisterEmployeeModal } from '../components/RegisterEmployeeModal';
 import { useAuth } from '../context/AuthContext';
@@ -23,6 +23,14 @@ const leaveStatusStyle = (status: string) => {
 };
 
 const emptyLeaveForm: EmployeeLeaveRequest = { type: 'VACATION', startDate: '', endDate: '', reason: '' };
+
+const upgradeStatusStyle = (status: string) => {
+  if (status === 'APPROVED') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (status === 'REJECTED') return 'bg-red-50 text-red-700 border-red-200';
+  return 'bg-amber-50 text-amber-700 border-amber-200'; // PENDING
+};
+
+const emptyUpgradeForm: SkillUpgradeRequestCreate = { skillId: 0, toLevel: 2, reason: '' };
 
 const skillBadgeStyle = (status: string) => {
   if (status === 'ACTIVE') return 'bg-indigo-50 text-indigo-700 border-indigo-200';
@@ -62,6 +70,11 @@ const EmployeeDirectoryPage = () => {
   const [requestingLeave, setRequestingLeave] = useState(false);
   const [leaveHistory, setLeaveHistory] = useState<EmployeeLeave[]>([]);
   const [decidingLeaveId, setDecidingLeaveId] = useState<number | null>(null);
+
+  const [upgradeForm, setUpgradeForm] = useState<SkillUpgradeRequestCreate>(emptyUpgradeForm);
+  const [requestingUpgrade, setRequestingUpgrade] = useState(false);
+  const [upgradeHistory, setUpgradeHistory] = useState<SkillUpgradeRequest[]>([]);
+  const [decidingUpgradeId, setDecidingUpgradeId] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     name: '', designation: '', department: '', status: 'ACTIVE', shiftId: 0,
@@ -110,10 +123,13 @@ const EmployeeDirectoryPage = () => {
     setCertForm(emptyCertForm);
     setShowHistory(false);
     setLeaveForm(emptyLeaveForm);
+    setUpgradeForm(emptyUpgradeForm);
     productionResourceApi.get<ApiResponse<EmployeeSkillCertification[]>>(`/resources/employees/${e.id}/skills`)
       .then(res => setCertHistory(res.data.data)).catch(() => setCertHistory([]));
     productionResourceApi.get<ApiResponse<EmployeeLeave[]>>(`/resources/employees/${e.id}/leave`)
       .then(res => setLeaveHistory(res.data.data)).catch(() => setLeaveHistory([]));
+    productionResourceApi.get<ApiResponse<SkillUpgradeRequest[]>>(`/resources/employees/${e.id}/skill-upgrade-requests`)
+      .then(res => setUpgradeHistory(res.data.data)).catch(() => setUpgradeHistory([]));
   };
 
   const addShift = async () => {
@@ -175,6 +191,59 @@ const EmployeeDirectoryPage = () => {
       // toast.promise handles display
     } finally {
       setDecidingLeaveId(null);
+    }
+  };
+
+  const handleRequestUpgrade = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected || !user) return;
+    if (!upgradeForm.skillId) { toast.error('Pick a skill first.'); return; }
+    setRequestingUpgrade(true);
+    try {
+      await toast.promise(
+        productionResourceApi.post(`/resources/employees/${selected.id}/skill-upgrade-requests`, {
+          ...upgradeForm, requestedBy: user.username || user.email,
+        }),
+        {
+          loading: 'Submitting upgrade request...',
+          success: 'Skill upgrade requested.',
+          error: (err) => err.response?.data?.message || 'Failed to request skill upgrade.',
+        }
+      );
+      setUpgradeForm(emptyUpgradeForm);
+      const res = await productionResourceApi.get<ApiResponse<SkillUpgradeRequest[]>>(`/resources/employees/${selected.id}/skill-upgrade-requests`);
+      setUpgradeHistory(res.data.data);
+    } catch {
+      // toast.promise handles display
+    } finally {
+      setRequestingUpgrade(false);
+    }
+  };
+
+  const decideUpgrade = async (req: SkillUpgradeRequest, decision: 'approve' | 'reject') => {
+    if (!selected || !user) return;
+    setDecidingUpgradeId(req.id);
+    try {
+      await toast.promise(
+        productionResourceApi.post(`/resources/employees/${selected.id}/skill-upgrade-requests/${req.id}/${decision}`,
+          { decidedBy: user.username || user.email }),
+        {
+          loading: `${decision === 'approve' ? 'Approving' : 'Rejecting'} upgrade...`,
+          success: `Skill upgrade ${decision === 'approve' ? 'approved' : 'rejected'}.`,
+          error: (err) => err.response?.data?.message || `Failed to ${decision} upgrade.`,
+        }
+      );
+      const res = await productionResourceApi.get<ApiResponse<SkillUpgradeRequest[]>>(`/resources/employees/${selected.id}/skill-upgrade-requests`);
+      setUpgradeHistory(res.data.data);
+      if (decision === 'approve') {
+        await fetchEmployees();
+        const certRes = await productionResourceApi.get<ApiResponse<EmployeeSkillCertification[]>>(`/resources/employees/${selected.id}/skills`);
+        setCertHistory(certRes.data.data);
+      }
+    } catch {
+      // toast.promise handles display
+    } finally {
+      setDecidingUpgradeId(null);
     }
   };
 
@@ -559,6 +628,78 @@ const EmployeeDirectoryPage = () => {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {selected && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex items-center gap-2">
+                <TrendingUp size={16} className="text-violet-500" />
+                <h2 className="font-black text-slate-800 uppercase tracking-wider text-sm">Skill Upgrade Requests</h2>
+              </div>
+
+              {/* A level increase can no longer be recorded directly — it needs an
+                  approved request first (see EmployeeServiceImpl.recordSkillCertification's
+                  guard on the backend). */}
+              {canManageShiftsLeave && (
+                <form onSubmit={handleRequestUpgrade} className="p-5 space-y-3 border-b border-slate-100">
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={upgradeForm.skillId}
+                      onChange={e => {
+                        const skillId = Number(e.target.value);
+                        const current = selected.skills.find(s => s.skillId === skillId);
+                        setUpgradeForm({ ...upgradeForm, skillId, toLevel: (current?.level ?? 0) + 1 });
+                      }}
+                      className="px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                      <option value={0}>— Select skill —</option>
+                      {selected.skills.map(s => (
+                        <option key={s.skillId} value={s.skillId}>{s.skillName} (currently L{s.level})</option>
+                      ))}
+                    </select>
+                    <input type="number" min={1} max={5} value={upgradeForm.toLevel}
+                      onChange={e => setUpgradeForm({ ...upgradeForm, toLevel: Number(e.target.value) })}
+                      placeholder="Target level" className="px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
+                  </div>
+                  <input value={upgradeForm.reason} onChange={e => setUpgradeForm({ ...upgradeForm, reason: e.target.value })}
+                    placeholder="Reason (optional)" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
+                  <button type="submit" disabled={requestingUpgrade}
+                    className="w-full py-2.5 rounded-xl font-black text-white bg-violet-600 hover:bg-violet-700 text-xs disabled:opacity-60">
+                    {requestingUpgrade ? 'Submitting...' : 'Request Upgrade'}
+                  </button>
+                </form>
+              )}
+
+              <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto">
+                {upgradeHistory.length === 0 ? (
+                  <div className="p-10 text-center text-slate-300 text-xs font-bold uppercase tracking-widest">
+                    No upgrade requests yet
+                  </div>
+                ) : upgradeHistory.map(r => (
+                  <div key={r.id} className="p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${upgradeStatusStyle(r.status)}`}>
+                        {r.skillName} · L{r.fromLevel} → L{r.toLevel} · {r.status}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-bold">{new Date(r.createdAt).toLocaleString()}</span>
+                    </div>
+                    {r.reason && <p className="text-xs text-slate-600 font-medium italic">{r.reason}</p>}
+                    {r.status === 'PENDING' && canManageShiftsLeave ? (
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={() => decideUpgrade(r, 'approve')} disabled={decidingUpgradeId === r.id}
+                          className="flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-60">
+                          <Check size={10} /> Approve
+                        </button>
+                        <button onClick={() => decideUpgrade(r, 'reject')} disabled={decidingUpgradeId === r.id}
+                          className="flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-red-500 text-white hover:bg-red-600 disabled:opacity-60">
+                          <X size={10} /> Reject
+                        </button>
+                      </div>
+                    ) : r.decidedBy ? (
+                      <div className="text-[10px] text-slate-400 font-bold mt-2">Decided by {r.decidedBy}</div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

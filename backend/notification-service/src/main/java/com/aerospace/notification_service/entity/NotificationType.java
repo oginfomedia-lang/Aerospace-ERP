@@ -33,4 +33,5 @@ public enum NotificationType {
     SUPPLIER_CONFIRMED,
     SUPPLIER_REJECTED,
     MAINTENANCE_DUE,
+    PASSWORD_RESET_REQUESTED,
 }

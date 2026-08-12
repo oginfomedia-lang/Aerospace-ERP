@@ -568,4 +568,29 @@ public class NotificationServiceImpl implements NotificationService {
                 .severity(severity)
                 .build(), message);
         }
+
+        @Override
+        public void handlePasswordResetRequested(PasswordResetRequestedEvent event) {
+        log.info("[NOTIFY] PASSWORD_RESET_REQUESTED → email={}", event.getEmail());
+
+        String subject = "Reset your Aerospace ERP password";
+        String html = String.format("""
+                <p>Hi %s,</p>
+                <p>We received a request to reset your Aerospace ERP password.</p>
+                <p><a href="%s" style="display:inline-block;padding:10px 20px;background:#3b82f6;
+                    color:#fff;text-decoration:none;border-radius:8px;">Reset Password</a></p>
+                <p>Or copy this link into your browser:<br>%s</p>
+                <p>This link expires in %d minutes. If you didn't request this, you can safely ignore this email.</p>
+                """,
+                event.getUsername() != null ? event.getUsername() : "there",
+                event.getResetLink(), event.getResetLink(), event.getExpiryMinutes());
+
+        // Sent directly to the requesting user, not the internal ops recipients list —
+        // same pattern as handlePurchaseOrderSentToVendor's direct-to-supplier email.
+        emailService.sendCustomEmail(event.getEmail(), subject, html);
+
+        // No dispatch()/NotificationLog entry — this is a security-sensitive per-user
+        // email, not an internal ops alert; logging it would leak who's resetting
+        // passwords to anyone with UI access to the shared notification feed.
+        }
 }

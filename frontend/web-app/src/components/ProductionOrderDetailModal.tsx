@@ -14,9 +14,10 @@ import { IssueMaterialPickerModal } from './IssueMaterialPickerModal';
 import { Part as PartType, Location } from '../types/inventory';
 import {
   ProductionOrder, ProductionOrderStatus,
-  ApiResponse, ProductionStageLog, ShopFloorNcr
+  ApiResponse, ProductionStageLog, ShopFloorNcr, RoutingTemplate
 } from '../types/production';
 import { Machine, Employee } from '../types/productionResource';
+import { hasAnyRole, CAN_DISPOSITION_NCR } from '../utils/permissions';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -73,6 +74,10 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
   const [qaProducedQty, setQaProducedQty] = useState('');
   const [qaRejectedQty, setQaRejectedQty] = useState('0');
   const [ncrs, setNcrs] = useState<ShopFloorNcr[]>([]);
+  const [resolvingNcrId, setResolvingNcrId] = useState<number | null>(null);
+  const [resolveRemarks, setResolveRemarks] = useState('');
+  const [ncrBusy, setNcrBusy] = useState<number | null>(null);
+  const canResolveNcr = hasAnyRole(user?.roles, CAN_DISPOSITION_NCR);
   const [openStageId, setOpenStageId] = useState<number | null>(null);
   const [forms, setForms] = useState<Record<number, StageForm>>({});
   const [stageBusy, setStageBusy] = useState<number | null>(null);
@@ -174,6 +179,57 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
   const getForm = (stageId: number): StageForm => forms[stageId] || emptyForm;
   const setForm = (stageId: number, patch: Partial<StageForm>) =>
     setForms(prev => ({ ...prev, [stageId]: { ...getForm(stageId), ...patch } }));
+
+  // Opens the Start-stage form and, where possible, pre-fills machine/employee from
+  // this operation's routing-template "preferred" resource — previously the form
+  // always opened blank even when a preferred machine/employee was set on the
+  // template, forcing the same manual pick every single time. Still overridable
+  // (e.g. if the preferred resource is busy/inactive) — this is a default, not a lock.
+  const openStartForm = async (stage: ProductionStageLog, material: { partNumber?: string | null }) => {
+    setOpenStageId(stage.id);
+    if (!stage.routingOperationId || !material.partNumber) return;
+    try {
+      const res = await productionApi.get<ApiResponse<RoutingTemplate[]>>('/production/routing-templates', {
+        params: { partNumber: material.partNumber },
+      });
+      const op = res.data.data[0]?.operations.find(o => o.id === stage.routingOperationId);
+      if (!op) return;
+      const patch: Partial<StageForm> = {};
+      if (op.preferredMachineId && machines.some(mm => mm.id === op.preferredMachineId)) {
+        patch.machineId = String(op.preferredMachineId);
+      }
+      if (op.preferredEmployeeId && employees.some(e => e.id === op.preferredEmployeeId)) {
+        patch.employeeId = String(op.preferredEmployeeId);
+      }
+      if (Object.keys(patch).length > 0) setForm(stage.id, patch);
+    } catch {
+      // Best-effort convenience only — the form still opens blank and fully usable.
+    }
+  };
+
+  const handleResolveNcr = async (ncrId: number) => {
+    setNcrBusy(ncrId);
+    try {
+      await toast.promise(
+        productionApi.post(`/production/ncrs/${ncrId}/resolve`, {
+          resolvedBy: user?.username || 'Unknown',
+          resolutionRemarks: resolveRemarks,
+        }),
+        {
+          loading: 'Resolving NCR...',
+          success: 'NCR resolved.',
+          error: (err) => err.response?.data?.message || 'Failed to resolve NCR',
+        }
+      );
+      setResolvingNcrId(null);
+      setResolveRemarks('');
+      productionApi.get<ApiResponse<ShopFloorNcr[]>>(`/production/${order!.id}/ncrs`)
+        .then(res => setNcrs(res.data.data)).catch(() => {});
+    } catch {
+    } finally {
+      setNcrBusy(null);
+    }
+  };
 
   const handleStartStage = async (materialId: number, stage: ProductionStageLog) => {
     const f = getForm(stage.id);
@@ -546,9 +602,39 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
                 </div>
               ))}
               {ncrs.filter(n => n.productionMaterialId == null).map(n => (
-                <div key={n.id} className="col-span-2 flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
-                  <ShieldAlert size={14} className="text-amber-600 flex-shrink-0" />
-                  <p className="text-xs text-amber-700 font-bold">{n.description || `Finished-goods reject: ${n.rejectedQuantity} units`}</p>
+                <div key={n.id} className={`col-span-2 p-3 rounded-2xl border ${
+                  n.status === 'RESOLVED' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert size={14} className={`flex-shrink-0 ${n.status === 'RESOLVED' ? 'text-emerald-500' : 'text-amber-600'}`} />
+                    <p className={`text-xs font-bold flex-1 ${n.status === 'RESOLVED' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {n.description || `Finished-goods reject: ${n.rejectedQuantity} units`}
+                    </p>
+                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                      n.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                    }`}>{n.status}</span>
+                    {n.status === 'OPEN' && canResolveNcr && resolvingNcrId !== n.id && (
+                      <button onClick={() => { setResolvingNcrId(n.id); setResolveRemarks(''); }}
+                        className="text-[10px] font-black text-emerald-600 hover:text-emerald-700 uppercase px-2 py-1 bg-white border border-emerald-200 rounded-lg">
+                        Resolve
+                      </button>
+                    )}
+                  </div>
+                  {n.status === 'RESOLVED' && n.resolvedBy && (
+                    <p className="text-[10px] text-emerald-500 font-bold mt-1">Resolved by {n.resolvedBy}{n.resolutionRemarks ? ` — ${n.resolutionRemarks}` : ''}</p>
+                  )}
+                  {resolvingNcrId === n.id && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input placeholder="Resolution remarks (optional)" value={resolveRemarks}
+                        onChange={e => setResolveRemarks(e.target.value)}
+                        className="flex-1 px-2 py-1.5 bg-white border border-emerald-200 rounded-lg text-xs" />
+                      <button disabled={ncrBusy === n.id} onClick={() => handleResolveNcr(n.id)}
+                        className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-black rounded-lg disabled:opacity-50">
+                        {ncrBusy === n.id ? 'Resolving...' : 'Confirm'}
+                      </button>
+                      <button onClick={() => setResolvingNcrId(null)} className="text-slate-400 text-[11px] font-bold px-1">Cancel</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -660,12 +746,32 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
                       {materialNcrs.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {materialNcrs.map(n => (
-                            <span key={n.id}
-                              className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg border flex items-center gap-1 ${
-                                n.disposition === 'SCRAP' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-                              }`}>
-                              <ShieldAlert size={10} /> {n.disposition}: {n.rejectedQuantity} ({n.stageName})
-                            </span>
+                            <div key={n.id} className="flex flex-col gap-1">
+                              <span
+                                className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg border flex items-center gap-1 w-fit ${
+                                  n.status === 'RESOLVED'
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                    : n.disposition === 'SCRAP' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}>
+                                <ShieldAlert size={10} /> {n.disposition}: {n.rejectedQuantity} ({n.stageName}) · {n.status}
+                                {n.status === 'OPEN' && canResolveNcr && resolvingNcrId !== n.id && (
+                                  <button onClick={() => { setResolvingNcrId(n.id); setResolveRemarks(''); }}
+                                    className="ml-1 underline hover:no-underline">Resolve</button>
+                                )}
+                              </span>
+                              {resolvingNcrId === n.id && (
+                                <div className="flex items-center gap-1.5">
+                                  <input placeholder="Remarks (optional)" value={resolveRemarks}
+                                    onChange={e => setResolveRemarks(e.target.value)}
+                                    className="px-2 py-1 bg-white border border-emerald-200 rounded-lg text-[10px] w-32" />
+                                  <button disabled={ncrBusy === n.id} onClick={() => handleResolveNcr(n.id)}
+                                    className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black rounded-lg disabled:opacity-50">
+                                    {ncrBusy === n.id ? '...' : 'Confirm'}
+                                  </button>
+                                  <button onClick={() => setResolvingNcrId(null)} className="text-slate-400 text-[9px] font-bold">Cancel</button>
+                                </div>
+                              )}
+                            </div>
                           ))}
                         </div>
                       )}
@@ -696,7 +802,7 @@ export const ProductionOrderDetailModal: React.FC<Props> = ({ order, isOpen, onC
                                 <button onClick={() => setOpenStageId(null)} className="text-slate-400 text-[11px] font-bold px-2">Cancel</button>
                               </div>
                             ) : (
-                              <button onClick={() => setOpenStageId(actionable!.id)}
+                              <button onClick={() => openStartForm(actionable!, m)}
                                 className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold">
                                 <PlayCircle size={12} /> Start {actionable.stageName}
                               </button>

@@ -293,4 +293,18 @@ public class NotificationConsumer {
             log.error("[CONSUMER] Failed PasswordResetRequestedEvent email={}: {}", event.getEmail(), ex.getMessage(), ex);
         }
     }
+
+    // ── Sales Order Dispatched ───────────────────────────────────────────────
+    @KafkaListener(
+        topics           = "${notification.kafka.topics.sales-order-dispatched:sales-order-dispatched-events}",
+        groupId          = "notification-group",
+        containerFactory = "salesOrderDispatchedListenerFactory"
+    )
+    public void onSalesOrderDispatched(SalesOrderDispatchedEvent event) {
+        log.info("[CONSUMER] sales-order-dispatched-events → orderNumber={}", event.getOrderNumber());
+        try { notificationService.handleSalesOrderDispatched(event); }
+        catch (Exception ex) {
+            log.error("[CONSUMER] Failed SalesOrderDispatchedEvent orderNumber={}: {}", event.getOrderNumber(), ex.getMessage(), ex);
+        }
+    }
 }

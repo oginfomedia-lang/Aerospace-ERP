@@ -28,4 +28,7 @@ public class NotificationTopics {
 
     // Published by auth-service when a user requests a password reset.
     public static final String PASSWORD_RESET_REQUESTED = "password-reset-requested-events";
+
+    // Published by sales-service when a dispatch is confirmed.
+    public static final String SALES_ORDER_DISPATCHED = "sales-order-dispatched-events";
 }

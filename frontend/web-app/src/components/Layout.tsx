@@ -8,6 +8,7 @@ import {
   UserCheck, FileText, ShoppingBag, RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useGlobalNotificationToasts } from '../hooks/useGlobalNotificationToasts';
 
 interface Props {
   children?: React.ReactNode;
@@ -266,7 +267,8 @@ const Layout = ({ children }: Props) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const { user, hasRole, logout } = useAuth();
-  
+  useGlobalNotificationToasts();
+
   const visibleNavItems = navItems.filter(item =>
     !item.roles.length ||
     !user?.roles ||

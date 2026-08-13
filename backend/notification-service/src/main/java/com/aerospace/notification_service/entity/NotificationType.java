@@ -34,4 +34,7 @@ public enum NotificationType {
     SUPPLIER_REJECTED,
     MAINTENANCE_DUE,
     PASSWORD_RESET_REQUESTED,
+
+    // ── Sales order events ─────────────────────────────────────────────────────
+    SALES_ORDER_DISPATCHED,
 }

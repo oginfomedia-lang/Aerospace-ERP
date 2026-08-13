@@ -152,6 +152,21 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ order, isOpen, onClose,
     }
   };
 
+  const releaseAllocation = async () => {
+    setActing(true);
+    try{
+      await toast.promise(salesApi.post(`/sales/orders/${order.id}/release-allocation`, {}),
+      { loading: 'Releasing allocation...', success: 'Allocation released - stock is available again,', error: (err) => err.response?.data?.message || 'Failed to release allocation'}
+    );
+    await refreshFulfillment();
+    onSuccess();
+    } catch {
+      // toast.promise handles display
+    } finally {
+      setActing(false);
+    }
+  }
+
   const confirmDispatch = async (dispatchId: number) => {
     if (!carrierName.trim() || !trackingNumber.trim()) { toast.error('Carrier name and tracking number are required.'); return; }
     setActing(true);
@@ -387,6 +402,13 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ order, isOpen, onClose,
                 <button onClick={createPickList} disabled={acting}
                   className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 text-white text-xs font-black rounded-xl hover:bg-orange-600 transition disabled:opacity-60">
                   <PlusCircle size={14} /> Create Pick List
+                </button>
+              )}
+
+              {canFulfill && tracking?.allocations?.some(a => a.status === 'ACTIVE') && dispatches.length === 0 && (
+                <button onClick={releaseAllocation} disabled={acting}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-violet-300 text-violet-700 text-xs font-black rounded-xl hover:bg-violet-50 transition disabled:opacity-60">
+                  <RotateCcw size={14} /> Release Allocation
                 </button>
               )}
 

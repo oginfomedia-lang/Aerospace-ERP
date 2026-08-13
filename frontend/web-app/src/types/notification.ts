@@ -18,13 +18,25 @@ export type NotificationType =
   | 'WORK_ORDER_CREATED'
   | 'WORK_ORDER_UPDATED'
   | 'WORK_ORDER_COMPLETED'
-  // ── QA types ───────────────────────────────────────────────────────────────
+  | 'VENDOR_RETURN'
+  // ── QA / Compliance types ──────────────────────────────────────────────────
   | 'CALIBRATION_DUE'
+  | 'FAI_COMPLETED'
   | 'CAPA_STATUS_CHANGED'
   | 'CAPA_OVERDUE'
+  // ── Approvals & procurement types ──────────────────────────────────────────
   | 'APPROVAL_ESCALATED'
   | 'PO_DELIVERY_OVERDUE'
-  | 'PO_SENT_TO_VENDOR';
+  | 'PO_SENT_TO_VENDOR'
+  // ── Supplier onboarding types ──────────────────────────────────────────────
+  | 'SUPPLIER_PENDING_CONFIRMATION'
+  | 'SUPPLIER_CONFIRMED'
+  | 'SUPPLIER_REJECTED'
+  // ── Maintenance & account types ────────────────────────────────────────────
+  | 'MAINTENANCE_DUE'
+  | 'PASSWORD_RESET_REQUESTED'
+  // ── Sales types ─────────────────────────────────────────────────────────────
+  | 'SALES_ORDER_DISPATCHED';
 
 export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED';
 

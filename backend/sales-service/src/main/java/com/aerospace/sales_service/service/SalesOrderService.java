@@ -42,4 +42,6 @@ public interface SalesOrderService {
     // §18.12: "which batch, which shipment" — read-only rollup built entirely from
     // data this service already owns.
     OrderTrackingDTO getTracking(Long orderId);
+
+    SalesOrderResponseDTO releaseAllocation(Long orderId);
 }

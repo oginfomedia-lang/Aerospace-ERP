@@ -69,6 +69,7 @@ notification:
       approval-escalated:   approval-escalated-events
       maintenance-due: production-resource.maintenance.due
       password-reset-requested: password-reset-requested-events
+      sales-order-dispatched: sales-order-dispatched-events
 
 logging:
   level:

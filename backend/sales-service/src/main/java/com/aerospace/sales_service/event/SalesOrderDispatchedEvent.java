@@ -11,4 +11,5 @@ public class SalesOrderDispatchedEvent {
     private String dispatchNumber;
     private String trackingNumber;
     private Long customerId;
+    private String dispatchedBy;
 }

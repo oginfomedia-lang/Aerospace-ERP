@@ -119,4 +119,11 @@ public class SalesOrderController {
                 .map(a -> a.startsWith("ROLE_") ? a.substring(5) : a)
                 .collect(Collectors.toSet());
     }
+
+    @Audited(action = "RELEASE_ALLOCATION", entityType = "SalesOrder")
+    @PreAuthorize("hasAnyRole('SALES_MANAGER','WAREHOUSE_OPERATOR','MANAGER','ADMIN')")
+    @PostMapping("/{id}/release-allocation")
+    public ResponseEntity<ApiResponse<SalesOrderResponseDTO>> releaseAllocation(@PathVariable Long id) {
+        return ResponseEntity.ok(new ApiResponse<>("ALLOCATION_RELEASED", salesOrderService.releaseAllocation(id)));
+    }
 }

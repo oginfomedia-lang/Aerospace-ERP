@@ -59,3 +59,7 @@ eureka:
     prefer-ip-address: true
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 30
+
+services:
+  sales:
+    base-url: http://localhost:8091/api/v1

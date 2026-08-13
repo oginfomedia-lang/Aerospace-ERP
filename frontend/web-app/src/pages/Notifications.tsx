@@ -1,15 +1,14 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Bell, BellOff, Wifi, WifiOff, RefreshCw, Filter,
-  AlertTriangle, CheckCircle2, XCircle, Clock, Package,
-  ShieldCheck, ShieldX, Inbox, ArrowDownToLine, PlusSquare,
-  CalendarX2, Loader2, Mail, Radio, AlertCircle, Info,
-  Wrench, PlayCircle, ClipboardCheck, Gauge,
+  AlertTriangle, CheckCircle2, XCircle, Loader2, Mail, Radio, Info,
+  Inbox,
 } from 'lucide-react';
 import notificationApi from '../api/notificationAxios';
 import { useNotificationSocket } from '../hooks/useNotificationSocket';
 import { NotificationLog, NotificationType, NotificationStats } from '../types/notification';
-import toast from 'react-hot-toast';
+import { typeConfig, TYPE_GROUPS } from '../utils/notificationConfig';
+import { useAuth } from '../context/AuthContext';
 
 // ── Style maps ────────────────────────────────────────────────────────────────
 
@@ -18,27 +17,6 @@ const severityStyle: Record<string, { badge: string; dot: string }> = {
   WARNING: { badge: 'bg-amber-50  text-amber-700  border-amber-200',     dot: 'bg-amber-500'  },
   ERROR:   { badge: 'bg-red-50    text-red-700    border-red-200',        dot: 'bg-red-500'    },
   INFO:    { badge: 'bg-blue-50   text-blue-700   border-blue-200',       dot: 'bg-blue-500'   },
-};
-
-// ── Type config — one entry per NotificationType enum value ───────────────────
-
-const typeConfig: Record<NotificationType, { icon: React.ReactNode; iconBg: string; label: string }> = {
-  // Inventory
-  LOW_STOCK:      { icon: <AlertTriangle   size={16} />, iconBg: 'bg-amber-100  text-amber-600',   label: 'Low Stock'       },
-  QA_APPROVED:    { icon: <ShieldCheck     size={16} />, iconBg: 'bg-emerald-100 text-emerald-600', label: 'QA Approved'     },
-  QA_REJECTED:    { icon: <ShieldX         size={16} />, iconBg: 'bg-red-100    text-red-600',      label: 'QA Rejected'     },
-  QA_PENDING:     { icon: <Clock           size={16} />, iconBg: 'bg-blue-100   text-blue-600',     label: 'QA Pending'      },
-  BATCH_EXPIRED:  { icon: <CalendarX2      size={16} />, iconBg: 'bg-red-100    text-red-600',      label: 'Batch Expired'   },
-  STOCK_RECEIVED: { icon: <ArrowDownToLine size={16} />, iconBg: 'bg-indigo-100 text-indigo-600',   label: 'Stock Received'  },
-  EXPIRY_WARNING: { icon: <AlertCircle     size={16} />, iconBg: 'bg-orange-100 text-orange-600',   label: 'Expiry Warning'  },
-  MATERIAL_ISSUED:{ icon: <Package         size={16} />, iconBg: 'bg-violet-100 text-violet-600',   label: 'Material Issued' },
-  PART_CREATED:   { icon: <PlusSquare      size={16} />, iconBg: 'bg-teal-100   text-teal-600',     label: 'Part Created'    },
-  // Work Orders
-  WORK_ORDER_CREATED:   { icon: <Wrench          size={16} />, iconBg: 'bg-blue-100    text-blue-600',    label: 'WO Created'   },
-  WORK_ORDER_UPDATED:   { icon: <PlayCircle      size={16} />, iconBg: 'bg-amber-100   text-amber-600',   label: 'WO Updated'   },
-  WORK_ORDER_COMPLETED: { icon: <ClipboardCheck  size={16} />, iconBg: 'bg-emerald-100 text-emerald-600', label: 'WO Completed' },
-  // QA
-  CALIBRATION_DUE: { icon: <Gauge size={16} />, iconBg: 'bg-orange-100 text-orange-600', label: 'Calibration Due' },
 };
 
 // ── Filter tabs ───────────────────────────────────────────────────────────────
@@ -52,25 +30,6 @@ const FILTERS: { key: FilterOption; label: string }[] = [
   { key: 'SUCCESS', label: 'Success'  },
   { key: 'INFO',    label: 'Info'     },
   { key: 'FAILED',  label: 'Failed'   },
-];
-
-// ── Type filter groups — sidebar ──────────────────────────────────────────────
-
-const TYPE_GROUPS: { label: string; types: NotificationType[] }[] = [
-  {
-    label: 'Inventory',
-    types: ['LOW_STOCK', 'QA_APPROVED', 'QA_REJECTED', 'QA_PENDING',
-            'BATCH_EXPIRED', 'STOCK_RECEIVED', 'EXPIRY_WARNING',
-            'MATERIAL_ISSUED', 'PART_CREATED'],
-  },
-  {
-    label: 'Work Orders',
-    types: ['WORK_ORDER_CREATED', 'WORK_ORDER_UPDATED', 'WORK_ORDER_COMPLETED'],
-  },
-  {
-    label: 'QA',
-    types: ['CALIBRATION_DUE'],
-  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -268,6 +227,7 @@ const TypeBreakdown: React.FC<{
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 const Notifications: React.FC = () => {
+  const { token } = useAuth();
   const [logs, setLogs]               = useState<NotificationLog[]>([]);
   const [loading, setLoading]         = useState(true);
   const [filter, setFilter]           = useState<FilterOption>('ALL');
@@ -321,23 +281,12 @@ const Notifications: React.FC = () => {
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
 
+  // The on-screen popup toast for a new notification is now shown globally by
+  // useGlobalNotificationToasts (wired into Layout.tsx) — this page only needs to
+  // keep its own live list in sync, not pop up a second toast on top of that one.
   const handleNewNotification = useCallback((n: NotificationLog) => {
     setLogs(prev => [n, ...prev]);
     setNewIds(prev => new Set(prev).add(n.id));
-
-    toast.custom(t => (
-      <div className={`${t.visible ? 'animate-enter' : 'animate-leave'}
-        max-w-sm bg-white shadow-lg rounded-2xl border border-slate-100 p-4 flex items-start gap-3`}>
-        <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0
-          ${typeConfig[n.type]?.iconBg ?? 'bg-slate-100 text-slate-500'}`}>
-          {typeConfig[n.type]?.icon ?? <Bell size={14} />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-black text-slate-900">{n.partName ?? 'Notification'}</p>
-          <p className="text-[11px] text-slate-500 font-medium mt-0.5 line-clamp-2">{n.message}</p>
-        </div>
-      </div>
-    ), { duration: 4000 });
 
     setTimeout(() => setNewIds(prev => {
       const s = new Set(prev); s.delete(n.id); return s;
@@ -345,6 +294,7 @@ const Notifications: React.FC = () => {
   }, []);
 
   useNotificationSocket({
+    token,
     onMessage:    handleNewNotification,
     onConnect:    () => setWsConnected(true),
     onDisconnect: () => setWsConnected(false),

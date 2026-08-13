@@ -392,4 +392,35 @@ public class SalesOrderServiceImpl implements SalesOrderService {
                 .updatedAt(o.getUpdatedAt())
                 .build();
     }
+
+    @Override
+    @Transactional
+    public SalesOrderResponseDTO releaseAllocation(Long orderId) {
+        SalesOrder order = findOrThrow(orderId);
+        if (order.getStatus() != SalesOrderStatus.ALLOCATED && order.getStatus() != SalesOrderStatus.CONFIRMED) {
+            throw new IllegalStateException(
+                    "Only an ALLOCATED (or partially-allocated CONFIRMED) order can have its allocation released (current: " + order.getStatus() + ")");
+        }
+        List<SalesOrderAllocation> active = allocationRepository.findBySalesOrderLine_SalesOrder_Id(orderId).stream()
+                .filter(a -> a.getStatus() == AllocationStatus.ACTIVE)
+                .toList();
+        if (active.isEmpty()) {
+            throw new IllegalStateException("Nothing is currently allocated on this order.");
+        }
+        for (SalesOrderAllocation allocation : active) {
+            try {
+                salesResourceClient.releaseReservation(allocation.getPartId(), allocation.getBatchNumber(), allocation.getQuantity());
+            } catch (Exception ex) {
+                log.warn("[ALLOCATION] Failed to release {} units of batch {} for part {} on inventory-service — releasing locally anyway: {}",
+                        allocation.getQuantity(), allocation.getBatchNumber(), allocation.getPartId(), ex.getMessage());
+            }
+            allocation.setStatus(AllocationStatus.RELEASED);
+            allocationRepository.save(allocation);
+            SalesOrderLine line = allocation.getSalesOrderLine();
+            line.setQuantityAllocated(Math.max(0, line.getQuantityAllocated() - allocation.getQuantity()));
+        }
+        order.setStatus(SalesOrderStatus.CONFIRMED);
+        log.info("[ALLOCATION] Released — orderNumber={}", order.getOrderNumber());
+        return toDTO(salesOrderRepository.save(order));
+    }
 }

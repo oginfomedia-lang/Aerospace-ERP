@@ -3,7 +3,6 @@ package com.aerospace.notification_service.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.nio.channels.Channel;
 import java.time.LocalDateTime;
 
 // Every notification sent is stored here — full audit trail
@@ -48,7 +47,12 @@ public class NotificationLog {
     // Metadata from the triggering event
     private String inspectorName;
     private String location;
-    private String severity;   
+    private String severity;
+
+    // Who performed the action, when the triggering event records one — null for
+    // system/threshold-triggered notifications (e.g. LOW_STOCK, CALIBRATION_DUE).
+    // Used to skip notifying the person who just did the thing themselves.
+    private String actorUsername;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

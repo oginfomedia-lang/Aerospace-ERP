@@ -127,7 +127,7 @@ public class DispatchServiceImpl implements DispatchService {
         salesOrderRepository.save(order);
 
         salesProducer.sendSalesOrderDispatched(order.getId(), order.getOrderNumber(),
-                saved.getDispatchNumber(), saved.getTrackingNumber(), order.getCustomer().getId());
+                saved.getDispatchNumber(), saved.getTrackingNumber(), order.getCustomer().getId(), dispatchedBy);
         log.info("[DISPATCH] Confirmed — dispatchNumber={}, orderNumber={}, tracking={}",
                 saved.getDispatchNumber(), order.getOrderNumber(), trackingNumber);
         return toDTO(saved);

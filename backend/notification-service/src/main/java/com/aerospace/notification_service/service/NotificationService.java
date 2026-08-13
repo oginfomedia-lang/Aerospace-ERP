@@ -4,6 +4,7 @@ import com.aerospace.notification_service.entity.NotificationLog;
 import com.aerospace.notification_service.event.*;
 
 import java.util.List;
+import java.util.Set;
 
 public interface NotificationService {
 
@@ -25,11 +26,12 @@ public interface NotificationService {
     void handleWorkOrderUpdated(WorkOrderStatusChangedEvent event);
     void handleWorkOrderCompleted(WorkOrderCompletedEvent event);
 
-    // ── REST queries ────────────────────────────────────────────────────────
-    List<NotificationLog> getRecent();
-    List<NotificationLog> getByPartId(Long partId);
-    List<NotificationLog> getByBatchNumber(String batchNumber);
-    List<NotificationLog> getByType(String type);
+    // ── REST queries — each takes the caller's own roles, and only returns
+    // notifications relevant to at least one of them (see NotificationRoleMapping).
+    List<NotificationLog> getRecent(Set<String> callerRoles);
+    List<NotificationLog> getByPartId(Long partId, Set<String> callerRoles);
+    List<NotificationLog> getByBatchNumber(String batchNumber, Set<String> callerRoles);
+    List<NotificationLog> getByType(String type, Set<String> callerRoles);
 
     void handleApprovalEscalated(ApprovalEscalatedEvent event);
 
@@ -43,4 +45,6 @@ public interface NotificationService {
     void handleMaintenanceDue(MaintenanceDueEvent event);
 
     void handlePasswordResetRequested(PasswordResetRequestedEvent event);
+
+    void handleSalesOrderDispatched(SalesOrderDispatchedEvent event);
 }

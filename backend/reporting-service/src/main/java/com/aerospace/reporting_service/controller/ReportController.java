@@ -1,5 +1,6 @@
 package com.aerospace.reporting_service.controller;
 
+import com.aerospace.reporting_service.client.dto.SalesReportSummaryDTO;
 import com.aerospace.reporting_service.dto.*;
 import com.aerospace.reporting_service.service.ReportService;
 import lombok.RequiredArgsConstructor;
@@ -40,5 +41,10 @@ public class ReportController {
     @GetMapping("/work-orders/cycle-times")
     public ResponseEntity<ApiResponse<List<WorkOrderCycleDTO>>> getWorkOrderCycleTimes() {
         return ResponseEntity.ok(ApiResponse.success(reportService.getWorkOrderCycleTimes()));
+    }
+
+    @GetMapping("/sales/summary")
+    public ResponseEntity<ApiResponse<SalesReportSummaryDTO>> getSalesSummary (@RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(ApiResponse.success(reportService.getSalesSummary(days)));
     }
 }

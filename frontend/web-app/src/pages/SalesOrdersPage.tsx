@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import salesApi from '../api/salesAxios';
 import inventoryApi from '../api/axios';
 import toast from 'react-hot-toast';
-import { ShoppingBag, Loader2, ChevronRight, CheckCircle2, PlusCircle, Plus, Trash2 } from 'lucide-react';
+import { ShoppingBag, Loader2, ChevronRight, CheckCircle2, PlusCircle, Plus, Trash2, Boxes, PackageX, Clock } from 'lucide-react';
 import { ApiResponse, Part } from '../types/inventory';
-import { Customer, LineItemRequest, SalesOrder, SalesOrderRequest } from '../types/sales';
+import { Customer, LineItemRequest, SalesOrder, SalesOrderRequest, SalesReportSummary } from '../types/sales';
 import { SalesOrderDetailModal } from '../components/SalesOrderDetailModal';
 import { PartPicker } from '../components/PartPicker';
 import { useAuth } from '../context/AuthContext';
-import { hasAnyRole, CAN_MANAGE_SALES } from '../utils/permissions';
+import { hasAnyRole, CAN_MANAGE_SALES, CAN_APPROVE_SALES } from '../utils/permissions';
 
 const statusStyle: Record<string, string> = {
   DRAFT:            'bg-slate-100  text-slate-600  border-slate-200',
@@ -34,6 +34,8 @@ const emptyForm = (customerId = 0): SalesOrderRequest => ({
 const SalesOrdersPage = () => {
   const { user } = useAuth();
   const canManage = hasAnyRole(user?.roles, CAN_MANAGE_SALES);
+  const canApprove = hasAnyRole(user?.roles, CAN_APPROVE_SALES);
+  const [summary, setSummary] = useState<SalesReportSummary | null>(null);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
@@ -42,6 +44,12 @@ const SalesOrdersPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<SalesOrderRequest>(emptyForm());
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!canApprove) return;
+    salesApi.get<ApiResponse<SalesReportSummary>>('/sales/reports/summary', { params: { days: 30 } })
+      .then(res => setSummary(res.data.data)).catch(() => {});
+  }, [canApprove]);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -116,6 +124,23 @@ const SalesOrdersPage = () => {
           </button>
         )}
       </div>
+
+      {canApprove && summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Orders (30d)', value: summary.orderIntakeCount, icon: <ShoppingBag size={18} />, color: 'from-blue-600 to-blue-700' },
+            { label: 'Open Orders', value: summary.openOrdersCount, icon: <Boxes size={18} />, color: 'from-violet-600 to-violet-700' },
+            { label: 'Backordered', value: summary.backorderedOrdersCount, icon: <PackageX size={18} />, color: 'from-amber-500 to-amber-600' },
+            { label: 'On-Time Delivery', value: `${summary.onTimeDeliveryPercent}%`, icon: <Clock size={18} />, color: 'from-emerald-600 to-emerald-700' },
+          ].map(card => (
+            <div key={card.label} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+              <div className={`inline-flex p-3 rounded-2xl bg-gradient-to-br ${card.color} text-white shadow-lg`}>{card.icon}</div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mt-4 mb-1">{card.label}</p>
+              <p className="text-2xl font-black text-slate-900 tracking-tight">{card.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 space-y-4">

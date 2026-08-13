@@ -1,5 +1,6 @@
 package com.aerospace.reporting_service.service;
 
+import com.aerospace.reporting_service.client.dto.SalesReportSummaryDTO;
 import com.aerospace.reporting_service.dto.*;
 
 import java.util.List;
@@ -10,4 +11,5 @@ public interface ReportService {
     List<QATrendDTO> getQATrends();
     List<ProductionYieldDTO> getProductionYield();
     List<WorkOrderCycleDTO> getWorkOrderCycleTimes();
+    SalesReportSummaryDTO getSalesSummary(int days);
 }

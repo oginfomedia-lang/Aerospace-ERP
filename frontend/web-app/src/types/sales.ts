@@ -212,6 +212,15 @@ export interface ReturnAuthorization {
   createdAt: string;
 }
 
+export interface SalesReportSummary {
+  periodDays: number;
+  orderIntakeCount: number;
+  openOrdersCount: number;
+  backorderedOrdersCount: number;
+  onTimeDeliveryPercent: number;
+  dispatchedCount: number;
+}
+
 // Matches: InspectReturnRequestDTO.java
 export interface InspectReturnRequest {
   disposition: string;
@@ -236,4 +245,5 @@ export interface OrderTracking {
     quantity: number;
     status: string; // ACTIVE, RELEASED, SHIPPED
   }[];
+
 }

@@ -1,5 +1,7 @@
 package com.aerospace.reporting_service.service.impl;
 
+import com.aerospace.reporting_service.client.SalesResourceClient;
+import com.aerospace.reporting_service.client.dto.SalesReportSummaryDTO;
 import com.aerospace.reporting_service.dto.*;
 import com.aerospace.reporting_service.entity.InventoryFact;
 import com.aerospace.reporting_service.repository.*;
@@ -19,6 +21,7 @@ public class ReportServiceImpl implements ReportService {
     private final WorkOrderFactRepository workOrderFactRepository;
     private final ProductionFactRepository productionFactRepository;
     private final QAFactRepository qaFactRepository;
+    private final SalesResourceClient salesResourceClient;
 
     @Override
     public DashboardSummaryDTO getDashboardSummary() {
@@ -81,5 +84,10 @@ public class ReportServiceImpl implements ReportService {
                 .filter(wo -> wo.getDaysToComplete() != null)
                 .map(wo -> new WorkOrderCycleDTO(wo.getWoNumber(), wo.getDaysToComplete()))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public SalesReportSummaryDTO getSalesSummary(int days){
+        return salesResourceClient.getSummary(days);
     }
 }

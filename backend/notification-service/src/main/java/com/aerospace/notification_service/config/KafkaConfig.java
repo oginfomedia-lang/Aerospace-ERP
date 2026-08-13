@@ -220,4 +220,9 @@ public class KafkaConfig {
         return factory;
     }
 
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, SalesOrderDispatchedEvent> salesOrderDispatchedListenerFactory() {
+        return factory(SalesOrderDispatchedEvent.class);
+    }
+
 }

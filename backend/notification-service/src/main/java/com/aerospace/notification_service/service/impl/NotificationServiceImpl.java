@@ -8,12 +8,15 @@ import com.aerospace.notification_service.repository.NotificationRepository;
 import com.aerospace.notification_service.service.EmailService;
 import com.aerospace.notification_service.service.NotificationService;
 import com.aerospace.notification_service.service.WebSocketService;
+import com.aerospace.notification_service.util.NotificationRoleMapping;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -101,6 +104,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .batchNumber(event.getBatchNumber())
                 .message(message)
                 .inspectorName(event.getInspectorName())
+                .actorUsername(event.getInspectorName())
                 .location(event.getLocation())
                 .severity(severity)
                 .build(), message);
@@ -124,6 +128,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .partName(event.getPartName())
                 .batchNumber(event.getBatchNumber())
                 .message(message)
+                .actorUsername(event.getIssuedBy())
                 .location(event.getLocation())
                 .severity("INFO")
                 .build(), message);
@@ -146,6 +151,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .partName(event.getPartName())
                 .batchNumber(event.getBatchNumber())
                 .message(message)
+                .actorUsername(event.getReceivedBy())
                 .location(event.getLocation())
                 .severity("INFO")
                 .build(), message);
@@ -167,6 +173,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .partName(event.getPartName())
                 .batchNumber(event.getBatchNumber())
                 .message(message)
+                .actorUsername(event.getCreatedBy())
                 .location(event.getLocation())
                 .severity("INFO")
                 .build(), message);
@@ -188,6 +195,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .partName(event.getPartName())
                 .batchNumber(event.getBatchNumber())
                 .message(message)
+                .actorUsername(event.getDispositionedBy())
                 .severity("INFO")
                 .build(), message);
     }
@@ -240,6 +248,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .partName(event.getPartName())
                 .batchNumber(event.getBatchNumber())
                 .message(message)
+                .actorUsername(event.getInspectorName())
                 .severity(severity)
                 .build(), message);
     }
@@ -270,6 +279,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .type(event.isOverdue() ? NotificationType.CAPA_OVERDUE : NotificationType.CAPA_STATUS_CHANGED)
                 .batchNumber(event.getBatchNumber())
                 .message(message)
+                .actorUsername(event.getActor())
                 .severity(severity)
                 .build(), message);
     }
@@ -296,6 +306,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .partName(event.getWoNumber())        // reusing partName for WO number
                 .batchNumber(event.getAircraftId())   // reusing batchNumber for aircraft ID
                 .message(message)
+                .actorUsername(event.getCreatedBy())
                 .location(event.getLocation())
                 .severity(severity)
                 .build(), message);
@@ -336,6 +347,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .partName(event.getWoNumber())
                 .batchNumber(event.getAircraftId())
                 .message(message)
+                .actorUsername(event.getChangedBy())
                 .location(null)
                 .severity(severity)
                 .build(), message);
@@ -360,32 +372,43 @@ public class NotificationServiceImpl implements NotificationService {
                 .partName(event.getWoNumber())
                 .batchNumber(event.getAircraftId())
                 .message(message)
+                .actorUsername(event.getCompletedBy())
                 .location(null)
                 .severity("SUCCESS")
                 .build(), message);
     }
 
-    // ── REST Queries ──────────────────────────────────────────────────────────
+    // ── REST Queries — each filtered down to only what the caller's own
+    // role(s) are allowed to see, using the exact same list the live WebSocket
+    // popups already use (NotificationRoleMapping), so the two never disagree. ──
 
     @Override
-    public List<NotificationLog> getRecent() {
-        return notificationRepository.findTop20ByOrderByCreatedAtDesc();
+    public List<NotificationLog> getRecent(Set<String> callerRoles) {
+        return filterForRoles(notificationRepository.findTop20ByOrderByCreatedAtDesc(), callerRoles);
     }
 
     @Override
-    public List<NotificationLog> getByPartId(Long partId) {
-        return notificationRepository.findByPartIdOrderByCreatedAtDesc(partId);
+    public List<NotificationLog> getByPartId(Long partId, Set<String> callerRoles) {
+        return filterForRoles(notificationRepository.findByPartIdOrderByCreatedAtDesc(partId), callerRoles);
     }
 
     @Override
-    public List<NotificationLog> getByBatchNumber(String batchNumber) {
-        return notificationRepository.findByBatchNumberOrderByCreatedAtDesc(batchNumber);
+    public List<NotificationLog> getByBatchNumber(String batchNumber, Set<String> callerRoles) {
+        return filterForRoles(notificationRepository.findByBatchNumberOrderByCreatedAtDesc(batchNumber), callerRoles);
     }
 
     @Override
-    public List<NotificationLog> getByType(String type) {
-        return notificationRepository.findByTypeOrderByCreatedAtDesc(
-                NotificationType.valueOf(type.toUpperCase()));
+    public List<NotificationLog> getByType(String type, Set<String> callerRoles) {
+        return filterForRoles(notificationRepository.findByTypeOrderByCreatedAtDesc(
+                NotificationType.valueOf(type.toUpperCase())), callerRoles);
+    }
+
+    // Keeps only the notifications whose type is actually relevant to at least
+    // one of the caller's own roles.
+    private List<NotificationLog> filterForRoles(List<NotificationLog> logs, Set<String> callerRoles) {
+        return logs.stream()
+                .filter(n -> !Collections.disjoint(NotificationRoleMapping.rolesFor(n.getType()), callerRoles))
+                .toList();
     }
 
     // ── Orchestration ─────────────────────────────────────────────────────────
@@ -396,7 +419,7 @@ public class NotificationServiceImpl implements NotificationService {
         String  errorMsg  = null;
 
         try {
-            webSocketService.broadcast(log_);
+            webSocketService.broadcast(log_, log_.getActorUsername());
             wsSent = true;
         } catch (Exception ex) {
             log.error("[NOTIFY] WebSocket dispatch failed for partId={}: {}",
@@ -520,6 +543,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .type(NotificationType.SUPPLIER_PENDING_CONFIRMATION)
                 .partName(event.getSupplierName())
                 .message(message)
+                .actorUsername(event.getRegisteredBy())
                 .severity("INFO")
                 .build(), message);
     }
@@ -539,6 +563,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .type(confirmed ? NotificationType.SUPPLIER_CONFIRMED : NotificationType.SUPPLIER_REJECTED)
                 .partName(event.getSupplierName())
                 .message(message)
+                .actorUsername(event.getDecidedBy())
                 .severity(confirmed ? "SUCCESS" : "WARNING")
                 .build(), message);
     }
@@ -592,5 +617,27 @@ public class NotificationServiceImpl implements NotificationService {
         // No dispatch()/NotificationLog entry — this is a security-sensitive per-user
         // email, not an internal ops alert; logging it would leak who's resetting
         // passwords to anyone with UI access to the shared notification feed.
+        }
+
+         @Override
+        public void handleSalesOrderDispatched(SalesOrderDispatchedEvent event) {
+                log.info("[NOTIFY] SALES_ORDER_DISPATCHED → orderNumber={}, tracking={}",
+                        event.getOrderNumber(), event.getTrackingNumber());
+
+                String message = String.format(
+                        "📦 ORDER DISPATCHED: %s has shipped. Dispatch: %s | Carrier tracking: %s",
+                        event.getOrderNumber(), event.getDispatchNumber(),
+                        event.getTrackingNumber() != null ? event.getTrackingNumber() : "—");
+
+                dispatch(NotificationLog.builder()
+                        .type(NotificationType.SALES_ORDER_DISPATCHED)
+                        .partId(event.getSalesOrderId())
+                        .partName(event.getOrderNumber())
+                        .batchNumber(event.getDispatchNumber())
+                        .message(message)
+                        .actorUsername(event.getDispatchedBy())
+                        .location(null)
+                        .severity("SUCCESS")
+                        .build(), message);
         }
 }

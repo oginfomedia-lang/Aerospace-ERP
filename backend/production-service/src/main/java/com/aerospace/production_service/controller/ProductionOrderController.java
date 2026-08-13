@@ -286,4 +286,13 @@ public class ProductionOrderController {
         return ResponseEntity.ok(new ApiResponse<>("NCR_RESOLVED",
                 productionOrderService.resolveNcr(ncrId, dto.getResolvedBy(), dto.getResolutionRemarks())));
     }
+
+    // Called by sales-service's ATP feature (SalesResourceClient), forwarding the
+    // logged-in sales user's own JWT — so this needs its own role override, since the
+    // class default (PRODUCTION_ENGINEER, MANAGER, ADMIN) doesn't include sales roles.
+    @PreAuthorize("hasAnyRole('SALES_EXECUTIVE','SALES_MANAGER','PRODUCTION_ENGINEER','MANAGER','ADMIN')")
+    @GetMapping("/planned-quantity")
+    public ResponseEntity<ApiResponse<Integer>> getPlannedQuantity(@RequestParam String productCode) {
+        return ResponseEntity.ok(new ApiResponse<>("SUCCESS", productionOrderService.getPlannedQuantity(productCode)));
+    }
 }

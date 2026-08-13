@@ -45,6 +45,10 @@ import ApprovalReports from './pages/ApprovalReports';
 import AuditTrail from './pages/AuditTrail';
 import SlaTracking from './pages/SlaTracking';
 import UserManagement from './pages/UserManagement';
+import CustomersPage from './pages/CustomersPage';
+import QuotationsPage from './pages/QuotationsPage';
+import SalesOrdersPage from './pages/SalesOrdersPage';
+import ReturnsPage from './pages/ReturnsPage';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -161,6 +165,17 @@ function App() {
             {/* User Management — Admin only, not Manager */}
             <Route element={<ProtectedRoute requiredRoles={['ADMIN']} />}>
               <Route path="/admin/users" element={<UserManagement />} />
+            </Route>
+
+            {/* Sales — Customer → Quotation → Sales Order (approval, ATP, allocation, dispatch) */}
+            <Route element={<ProtectedRoute requiredRoles={['SALES_EXECUTIVE', 'SALES_MANAGER', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/quotations" element={<QuotationsPage />} />
+              <Route path="/sales-orders" element={<SalesOrdersPage />} />
+            </Route>
+            {/* Returns — its own guard: warehouse staff receive, sales/QA inspect */}
+            <Route element={<ProtectedRoute requiredRoles={['SALES_EXECUTIVE', 'SALES_MANAGER', 'WAREHOUSE_OPERATOR', 'QA_INSPECTOR', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/returns" element={<ReturnsPage />} />
             </Route>
           </Route>
         </Route>

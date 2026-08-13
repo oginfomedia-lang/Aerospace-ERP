@@ -16,6 +16,16 @@ export const CAN_MANAGE_QA = ['QA_INSPECTOR', 'MANAGER', 'ADMIN'];
 export const CAN_MANAGE_PRODUCTION = ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN'];
 export const CAN_CONFIRM_SUPPLIERS = ['QA_INSPECTOR', 'MANAGER', 'ADMIN'];
 
+// Matches CustomerController/QuotationController/SalesOrderController's class-level
+// @PreAuthorize (sales-service).
+export const CAN_MANAGE_SALES = ['SALES_EXECUTIVE', 'SALES_MANAGER', 'MANAGER', 'ADMIN'];
+// Matches SalesOrderController.approve/reject's method-level override.
+export const CAN_APPROVE_SALES = ['SALES_MANAGER', 'MANAGER', 'ADMIN'];
+// Matches DispatchController's class-level @PreAuthorize.
+export const CAN_FULFILL_ORDERS = ['WAREHOUSE_OPERATOR', 'SALES_MANAGER', 'MANAGER', 'ADMIN'];
+// Matches ReturnAuthorizationController.inspect's method-level override.
+export const CAN_INSPECT_RETURNS = ['QA_INSPECTOR', 'SALES_MANAGER', 'MANAGER', 'ADMIN'];
+
 export function hasAnyRole(userRoles: string[] | undefined | null, allowed: string[]): boolean {
   if (!userRoles || userRoles.length === 0) return false;
   return allowed.some((role) => userRoles.includes(role));

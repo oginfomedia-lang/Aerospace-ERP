@@ -1074,6 +1074,17 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                         "Production order not found with id: " + id));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Integer getPlannedQuantity(String productCode) {
+        return orderRepository.findByProductCodeAndStatusIn(productCode,
+                        List.of(ProductionOrderStatus.RELEASED, ProductionOrderStatus.IN_PRODUCTION, ProductionOrderStatus.IN_ASSEMBLY))
+                .stream()
+                .mapToInt(o -> (o.getPlannedQuantity() != null ? o.getPlannedQuantity() : 0)
+                        - (o.getProducedQuantity() != null ? o.getProducedQuantity() : 0))
+                .sum();
+    }
+
     private ProductionMaterial findMaterialOrThrow(Long materialId) {
         return materialRepository.findById(materialId)
                 .orElseThrow(() -> new ResourceNotFoundException("Material not found: " + materialId));

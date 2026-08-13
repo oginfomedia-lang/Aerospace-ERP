@@ -21,6 +21,10 @@ public interface ProductionOrderRepository extends JpaRepository<ProductionOrder
 
     List<ProductionOrder> findByStatus(ProductionOrderStatus status);
 
+    // Used by ATP (sales-service, via GET /production/planned-quantity) — every order
+    // still genuinely in progress for a given product, regardless of which status.
+    List<ProductionOrder> findByProductCodeAndStatusIn(String productCode, List<ProductionOrderStatus> statuses);
+
     List<ProductionOrder> findByWorkOrderId(Long workOrderId);
 
     List<ProductionOrder> findByPriority(ProductionPriority priority);

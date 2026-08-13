@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Package, ShieldCheck, Menu, X,
   Plane, ChevronRight, Bell, LogOut, FileMinus,
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
-  FileCheck2, ClipboardList, Database, UserCog, History, Clock, Archive, Cog, HardHat, Hammer, CalendarClock
+  FileCheck2, ClipboardList, Database, UserCog, History, Clock, Archive, Cog, HardHat, Hammer, CalendarClock,
+  UserCheck, FileText, ShoppingBag, RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -183,6 +184,34 @@ const navItems = [
     roles: ['PRODUCTION_ENGINEER', 'MANAGER', 'ADMIN']
   },
   {
+    path: '/customers',
+    label: 'Customers',
+    icon: <UserCheck size={18} />,
+    description: 'Customer master data',
+    roles: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/quotations',
+    label: 'Quotations',
+    icon: <FileText size={18} />,
+    description: 'Customer proposals & approval',
+    roles: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/sales-orders',
+    label: 'Sales Orders',
+    icon: <ShoppingBag size={18} />,
+    description: 'Approval, ATP, allocation & dispatch',
+    roles: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/returns',
+    label: 'Returns',
+    icon: <RotateCcw size={18} />,
+    description: 'RMA receive & inspect',
+    roles: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'WAREHOUSE_OPERATOR', 'QA_INSPECTOR', 'MANAGER', 'ADMIN']
+  },
+  {
     path: '/notifications',
     label: 'Notifications',
     icon: <Bell size={18} />,
@@ -337,6 +366,10 @@ useEffect(() => {
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[10px] text-slate-400 font-bold">Procurement · :8086</span>
           </div>
+          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] text-slate-400 font-bold">Sales · :8091</span>
+          </div>
         </div>
       </aside>
 
@@ -381,6 +414,10 @@ useEffect(() => {
               {location.pathname === '/approval-matrix' && 'Approval Matrix'}
               {location.pathname === '/vendor-invoices' && 'Vendor Invoices'}
               {location.pathname === '/debit-notes' && 'Debit Notes'}
+              {location.pathname === '/customers' && 'Customers'}
+              {location.pathname === '/quotations' && 'Quotations'}
+              {location.pathname === '/sales-orders' && 'Sales Orders'}
+              {location.pathname === '/returns' && 'Customer Returns'}
               {location.pathname.includes('/transactions') && 'Transaction History'}
             </span>
           </div>

@@ -11,7 +11,10 @@ interface AdminUser {
   enabled: boolean;
 }
 
-const ALL_ROLES = ['STORE_KEEPER', 'QA_INSPECTOR', 'PRODUCTION_ENGINEER', 'PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN', 'PRODUCTION_SUPERVISOR', 'MAINTENANCE_ENGINEER'];
+const ALL_ROLES = [
+  'STORE_KEEPER', 'QA_INSPECTOR', 'PRODUCTION_ENGINEER', 'PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN',
+  'PRODUCTION_SUPERVISOR', 'MAINTENANCE_ENGINEER', 'SALES_EXECUTIVE', 'SALES_MANAGER', 'WAREHOUSE_OPERATOR',
+];
 
 const UserManagement: React.FC = () => {
   const [form, setForm] = useState({ username: '', password: '', email: '' });

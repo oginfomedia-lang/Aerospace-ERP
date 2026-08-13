@@ -86,7 +86,9 @@ public class PartController {
     // GRN-FR-001: the GRN number is always system-generated; any `grnNumber` passed here
     // is accepted for backward compatibility but ignored — see PartResponseDTO.grnNumber
     // in the response for the authoritative, system-assigned number.
-    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
+    // Also called by sales-service's RMA "receive return" step (§18.11), forwarding the
+    // logged-in warehouse/sales user's own JWT — hence the extra roles here.
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','WAREHOUSE_OPERATOR','SALES_MANAGER','MANAGER','ADMIN')")
     @PostMapping("/{id}/inward-from-grn")
     public ResponseEntity<ApiResponse<PartResponseDTO>> inwardStock(
             @PathVariable Long id,
@@ -146,7 +148,11 @@ public class PartController {
     }
 
     // ERP Step: QA Lifecycle
-    @PreAuthorize("hasAnyRole('QA_INSPECTOR','MANAGER','ADMIN')")
+    // Also called by sales-service's RMA "inspect" step — a return's accept/reject
+    // decision is the same skill as any other QA release, just a different trigger, so
+    // this reuses QA_INSPECTOR rather than inventing a new role (SALES_MANAGER added
+    // since §18.11 allows a sales manager to make this call too).
+    @PreAuthorize("hasAnyRole('QA_INSPECTOR','SALES_MANAGER','MANAGER','ADMIN')")
     @PostMapping("/{id}/qa-decision")
     public ResponseEntity<ApiResponse<PartResponseDTO>> processQA(
             @PathVariable Long id,
@@ -196,7 +202,9 @@ public class PartController {
 
     //ERP Step: Stock reservation - locks APPROVED quantity into RESERVED so it can't be
     //issued elsewjere. releaseReservation is the reverse (eg. A cancelled work order)
-    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
+    // Also called by sales-service's Sales Order allocation flow (§18.9), forwarding the
+    // logged-in sales user's own JWT — hence SALES_EXECUTIVE/SALES_MANAGER on this role list.
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','SALES_EXECUTIVE','SALES_MANAGER','MANAGER','ADMIN')")
     @PostMapping("/{id}/reserve")
     public ResponseEntity<ApiResponse<String>> reserveStock(
             @PathVariable Long id,
@@ -206,7 +214,7 @@ public class PartController {
         return ResponseEntity.ok(new ApiResponse<>("RESERVED", quantity + " units of batch " + batch + " reserved."));
     }
 
-    @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','SALES_EXECUTIVE','SALES_MANAGER','MANAGER','ADMIN')")
     @PostMapping("/{id}/release-reservation")
     public ResponseEntity<ApiResponse<String>> releaseReservation(
             @PathVariable Long id,
@@ -215,6 +223,20 @@ public class PartController {
         partService.releaseReservation(id, batch, quantity);
         return ResponseEntity.ok(new ApiResponse<>("RELEASED",
                 quantity + " units of batch " + batch + " released back to APPROVED."));
+    }
+
+    // The physical goods actually leave the building — sales-service calls this the
+    // moment a Sales Order dispatch is confirmed (§18.10). Permanently removes
+    // previously-RESERVED stock, unlike reserve/release which only move it between buckets.
+    @PreAuthorize("hasAnyRole('STORE_KEEPER','WAREHOUSE_OPERATOR','SALES_MANAGER','MANAGER','ADMIN')")
+    @PostMapping("/{id}/consume-reserved")
+    public ResponseEntity<ApiResponse<String>> consumeReservedStock(
+            @PathVariable Long id,
+            @RequestParam String batch,
+            @RequestParam int quantity) {
+        partService.consumeReservedStock(id, batch, quantity);
+        return ResponseEntity.ok(new ApiResponse<>("CONSUMED",
+                quantity + " units of batch " + batch + " shipped and removed from stock."));
     }
 
      // ERP Step: Bin-to-bin transfer — same batch, same status bucket, different location.

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, RefreshCw, PlusCircle, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import procurementApi from '../api/procurementAxios';
 import { ApprovalMatrix as ApprovalMatrixType } from '../types/procurement';
 import { ApprovalMatrixModal } from '../components/ApprovalMatrixModal';
+import { APPROVAL_SERVICES, ServiceKey } from '../utils/approvalServices';
 
 const ApprovalMatrixPage = () => {
+  const [service, setService] = useState<ServiceKey>('procurement');
   const [bands, setBands] = useState<ApprovalMatrixType[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -14,7 +15,7 @@ const ApprovalMatrixPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await procurementApi.get<ApprovalMatrixType[]>('/approval-matrix');
+      const res = await APPROVAL_SERVICES[service].api.get<ApprovalMatrixType[]>('/approval-matrix');
       setBands(res.data);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to load approval bands.');
@@ -23,12 +24,12 @@ const ApprovalMatrixPage = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [service]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = async (band: ApprovalMatrixType) => {
-    if (!window.confirm(`Delete the ${band.approverRole} band (${band.amountFrom}–${band.amountTo})? Existing in-flight PO approval chains already snapshot their required approver and are unaffected.`)) return;
+    if (!window.confirm(`Delete the ${band.approverRole} band (${band.amountFrom}–${band.amountTo}) from ${APPROVAL_SERVICES[service].label}? Existing in-flight approval chains already snapshot their required approver and are unaffected.`)) return;
     try {
-      await procurementApi.delete(`/approval-matrix/${band.id}`);
+      await APPROVAL_SERVICES[service].api.delete(`/approval-matrix/${band.id}`);
       toast.success('Band deleted.');
       fetchData();
     } catch (err: any) {
@@ -42,10 +43,16 @@ const ApprovalMatrixPage = () => {
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Approval Matrix</h1>
           <p className="text-slate-500 text-sm font-medium mt-1">
-            Amount-band approval rules for Purchase Orders — configurable per organization, no code changes needed.
+            Amount-band approval rules — configurable per organization, no code changes needed.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <select value={service} onChange={e => setService(e.target.value as ServiceKey)}
+            className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700">
+            {Object.entries(APPROVAL_SERVICES).map(([key, cfg]) => (
+              <option key={key} value={key}>{cfg.label}</option>
+            ))}
+          </select>
           <button onClick={fetchData} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -59,8 +66,9 @@ const ApprovalMatrixPage = () => {
       <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
         <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
         <p className="text-xs font-medium text-amber-800">
-          A Purchase Order whose amount doesn't fall within any active band is auto-approved with no approval chain at all.
-          Make sure your bands cover the full amount range you want to require approval for.
+          Each service keeps its own independent approval matrix — you're viewing <strong>{APPROVAL_SERVICES[service].label}</strong>'s
+          rules right now (module code <code className="font-mono">{APPROVAL_SERVICES[service].exampleModule}</code>). A document whose
+          amount doesn't fall within any active band in ITS service is auto-approved with no approval chain at all.
         </p>
       </div>
 
@@ -132,6 +140,7 @@ const ApprovalMatrixPage = () => {
         onClose={() => setModalOpen(false)}
         onSuccess={fetchData}
         band={editing}
+        service={service}
       />
     </div>
   );

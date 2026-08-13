@@ -721,8 +721,46 @@ public class PartServiceImpl implements PartService {
         balanceRepository.save(approvedStock);
 
         //netquantity unchanges - moving RESERVED -> APPROVED, same zero-log convention
-        transactionService.logTransaction(partId, batch, "STOCK_RESERVATION_RELEASE", 0, null, 
-                "Released reservation back to available stock (" + quantity + " units)");    
+        transactionService.logTransaction(partId, batch, "STOCK_RESERVATION_RELEASE", 0, null,
+                "Released reservation back to available stock (" + quantity + " units)");
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "dashboardStats", allEntries = true)
+    public void consumeReservedStock(Long partId, String batch, int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Consume quantity must be greater than zero.");
+        }
+        // Same multi-location caveat as reserveStock/releaseReservation.
+        List<StockBalance> reservedBalances = balanceRepository
+                .findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(partId, batch, StockStatus.RESERVED);
+        int totalReserved = reservedBalances.stream()
+                .mapToInt(b -> b.getQuantity() != null ? b.getQuantity() : 0).sum();
+        if (reservedBalances.isEmpty()) {
+            throw new RuntimeException("Reserved stock not found for batch: " + batch);
+        }
+        if (totalReserved < quantity) {
+            throw new RuntimeException("Cannot ship " + quantity + " units - only " + totalReserved
+                    + " currently RESERVED for batch " + batch);
+        }
+
+        int remaining = quantity;
+        for (StockBalance b : reservedBalances) {
+            if (remaining <= 0) break;
+            int have = b.getQuantity() != null ? b.getQuantity() : 0;
+            if (have <= 0) continue;
+            int take = Math.min(remaining, have);
+            b.setQuantity(have - take);
+            balanceRepository.save(b);
+            remaining -= take;
+        }
+
+        // Unlike reserve/release, this is a real decrease — the stock physically left the
+        // building — so the log entry carries the actual negative delta, same convention
+        // as PRODUCTION_ISSUE.
+        transactionService.logTransaction(partId, batch, "SALES_DISPATCH", -quantity, null,
+                "Shipped against a Sales Order dispatch (" + quantity + " units)");
     }
 
     @Override

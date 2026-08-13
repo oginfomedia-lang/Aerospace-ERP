@@ -51,6 +51,12 @@ public interface PartService {
     //reverses reserveStock - moves quantity from 'reserved' to 'approved'
     void releaseReservation(Long partId, String batch, int quantity);
 
+    // The physical goods actually leave the building (Sales Order dispatch confirmed) —
+    // unlike reserveStock/releaseReservation, this doesn't move quantity to another
+    // status bucket; it permanently removes it from the ledger, the same real-world
+    // event issueToProduction represents for APPROVED stock, just starting from RESERVED.
+    void consumeReservedStock(Long partId, String batch, int quantity);
+
     // Search & History
     List<PartResponseDTO> searchByName(String name);
     Page<PartResponseDTO> getAllParts(Pageable pageable);

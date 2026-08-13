@@ -70,4 +70,9 @@ public interface ProductionOrderService {
     List<ProductionOrderResponseDTO> getByStatus(ProductionOrderStatus status);
     List<ProductionOrderResponseDTO> searchByProductName(String name);
     List<ProductionOrderResponseDTO> getOverdueOrders();
+
+    // How much of this product is still genuinely being worked on right now, across
+    // every active production run — used by sales-service's ATP feature. Finished/
+    // cancelled orders don't count.
+    Integer getPlannedQuantity(String productCode);
 }

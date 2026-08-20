@@ -5,13 +5,13 @@ import com.aerospace.inventory_service.entity.StockStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
+
 public interface StockBalanceRepository extends JpaRepository<StockBalance, Long> {
 
     // Traceability & Logic
@@ -41,6 +41,14 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Long
     // low-stock count without an N+1 query per part.
     @Query("SELECT s.partId, SUM(s.quantity) FROM StockBalance s WHERE s.status = 'APPROVED' GROUP BY s.partId")
     List<Object[]> getApprovedQuantityByPart();
+
+    // Warehouse-wide approved stock value. StockBalance.partId is a bare Long (no
+    // mapped association to Part), so this is an implicit theta-join rather than
+    // "s.part.unitPrice". Parts with no unitPrice set are excluded rather than treated
+    // as 0 — an unpriced part is unknown value, not zero value.
+    @Query("SELECT COALESCE(SUM(s.quantity * p.unitPrice), 0) FROM StockBalance s, Part p " +
+           "WHERE p.id = s.partId AND s.status = 'APPROVED' AND p.unitPrice IS NOT NULL")
+    BigDecimal getTotalApprovedInventoryValue();
 
     @Query("SELECT s FROM StockBalance s WHERE s.partId = :partId")
     List<StockBalance> findAllBalancesByPart(@Param("partId") Long partId);

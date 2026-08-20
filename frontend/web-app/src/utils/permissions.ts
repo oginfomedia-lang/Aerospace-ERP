@@ -26,6 +26,17 @@ export const CAN_FULFILL_ORDERS = ['WAREHOUSE_OPERATOR', 'SALES_MANAGER', 'MANAG
 // Matches ReturnAuthorizationController.inspect's method-level override.
 export const CAN_INSPECT_RETURNS = ['QA_INSPECTOR', 'SALES_MANAGER', 'MANAGER', 'ADMIN'];
 
+// Matches AccountController/JournalEntryController/CostCenterController/etc.'s
+// class-level @PreAuthorize (finance-service) — day-to-day journal creation/submission.
+export const CAN_MANAGE_FINANCE = ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN'];
+// Matches JournalEntryController.approve/reject/reverse and AccountingPeriodController
+// close/reopen's method-level override — approvals, period close/reopen, CoA/tax/
+// posting-rule/currency configuration.
+export const CAN_APPROVE_FINANCE = ['FINANCE_MANAGER', 'MANAGER', 'ADMIN'];
+// Matches AccountingPeriodController.lock/unlock's method-level override — locking a
+// period permanently is intentionally rarer/higher-privilege than close/reopen, ADMIN only.
+export const CAN_LOCK_PERIOD = ['ADMIN'];
+
 export function hasAnyRole(userRoles: string[] | undefined | null, allowed: string[]): boolean {
   if (!userRoles || userRoles.length === 0) return false;
   return allowed.some((role) => userRoles.includes(role));

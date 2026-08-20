@@ -24,7 +24,8 @@ public class DataSeeder implements CommandLineRunner {
         "STORE_KEEPER", "QA_INSPECTOR", "PRODUCTION_ENGINEER",
         "PROCUREMENT_OFFICER", "MANAGER", "ADMIN", "SUPPLIER",
         "PRODUCTION_SUPERVISOR", "MAINTENANCE_ENGINEER", "SALES_EXECUTIVE",
-        "SALES_MANAGER", "WAREHOUSE_OPERATOR"
+        "SALES_MANAGER", "WAREHOUSE_OPERATOR",
+        "FINANCE_MANAGER", "ACCOUNTANT"
     );
 
     private final RoleRepository roleRepository;

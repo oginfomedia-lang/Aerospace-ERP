@@ -10,6 +10,8 @@ import com.aerospace.procurement_service.entity.POLineItem;
 import com.aerospace.procurement_service.entity.PurchaseOrder;
 import com.aerospace.procurement_service.entity.VendorInvoice;
 import com.aerospace.procurement_service.entity.VendorInvoiceLineItem;
+import com.aerospace.procurement_service.event.VendorInvoiceApprovedEvent;
+import com.aerospace.procurement_service.event.producer.ProcurementEventPublisher;
 import com.aerospace.procurement_service.exception.ResourceNotFoundException;
 import com.aerospace.procurement_service.mapper.VendorInvoiceMapper;
 import com.aerospace.procurement_service.repository.PurchaseOrderRepository;
@@ -49,6 +51,7 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
     private final DocumentSequenceService documentSequenceService;
     private final ApprovalEngine approvalEngine;
     private final VendorInvoiceMapper mapper;
+    private final ProcurementEventPublisher procurementEventPublisher;
 
     @Override
     @Transactional
@@ -180,7 +183,22 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
         invoice.setStatus(InvoiceStatus.APPROVED);
         invoice.setApprovedAt(LocalDateTime.now());
         invoice.setApprovedBy(approverUsername);
-        return mapper.toDTO(invoiceRepository.save(invoice));
+        VendorInvoice saved = invoiceRepository.save(invoice);
+
+        // Consumed by finance-service's PostingEngine to raise the AP liability
+        // journal entry — the invoice already has everything needed (totalAmount,
+        // currency), no cross-service lookup required on the finance side.
+        procurementEventPublisher.publishVendorInvoiceApproved(VendorInvoiceApprovedEvent.builder()
+                .vendorInvoiceId(saved.getId())
+                .invoiceNumber(saved.getInvoiceNumber())
+                .supplierId(saved.getPurchaseOrder().getSupplier().getId())
+                .totalAmount(saved.getTotalAmount())
+                .currency(saved.getCurrency())
+                .approvedBy(approverUsername)
+                .approvedAt(saved.getApprovedAt())
+                .build());
+
+        return mapper.toDTO(saved);
     }
 
     @Override

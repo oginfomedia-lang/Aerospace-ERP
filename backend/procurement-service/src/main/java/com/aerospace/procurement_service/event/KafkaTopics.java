@@ -23,5 +23,9 @@ public class KafkaTopics {
     public static final String PO_DELIVERY_OVERDUE = "po-delivery-overdue-events";
 
     public static final String SUPPLIER_REGISTERED = "supplier-registered-events";
-    public static final String SUPPLIER_CONFIRMATION_DECIDED = "supplier-confirmation-decided-events";  
+    public static final String SUPPLIER_CONFIRMATION_DECIDED = "supplier-confirmation-decided-events";
+
+    // Published when a Vendor Invoice's status flips to APPROVED — consumed by
+    // finance-service's PostingEngine to raise the AP liability journal entry.
+    public static final String VENDOR_INVOICE_APPROVED = "vendor-invoice-approved";
 }

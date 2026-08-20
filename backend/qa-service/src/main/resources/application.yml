@@ -9,6 +9,8 @@ spring:
     url: jdbc:postgresql://localhost:5432/qa_db   # separate DB from inventory
     username: postgres
     password: postgres@123
+    hikari:
+      maximum-pool-size: 5
 
   jpa:
     hibernate:

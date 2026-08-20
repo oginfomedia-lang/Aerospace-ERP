@@ -21,6 +21,13 @@ public class RefreshToken {
 
     private LocalDateTime expiryDate;
 
+    // When the ORIGINAL login happened — carried forward unchanged through every
+    // rotation of this refresh-token chain (unlike expiryDate, which resets on every
+    // refresh). Lets AuthService enforce an absolute session lifetime on top of the
+    // per-token expiry, so an active user can't stay logged in forever via rolling
+    // refreshes.
+    private LocalDateTime sessionStartAt;
+
     @Builder.Default
     private boolean revoked = false;
 

@@ -1,0 +1,60 @@
+server:
+  port: 8092
+
+spring:
+  application:
+    name: finance-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/finance_db
+    username: postgres
+    password: postgres@123
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: finance-service
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+logging:
+  level:
+    com.aerospace.finance_service: DEBUG
+    org.springframework.kafka: WARN
+
+app:
+  jwt:
+    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+
+# Journals at/above this amount require ApprovalEngine sign-off before posting;
+# below it, submit() auto-posts immediately. 0 = every journal needs approval.
+finance:
+  journal:
+    approval-threshold: 0
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30

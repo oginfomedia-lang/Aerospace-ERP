@@ -5,7 +5,8 @@ import {
   Plane, ChevronRight, Bell, LogOut, FileMinus,
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
   FileCheck2, ClipboardList, Database, UserCog, History, Clock, Archive, Cog, HardHat, Hammer, CalendarClock,
-  UserCheck, FileText, ShoppingBag, RotateCcw
+  UserCheck, FileText, ShoppingBag, RotateCcw, BookOpen, ListTree, Workflow,
+  Landmark, Coins, Percent, HandCoins, BarChart3
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useGlobalNotificationToasts } from '../hooks/useGlobalNotificationToasts';
@@ -211,6 +212,69 @@ const navItems = [
     icon: <RotateCcw size={18} />,
     description: 'RMA receive & inspect',
     roles: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'WAREHOUSE_OPERATOR', 'QA_INSPECTOR', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/journal-entries',
+    label: 'Journal Entries',
+    icon: <BookOpen size={18} />,
+    description: 'General Ledger postings',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/chart-of-accounts',
+    label: 'Chart of Accounts',
+    icon: <ListTree size={18} />,
+    description: 'Accounting buckets tree',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/financial-periods',
+    label: 'Financial Periods',
+    icon: <CalendarClock size={18} />,
+    description: 'Fiscal years & period locks',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/posting-rules',
+    label: 'Posting Rules',
+    icon: <Workflow size={18} />,
+    description: 'Event-driven auto-posting',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/finance-master-data',
+    label: 'Finance Master Data',
+    icon: <Landmark size={18} />,
+    description: 'Orgs, plants, cost/profit centers',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/finance-currency',
+    label: 'Multi-Currency',
+    icon: <Coins size={18} />,
+    description: 'Currencies, rates, revaluation',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/finance-tax',
+    label: 'Tax',
+    icon: <Percent size={18} />,
+    description: 'Categories, jurisdictions, rates',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/finance-ap-ar',
+    label: 'AP / AR',
+    icon: <HandCoins size={18} />,
+    description: 'Payable & receivable ledgers, aging',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
+    path: '/finance-reports',
+    label: 'Finance Summary',
+    icon: <BarChart3 size={18} />,
+    description: 'Posting rates & outstanding balances',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
   },
   {
     path: '/notifications',
@@ -420,6 +484,15 @@ useEffect(() => {
               {location.pathname === '/quotations' && 'Quotations'}
               {location.pathname === '/sales-orders' && 'Sales Orders'}
               {location.pathname === '/returns' && 'Customer Returns'}
+              {location.pathname === '/journal-entries' && 'Journal Entries'}
+              {location.pathname === '/chart-of-accounts' && 'Chart of Accounts'}
+              {location.pathname === '/financial-periods' && 'Financial Periods'}
+              {location.pathname === '/posting-rules' && 'Posting Rules'}
+              {location.pathname === '/finance-master-data' && 'Finance Master Data'}
+              {location.pathname === '/finance-currency' && 'Multi-Currency'}
+              {location.pathname === '/finance-tax' && 'Tax'}
+              {location.pathname === '/finance-ap-ar' && 'AP / AR'}
+              {location.pathname === '/finance-reports' && 'Finance Summary'}
               {location.pathname.includes('/transactions') && 'Transaction History'}
             </span>
           </div>

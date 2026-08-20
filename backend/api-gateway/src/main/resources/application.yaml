@@ -168,7 +168,12 @@ spring:
           uri: http://localhost:8091
           predicates:
             - Path=/api/v1/sales/**
-            
+
+        - id: finance-service
+          uri: http://localhost:8092
+          predicates:
+            - Path=/api/v1/finance/**
+
       # Load balancer configuration (if using service discovery later)
       loadbalancer:
         use404: false

@@ -126,8 +126,11 @@ public class DispatchServiceImpl implements DispatchService {
         order.setStatus(fullyShipped ? SalesOrderStatus.DISPATCHED : SalesOrderStatus.IN_FULFILLMENT);
         salesOrderRepository.save(order);
 
+        // Sales orders don't yet track a per-order currency — every order in this
+        // system is currently INR-denominated, so this is a literal, not a lookup.
         salesProducer.sendSalesOrderDispatched(order.getId(), order.getOrderNumber(),
-                saved.getDispatchNumber(), saved.getTrackingNumber(), order.getCustomer().getId(), dispatchedBy);
+                saved.getDispatchNumber(), saved.getTrackingNumber(), order.getCustomer().getId(), dispatchedBy,
+                order.getTotalAmount(), "INR");
         log.info("[DISPATCH] Confirmed — dispatchNumber={}, orderNumber={}, tracking={}",
                 saved.getDispatchNumber(), order.getOrderNumber(), trackingNumber);
         return toDTO(saved);

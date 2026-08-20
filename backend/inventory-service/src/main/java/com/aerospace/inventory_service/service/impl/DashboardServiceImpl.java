@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable; // FIX 1: was jakarta.persistence.Cacheable
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -51,6 +52,9 @@ public class DashboardServiceImpl implements DashboardService { // FIX 2: was mi
                 })
                 .count();
 
+        BigDecimal inventoryValueRaw = balanceRepository.getTotalApprovedInventoryValue();
+        double inventoryValue = inventoryValueRaw != null ? inventoryValueRaw.doubleValue() : 0.0;
+
         return DashboardResponseDTO.builder()
                 .totalParts(partRepository.count())
                 .totalQuantity(totalApprovedStock)
@@ -58,7 +62,7 @@ public class DashboardServiceImpl implements DashboardService { // FIX 2: was mi
                 .rejectedItems(rejected)
                 .lowStockItems(lowStock)
                 .partsByType(typeMap)
-                .inventoryValue(0.0) // Wire to Finance service pricing later
+                .inventoryValue(inventoryValue)
                 .build();
     }
 }

@@ -94,7 +94,7 @@ public class AuthService {
                 .collect(Collectors.toSet());
 
         String token = jwtService.generateToken(user.getUsername(), user.getEmail(), roleNames, user.getSupplierId());
-        String refreshToken = createRefreshToken(user);
+        String refreshToken = createRefreshToken(user, LocalDateTime.now());
         log.info("🔐 User logged in: {} with roles: {}", user.getUsername(), roleNames);
 
         return AuthResponse.builder()
@@ -114,6 +114,18 @@ public class AuthService {
             throw new IllegalStateException("Refresh token is not valid");
         }
 
+        // Absolute session cap: sessionStartAt is carried forward unchanged through
+        // every rotation, so this measures time since the ORIGINAL login, not since the
+        // last refresh — an active user still gets forced back to a real login after
+        // refreshTokenExpirationMs, instead of extending indefinitely.
+        LocalDateTime sessionStartAt = storedToken.getSessionStartAt() != null
+                ? storedToken.getSessionStartAt() : storedToken.getExpiryDate().minusSeconds(refreshTokenExpirationMs / 1000);
+        if (sessionStartAt.plusSeconds(refreshTokenExpirationMs / 1000).isBefore(LocalDateTime.now())) {
+            storedToken.setRevoked(true);
+            refreshTokenRepository.save(storedToken);
+            throw new IllegalStateException("Session expired — please log in again.");
+        }
+
         User user = storedToken.getUser();
         if (user == null || !user.getEnabled()) {
             throw new IllegalStateException("Refresh token owner is not available");
@@ -127,7 +139,7 @@ public class AuthService {
         refreshTokenRepository.save(storedToken);
 
         String token = jwtService.generateToken(user.getUsername(), user.getEmail(), roleNames);
-        String refreshToken = createRefreshToken(user);
+        String refreshToken = createRefreshToken(user, sessionStartAt);
 
         return AuthResponse.builder()
                 .token(token)
@@ -146,12 +158,13 @@ public class AuthService {
                 });
     }
 
-    private String createRefreshToken(User user) {
+    private String createRefreshToken(User user, LocalDateTime sessionStartAt) {
         String token = UUID.randomUUID().toString();
         RefreshToken refreshToken = RefreshToken.builder()
                 .token(token)
                 .user(user)
                 .expiryDate(LocalDateTime.now().plusSeconds(refreshTokenExpirationMs / 1000))
+                .sessionStartAt(sessionStartAt)
                 .revoked(false)
                 .build();
 

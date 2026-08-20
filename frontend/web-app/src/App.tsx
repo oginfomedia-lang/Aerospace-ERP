@@ -49,6 +49,15 @@ import CustomersPage from './pages/CustomersPage';
 import QuotationsPage from './pages/QuotationsPage';
 import SalesOrdersPage from './pages/SalesOrdersPage';
 import ReturnsPage from './pages/ReturnsPage';
+import JournalEntriesPage from './pages/JournalEntriesPage';
+import ChartOfAccountsPage from './pages/ChartOfAccountsPage';
+import FinancialPeriodsPage from './pages/FinancialPeriodsPage';
+import PostingRulesPage from './pages/PostingRulesPage';
+import MasterDataPage from './pages/MasterDataPage';
+import CurrencyPage from './pages/CurrencyPage';
+import TaxPage from './pages/TaxPage';
+import ApArPage from './pages/ApArPage';
+import FinanceReportsPage from './pages/FinanceReportsPage';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -176,6 +185,18 @@ function App() {
             {/* Returns — its own guard: warehouse staff receive, sales/QA inspect */}
             <Route element={<ProtectedRoute requiredRoles={['SALES_EXECUTIVE', 'SALES_MANAGER', 'WAREHOUSE_OPERATOR', 'QA_INSPECTOR', 'MANAGER', 'ADMIN']} />}>
               <Route path="/returns" element={<ReturnsPage />} />
+            </Route>
+            {/* Finance — Chart of Accounts, Journal Entries, Posting Rules foundation */}
+            <Route element={<ProtectedRoute requiredRoles={['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']} />}>
+              <Route path="/journal-entries" element={<JournalEntriesPage />} />
+              <Route path="/chart-of-accounts" element={<ChartOfAccountsPage />} />
+              <Route path="/financial-periods" element={<FinancialPeriodsPage />} />
+              <Route path="/posting-rules" element={<PostingRulesPage />} />
+              <Route path="/finance-master-data" element={<MasterDataPage />} />
+              <Route path="/finance-currency" element={<CurrencyPage />} />
+              <Route path="/finance-tax" element={<TaxPage />} />
+              <Route path="/finance-ap-ar" element={<ApArPage />} />
+              <Route path="/finance-reports" element={<FinanceReportsPage />} />
             </Route>
           </Route>
         </Route>

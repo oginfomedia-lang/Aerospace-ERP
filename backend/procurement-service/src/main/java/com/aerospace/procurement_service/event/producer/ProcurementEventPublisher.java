@@ -7,6 +7,7 @@ import com.aerospace.procurement_service.event.PurchaseOrderCreatedEvent;
 import com.aerospace.procurement_service.event.QuotationAwardedEvent;
 import com.aerospace.procurement_service.event.QuotationRejectedEvent;
 import com.aerospace.procurement_service.event.RfqCreatedEvent;
+import com.aerospace.procurement_service.event.VendorInvoiceApprovedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -89,5 +90,11 @@ public class ProcurementEventPublisher {
         kafkaTemplate.send(KafkaTopics.SUPPLIER_CONFIRMATION_DECIDED, event);
         log.info("📢 [PROCUREMENT EVENT] Published SUPPLIER_CONFIRMATION_DECIDED — supplier={} status={}",
                 event.getSupplierName(), event.getStatus());
+    }
+
+    public void publishVendorInvoiceApproved(VendorInvoiceApprovedEvent event) {
+        kafkaTemplate.send(KafkaTopics.VENDOR_INVOICE_APPROVED, event);
+        log.info("📢 [PROCUREMENT EVENT] Published VENDOR_INVOICE_APPROVED — invoice={} amount={} {}",
+                event.getInvoiceNumber(), event.getTotalAmount(), event.getCurrency());
     }
 }

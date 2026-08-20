@@ -12,6 +12,7 @@ public class JournalLineDTO {
     private BigDecimal creditAmount;
     private String currency;
     private String counterpartyRef;
+    private Long supplierId;
     private Long costCenterId;
     private Long profitCenterId;
     private String description;

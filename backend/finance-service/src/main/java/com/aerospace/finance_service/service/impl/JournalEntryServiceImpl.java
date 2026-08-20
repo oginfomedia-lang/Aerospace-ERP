@@ -11,9 +11,11 @@ import com.aerospace.finance_service.entity.Account;
 import com.aerospace.finance_service.entity.JournalEntry;
 import com.aerospace.finance_service.entity.JournalEntry.JournalStatus;
 import com.aerospace.finance_service.entity.JournalLine;
+import com.aerospace.finance_service.entity.SupplierReference;
 import com.aerospace.finance_service.exception.ResourceNotFoundException;
 import com.aerospace.finance_service.repository.AccountRepository;
 import com.aerospace.finance_service.repository.JournalEntryRepository;
+import com.aerospace.finance_service.repository.SupplierReferenceRepository;
 import com.aerospace.finance_service.service.AccountingPeriodService;
 import com.aerospace.finance_service.service.JournalEntryService;
 import com.aerospace.finance_service.security.TenantContext;
@@ -35,6 +37,7 @@ public class JournalEntryServiceImpl implements JournalEntryService {
 
     private final JournalEntryRepository journalEntryRepository;
     private final AccountRepository accountRepository;
+    private final SupplierReferenceRepository supplierReferenceRepository;
     private final DocumentSequenceService documentSequenceService;
     private final AccountingPeriodService accountingPeriodService;
     private final ApprovalEngine approvalEngine;
@@ -69,15 +72,36 @@ public class JournalEntryServiceImpl implements JournalEntryService {
                 .build();
 
         assertPostableAccounts(dto.getLines());
-        dto.getLines().forEach(l -> entry.getLines().add(
-                JournalLine.builder().journalEntry(entry).accountCode(l.getAccountCode())
-                        .debitAmount(nvl(l.getDebitAmount())).creditAmount(nvl(l.getCreditAmount()))
-                        .currency(l.getCurrency()).counterpartyRef(l.getCounterpartyRef())
-                        .costCenterId(l.getCostCenterId()).profitCenterId(l.getProfitCenterId())
-                        .description(l.getDescription()).build()));
+        dto.getLines().forEach(l -> entry.getLines().add(buildLine(entry, l)));
 
         assertBalanced(entry);
         return toDTO(journalEntryRepository.save(entry));
+    }
+
+    /**
+     * Builds one JournalLine from its create-DTO, resolving an optional supplierId
+     * into a real SupplierReference FK and deriving counterpartyRef from it when the
+     * caller didn't supply one explicitly. Shared by create()/update() so both stay
+     * in sync — a line built by either path behaves identically to AP ledger/aging/
+     * revaluation queries downstream, which still group by counterpartyRef.
+     */
+    private JournalLine buildLine(JournalEntry entry, JournalLineCreateDTO l) {
+        SupplierReference supplier = null;
+        String counterpartyRef = l.getCounterpartyRef();
+        if (l.getSupplierId() != null) {
+            supplier = supplierReferenceRepository.findById(l.getSupplierId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Supplier " + l.getSupplierId() + " is not yet known to finance-service " +
+                                    "(it may not have synced from procurement-service yet)"));
+            if (counterpartyRef == null) {
+                counterpartyRef = "SUPPLIER:" + supplier.getId();
+            }
+        }
+        return JournalLine.builder().journalEntry(entry).accountCode(l.getAccountCode())
+                .debitAmount(nvl(l.getDebitAmount())).creditAmount(nvl(l.getCreditAmount()))
+                .currency(l.getCurrency()).counterpartyRef(counterpartyRef).supplier(supplier)
+                .costCenterId(l.getCostCenterId()).profitCenterId(l.getProfitCenterId())
+                .description(l.getDescription()).build();
     }
 
     /**
@@ -140,10 +164,7 @@ public class JournalEntryServiceImpl implements JournalEntryService {
         entry.getLines().clear();
         entry.setNarration(dto.getNarration());
         entry.setPostingDate(dto.getPostingDate());
-        dto.getLines().forEach(l -> entry.getLines().add(
-                JournalLine.builder().journalEntry(entry).accountCode(l.getAccountCode())
-                        .debitAmount(nvl(l.getDebitAmount())).creditAmount(nvl(l.getCreditAmount()))
-                        .currency(l.getCurrency()).counterpartyRef(l.getCounterpartyRef()).build()));
+        dto.getLines().forEach(l -> entry.getLines().add(buildLine(entry, l)));
         assertBalanced(entry);
         return toDTO(journalEntryRepository.save(entry));
     }
@@ -240,7 +261,7 @@ public class JournalEntryServiceImpl implements JournalEntryService {
         original.getLines().forEach(l -> reversal.getLines().add(
                 JournalLine.builder().journalEntry(reversal).accountCode(l.getAccountCode())
                         .debitAmount(l.getCreditAmount()).creditAmount(l.getDebitAmount()) // swapped
-                        .currency(l.getCurrency()).counterpartyRef(l.getCounterpartyRef())
+                        .currency(l.getCurrency()).counterpartyRef(l.getCounterpartyRef()).supplier(l.getSupplier())
                         .costCenterId(l.getCostCenterId()).profitCenterId(l.getProfitCenterId())
                         .description("Reversal: " + l.getDescription()).build()));
 
@@ -275,6 +296,7 @@ public class JournalEntryServiceImpl implements JournalEntryService {
                         .id(l.getId()).accountCode(l.getAccountCode())
                         .debitAmount(l.getDebitAmount()).creditAmount(l.getCreditAmount())
                         .currency(l.getCurrency()).counterpartyRef(l.getCounterpartyRef())
+                        .supplierId(l.getSupplier() != null ? l.getSupplier().getId() : null)
                         .costCenterId(l.getCostCenterId()).profitCenterId(l.getProfitCenterId())
                         .description(l.getDescription()).build()).toList())
                 .build();

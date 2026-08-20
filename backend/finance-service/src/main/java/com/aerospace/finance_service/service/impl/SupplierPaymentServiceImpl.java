@@ -8,8 +8,10 @@ import com.aerospace.finance_service.dto.SupplierPaymentCreateDTO;
 import com.aerospace.finance_service.dto.SupplierPaymentDTO;
 import com.aerospace.finance_service.entity.SupplierPayment;
 import com.aerospace.finance_service.entity.SupplierPayment.PaymentStatus;
+import com.aerospace.finance_service.entity.SupplierReference;
 import com.aerospace.finance_service.exception.ResourceNotFoundException;
 import com.aerospace.finance_service.repository.SupplierPaymentRepository;
+import com.aerospace.finance_service.repository.SupplierReferenceRepository;
 import com.aerospace.finance_service.security.TenantContext;
 import com.aerospace.finance_service.service.JournalEntryService;
 import com.aerospace.finance_service.service.SupplierPaymentService;
@@ -31,6 +33,7 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
     private static final String BANK_ACCOUNT = "1100";
 
     private final SupplierPaymentRepository paymentRepository;
+    private final SupplierReferenceRepository supplierReferenceRepository;
     private final JournalEntryService journalEntryService;
     private final DocumentSequenceService documentSequenceService;
 
@@ -42,10 +45,21 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
     @Override
     @Transactional
     public SupplierPaymentDTO create(SupplierPaymentCreateDTO dto, String currentUser) {
+        // Resolve the real supplier FK. A miss here is a genuine distributed-systems
+        // edge case (the supplier may exist in procurement-service but hasn't synced
+        // into finance-service's local mirror yet via Kafka) — call that out in the
+        // message rather than a bare "not found", since the caller likely picked a
+        // valid id, not a wrong one.
+        SupplierReference supplier = supplierReferenceRepository.findById(dto.getSupplierId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Supplier " + dto.getSupplierId() + " is not yet known to finance-service " +
+                                "(it may not have synced from procurement-service yet)"));
+        String derivedRef = "SUPPLIER:" + supplier.getId();
+
         // Build and post the payment journal entry
         JournalEntryCreateDTO journalDto = JournalEntryCreateDTO.builder()
                 .postingDate(dto.getPaymentDate())
-                .narration("Supplier payment to " + dto.getSupplierRef() +
+                .narration("Supplier payment to " + supplier.getSupplierName() +
                            " for invoice " + dto.getInvoiceNumber())
                 .sourceDocType("SUPPLIER_PAYMENT")
                 .sourceDocRef(dto.getInvoiceNumber())
@@ -56,7 +70,8 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
                                 .debitAmount(dto.getAmount())
                                 .creditAmount(BigDecimal.ZERO)
                                 .currency(dto.getCurrency())
-                                .counterpartyRef(dto.getSupplierRef())
+                                .supplierId(supplier.getId())
+                                .counterpartyRef(derivedRef)
                                 .description("Payment clearing: " + dto.getInvoiceNumber())
                                 .build(),
                         JournalLineCreateDTO.builder()
@@ -77,7 +92,8 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
                 .tenantId(TenantContext.getTenantId())
                 .paymentNumber(documentSequenceService.generate("PAY"))
                 .invoiceNumber(dto.getInvoiceNumber())
-                .supplierRef(dto.getSupplierRef())
+                .supplier(supplier)
+                .supplierRef(derivedRef)
                 .paymentDate(dto.getPaymentDate())
                 .amount(dto.getAmount())
                 .currency(dto.getCurrency())
@@ -134,7 +150,10 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
     private SupplierPaymentDTO toDTO(SupplierPayment p) {
         return SupplierPaymentDTO.builder()
                 .id(p.getId()).paymentNumber(p.getPaymentNumber())
-                .invoiceNumber(p.getInvoiceNumber()).supplierRef(p.getSupplierRef())
+                .invoiceNumber(p.getInvoiceNumber())
+                .supplierId(p.getSupplier() != null ? p.getSupplier().getId() : null)
+                .supplierName(p.getSupplier() != null ? p.getSupplier().getSupplierName() : null)
+                .supplierRef(p.getSupplierRef())
                 .paymentDate(p.getPaymentDate()).amount(p.getAmount()).currency(p.getCurrency())
                 .paymentMethod(p.getPaymentMethod()).status(p.getStatus())
                 .journalEntryRef(p.getJournalEntryRef()).remarks(p.getRemarks())

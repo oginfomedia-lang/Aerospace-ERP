@@ -18,6 +18,7 @@ C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\controller\ProfitCenterController.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\controller\RevaluationController.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\controller\SupplierPaymentController.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\controller\SupplierReferenceController.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\controller\TaxCategoryController.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\controller\TaxJurisdictionController.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\controller\TaxRateController.java
@@ -49,6 +50,7 @@ C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\dto\StatementLineDTO.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\dto\SupplierPaymentCreateDTO.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\dto\SupplierPaymentDTO.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\dto\SupplierReferenceDTO.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\dto\TaxCalculationResult.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\dto\TaxCategoryDTO.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\dto\TaxJurisdictionDTO.java
@@ -72,6 +74,7 @@ C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\entity\PostingTriggerType.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\entity\ProfitCenter.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\entity\SupplierPayment.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\entity\SupplierReference.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\entity\TaxCategory.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\entity\TaxJurisdiction.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\entity\TaxRate.java
@@ -89,6 +92,8 @@ C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\event\QualityCostEventConsumer.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\event\SalesDispatchEventConsumer.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\event\SalesOrderDispatchedEvent.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\event\SupplierEventConsumer.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\event\SupplierRegisteredEvent.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\event\VendorInvoiceApprovedEvent.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\event\VendorInvoiceEventConsumer.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\exception\GlobalExceptionHandler.java
@@ -109,6 +114,7 @@ C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\repository\PostingRuleRepository.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\repository\ProfitCenterRepository.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\repository\SupplierPaymentRepository.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\repository\SupplierReferenceRepository.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\repository\TaxCategoryRepository.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\repository\TaxJurisdictionRepository.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\repository\TaxRateRepository.java
@@ -141,6 +147,7 @@ C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\impl\ProfitCenterServiceImpl.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\impl\RevaluationServiceImpl.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\impl\SupplierPaymentServiceImpl.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\impl\SupplierReferenceServiceImpl.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\impl\TaxAdminServiceImpl.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\impl\TaxCalculatorImpl.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\InvoiceMatchService.java
@@ -153,5 +160,6 @@ C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\ProfitCenterService.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\RevaluationService.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\SupplierPaymentService.java
+C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\SupplierReferenceService.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\TaxAdminService.java
 C:\Users\hp\Desktop\LiteCode Software\Aerospace-ERP\backend\finance-service\src\main\java\com\aerospace\finance_service\service\TaxCalculator.java

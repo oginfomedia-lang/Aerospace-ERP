@@ -29,8 +29,18 @@ public class SupplierPayment {
 
     @Column(nullable = false, length = 50)
     private String invoiceNumber;  // soft reference to the supplier invoice being settled
-    @Column(nullable = false, length = 60)
-    private String supplierRef;    // soft reference e.g. "SUPPLIER:1042"
+
+    // Real FK — the actual input now (see SupplierPaymentCreateDTO.supplierId).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id", nullable = false,
+                foreignKey = @ForeignKey(name = "fk_supplier_payment_supplier"))
+    private SupplierReference supplier;
+
+    // @Deprecated: kept for one release as a backward-compatible display field,
+    // auto-derived server-side as "SUPPLIER:<supplierId>" — no longer user input.
+    @Deprecated
+    @Column(length = 60)
+    private String supplierRef;
 
     @Column(nullable = false)
     private LocalDate paymentDate;

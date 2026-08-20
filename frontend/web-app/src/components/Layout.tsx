@@ -6,7 +6,7 @@ import {
   Wrench, Factory, ShoppingCart, Users, Truck, ShieldAlert, MapPin, Building2, Receipt, Route, Send, Gauge,
   FileCheck2, ClipboardList, Database, UserCog, History, Clock, Archive, Cog, HardHat, Hammer, CalendarClock,
   UserCheck, FileText, ShoppingBag, RotateCcw, BookOpen, ListTree, Workflow,
-  Landmark, Coins, Percent, HandCoins, BarChart3
+  Landmark, Coins, Percent, HandCoins, BarChart3, Banknote
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useGlobalNotificationToasts } from '../hooks/useGlobalNotificationToasts';
@@ -270,6 +270,13 @@ const navItems = [
     roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
   },
   {
+    path: '/finance-supplier-payments',
+    label: 'Supplier Payments',
+    icon: <Banknote size={18} />,
+    description: 'Pay down what you owe suppliers',
+    roles: ['ACCOUNTANT', 'FINANCE_MANAGER', 'MANAGER', 'ADMIN']
+  },
+  {
     path: '/finance-reports',
     label: 'Finance Summary',
     icon: <BarChart3 size={18} />,
@@ -492,6 +499,7 @@ useEffect(() => {
               {location.pathname === '/finance-currency' && 'Multi-Currency'}
               {location.pathname === '/finance-tax' && 'Tax'}
               {location.pathname === '/finance-ap-ar' && 'AP / AR'}
+              {location.pathname === '/finance-supplier-payments' && 'Supplier Payments'}
               {location.pathname === '/finance-reports' && 'Finance Summary'}
               {location.pathname.includes('/transactions') && 'Transaction History'}
             </span>

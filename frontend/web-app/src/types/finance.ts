@@ -93,6 +93,7 @@ export interface JournalLine {
   creditAmount: number;
   currency: string;
   counterpartyRef?: string;
+  supplierId?: number;
   costCenterId?: number;
   profitCenterId?: number;
   description?: string;
@@ -199,6 +200,49 @@ export interface AgingBucket {
   bucketLabel: string;
   totalAmount: number;
   byCounterparty: Record<string, number>;
+}
+
+// ── Suppliers (local read-only mirror, synced from procurement-service via Kafka) ─
+
+export interface Supplier {
+  id: number;
+  supplierName: string;
+  vendorCode: string;
+}
+
+// ── Supplier payments ──────────────────────────────────────────────────────
+
+export type PaymentMethod = 'BANK_TRANSFER' | 'CHEQUE' | 'CASH' | 'ONLINE';
+export type PaymentStatus = 'DRAFT' | 'POSTED' | 'CANCELLED';
+
+export interface SupplierPayment {
+  id: number;
+  paymentNumber: string;
+  invoiceNumber: string;
+  supplierId: number;
+  supplierName?: string;
+  /** @deprecated auto-derived server-side, kept for backward-compat display only */
+  supplierRef?: string;
+  paymentDate: string;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  status: PaymentStatus;
+  journalEntryRef?: string;
+  remarks?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface SupplierPaymentCreatePayload {
+  invoiceNumber: string;
+  supplierId: number;
+  paymentDate: string;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  remarks?: string;
+  costCenterId?: number;
 }
 
 // ── Reports ─────────────────────────────────────────────────────────────

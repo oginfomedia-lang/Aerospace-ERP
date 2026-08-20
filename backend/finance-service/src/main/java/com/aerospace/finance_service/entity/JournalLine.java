@@ -29,9 +29,18 @@ public class JournalLine {
     private String currency;
 
     // optional counterparty tag used by AP/AR aging views — e.g. "SUPPLIER:1042" or
-    // "CUSTOMER:207", loose string, not a FK
+    // "CUSTOMER:207". Kept as a string (not a FK) because it also covers customers,
+    // which have no local reference table of their own yet. When `supplier` below is
+    // set, this is auto-derived as "SUPPLIER:<id>" so the existing AP aging/ledger/
+    // revaluation queries (which group by this string) keep working unmodified.
     @Column(length = 60)
     private String counterpartyRef;
+
+    // Real FK, nullable — only AP lines with a synced supplier have this set (AR/
+    // customer lines, and any legacy free-text-only line, leave it null).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id", foreignKey = @ForeignKey(name = "fk_journal_line_supplier"))
+    private SupplierReference supplier;
 
     private Long costCenterId;
     private Long profitCenterId;

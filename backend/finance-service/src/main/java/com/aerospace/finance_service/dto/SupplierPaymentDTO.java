@@ -13,6 +13,9 @@ public class SupplierPaymentDTO {
     private Long id;
     private String paymentNumber;
     private String invoiceNumber;
+    private Long supplierId;
+    private String supplierName;
+    @Deprecated
     private String supplierRef;
     private LocalDate paymentDate;
     private BigDecimal amount;

@@ -3,8 +3,10 @@ import financeApi from '../api/financeAxios';
 import toast from 'react-hot-toast';
 import { BookOpen, Loader2, ChevronRight, CheckCircle2, PlusCircle, Plus, Trash2 } from 'lucide-react';
 import { ApiResponse } from '../types/inventory';
-import { Account, JournalEntry, JournalEntryCreatePayload, JournalLine } from '../types/finance';
+import { Account, JournalEntry, JournalEntryCreatePayload, JournalLine, Supplier } from '../types/finance';
 import { JournalEntryDetailModal } from '../components/JournalEntryDetailModal';
+import { Dropdown } from '../components/Dropdown';
+import { fetchSuppliers } from '../api/financeSuppliers';
 import { useAuth } from '../context/AuthContext';
 import { hasAnyRole, CAN_MANAGE_FINANCE } from '../utils/permissions';
 
@@ -28,6 +30,8 @@ const JournalEntriesPage = () => {
   const canManage = hasAnyRole(user?.roles, CAN_MANAGE_FINANCE);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<JournalEntry | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -54,6 +58,9 @@ const JournalEntriesPage = () => {
   useEffect(() => {
     financeApi.get<ApiResponse<Account[]>>('/finance/accounts')
       .then(res => setAccounts(res.data.data.filter(a => a.postingPermission === 'POSTABLE'))).catch(() => {});
+  }, []);
+  useEffect(() => {
+    fetchSuppliers().then(setSuppliers).catch(() => {}).finally(() => setSuppliersLoading(false));
   }, []);
 
   const updateLine = (idx: number, patch: Partial<JournalLine>) => {
@@ -143,7 +150,7 @@ const JournalEntriesPage = () => {
               {form.lines.map((l, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <select value={l.accountCode} onChange={e => updateLine(i, { accountCode: e.target.value })}
-                    className="col-span-5 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs">
+                    className="col-span-3 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs">
                     <option value="">— Account —</option>
                     {accounts.map(a => <option key={a.id} value={a.accountCode}>{a.accountCode} — {a.accountName}</option>)}
                   </select>
@@ -156,6 +163,20 @@ const JournalEntriesPage = () => {
                   <input value={l.currency} onChange={e => updateLine(i, { currency: e.target.value.toUpperCase() })}
                     placeholder="Currency" maxLength={3}
                     className="col-span-1 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                  <div className="col-span-2">
+                    <Dropdown<number>
+                      options={suppliers.map(s => ({ value: s.id, label: s.supplierName, sublabel: s.vendorCode }))}
+                      value={l.supplierId ?? ''}
+                      loading={suppliersLoading}
+                      placeholder="— Supplier —"
+                      emptyMessage="No suppliers synced yet"
+                      onChange={(supplierId) => updateLine(i, {
+                        supplierId,
+                        counterpartyRef: l.counterpartyRef || `SUPPLIER:${supplierId}`,
+                      })}
+                      className="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
                   <input value={l.counterpartyRef || ''} onChange={e => updateLine(i, { counterpartyRef: e.target.value })}
                     placeholder="Counterparty (optional)"
                     className="col-span-1 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />

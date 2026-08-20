@@ -50,6 +50,7 @@ import QuotationsPage from './pages/QuotationsPage';
 import SalesOrdersPage from './pages/SalesOrdersPage';
 import ReturnsPage from './pages/ReturnsPage';
 import JournalEntriesPage from './pages/JournalEntriesPage';
+import SupplierPaymentsPage from './pages/SupplierPaymentsPage';
 import ChartOfAccountsPage from './pages/ChartOfAccountsPage';
 import FinancialPeriodsPage from './pages/FinancialPeriodsPage';
 import PostingRulesPage from './pages/PostingRulesPage';
@@ -196,6 +197,7 @@ function App() {
               <Route path="/finance-currency" element={<CurrencyPage />} />
               <Route path="/finance-tax" element={<TaxPage />} />
               <Route path="/finance-ap-ar" element={<ApArPage />} />
+              <Route path="/finance-supplier-payments" element={<SupplierPaymentsPage />} />
               <Route path="/finance-reports" element={<FinanceReportsPage />} />
             </Route>
           </Route>

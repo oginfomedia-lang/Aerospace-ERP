@@ -18,6 +18,13 @@ public class JournalLineCreateDTO {
     private String currency;
 
     private String counterpartyRef;
+
+    // Optional real FK — when set, JournalEntryServiceImpl resolves it against
+    // SupplierReferenceRepository and auto-derives counterpartyRef if the caller
+    // didn't also supply one explicitly. Not @NotNull: most lines (AR/customer lines,
+    // non-AP lines) have no supplier at all.
+    private Long supplierId;
+
     private Long costCenterId;
     private Long profitCenterId;
     private String description;

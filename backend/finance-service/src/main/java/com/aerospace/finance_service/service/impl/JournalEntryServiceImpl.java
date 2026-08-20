@@ -12,10 +12,12 @@ import com.aerospace.finance_service.entity.JournalEntry;
 import com.aerospace.finance_service.entity.JournalEntry.JournalStatus;
 import com.aerospace.finance_service.entity.JournalLine;
 import com.aerospace.finance_service.entity.SupplierReference;
+import com.aerospace.finance_service.entity.CustomerReference;
 import com.aerospace.finance_service.exception.ResourceNotFoundException;
 import com.aerospace.finance_service.repository.AccountRepository;
 import com.aerospace.finance_service.repository.JournalEntryRepository;
 import com.aerospace.finance_service.repository.SupplierReferenceRepository;
+import com.aerospace.finance_service.repository.CustomerReferenceRepository;
 import com.aerospace.finance_service.service.AccountingPeriodService;
 import com.aerospace.finance_service.service.JournalEntryService;
 import com.aerospace.finance_service.security.TenantContext;
@@ -38,6 +40,7 @@ public class JournalEntryServiceImpl implements JournalEntryService {
     private final JournalEntryRepository journalEntryRepository;
     private final AccountRepository accountRepository;
     private final SupplierReferenceRepository supplierReferenceRepository;
+    private final CustomerReferenceRepository customerReferenceRepository;
     private final DocumentSequenceService documentSequenceService;
     private final AccountingPeriodService accountingPeriodService;
     private final ApprovalEngine approvalEngine;
@@ -86,7 +89,11 @@ public class JournalEntryServiceImpl implements JournalEntryService {
      * revaluation queries downstream, which still group by counterpartyRef.
      */
     private JournalLine buildLine(JournalEntry entry, JournalLineCreateDTO l) {
+        if (l.getSupplierId() != null && l.getCustomerId() != null) {
+            throw new IllegalArgumentException("A journal line cannot reference both a supplier and a customer");
+        }
         SupplierReference supplier = null;
+        CustomerReference customer = null;
         String counterpartyRef = l.getCounterpartyRef();
         if (l.getSupplierId() != null) {
             supplier = supplierReferenceRepository.findById(l.getSupplierId())
@@ -96,10 +103,19 @@ public class JournalEntryServiceImpl implements JournalEntryService {
             if (counterpartyRef == null) {
                 counterpartyRef = "SUPPLIER:" + supplier.getId();
             }
+        } else if (l.getCustomerId() != null) {
+            customer = customerReferenceRepository.findById(l.getCustomerId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Customer " + l.getCustomerId() + " is not yet known to finance-service " +
+                                    "(it may not have synced from sales-service yet)"));
+            if (counterpartyRef == null) {
+                counterpartyRef = "CUSTOMER:" + customer.getId();
+            }
         }
         return JournalLine.builder().journalEntry(entry).accountCode(l.getAccountCode())
                 .debitAmount(nvl(l.getDebitAmount())).creditAmount(nvl(l.getCreditAmount()))
-                .currency(l.getCurrency()).counterpartyRef(counterpartyRef).supplier(supplier)
+                .currency(l.getCurrency()).counterpartyRef(counterpartyRef)
+                .supplier(supplier).customer(customer)
                 .costCenterId(l.getCostCenterId()).profitCenterId(l.getProfitCenterId())
                 .description(l.getDescription()).build();
     }
@@ -261,7 +277,8 @@ public class JournalEntryServiceImpl implements JournalEntryService {
         original.getLines().forEach(l -> reversal.getLines().add(
                 JournalLine.builder().journalEntry(reversal).accountCode(l.getAccountCode())
                         .debitAmount(l.getCreditAmount()).creditAmount(l.getDebitAmount()) // swapped
-                        .currency(l.getCurrency()).counterpartyRef(l.getCounterpartyRef()).supplier(l.getSupplier())
+                        .currency(l.getCurrency()).counterpartyRef(l.getCounterpartyRef())
+                        .supplier(l.getSupplier()).customer(l.getCustomer())
                         .costCenterId(l.getCostCenterId()).profitCenterId(l.getProfitCenterId())
                         .description("Reversal: " + l.getDescription()).build()));
 
@@ -297,6 +314,7 @@ public class JournalEntryServiceImpl implements JournalEntryService {
                         .debitAmount(l.getDebitAmount()).creditAmount(l.getCreditAmount())
                         .currency(l.getCurrency()).counterpartyRef(l.getCounterpartyRef())
                         .supplierId(l.getSupplier() != null ? l.getSupplier().getId() : null)
+                        .customerId(l.getCustomer() != null ? l.getCustomer().getId() : null)
                         .costCenterId(l.getCostCenterId()).profitCenterId(l.getProfitCenterId())
                         .description(l.getDescription()).build()).toList())
                 .build();

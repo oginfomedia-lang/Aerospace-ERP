@@ -7,6 +7,7 @@ import com.aerospace.finance_service.dto.LedgerViewDTO;
 import com.aerospace.finance_service.entity.PostingTriggerType;
 import com.aerospace.finance_service.service.LedgerViewService;
 import com.aerospace.finance_service.service.PostingEngine;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -38,11 +39,11 @@ public class CustomerInvoiceController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','ADMIN','MANAGER')")
     @Audited(action = "POST_CUSTOMER_INVOICE", entityType = "JournalEntry")
     public ApiResponse<JournalEntryDTO> postInvoice(
-            @RequestBody ManualARPostRequest req, Authentication auth) {
+            @Valid @RequestBody ManualARPostRequest req, Authentication auth) {
         JournalEntryDTO result = postingEngine.postFromEvent(
                 PostingTriggerType.CUSTOMER_INVOICE,
                 req.getAmount(), req.getCurrency(),
-                "CUSTOMER_INVOICE", req.getInvoiceNumber(), null, null);
+                "CUSTOMER_INVOICE", req.getInvoiceNumber(), null, null, null, req.getCustomerId());
         return new ApiResponse<>("Customer invoice posted to AR", result);
     }
 
@@ -58,5 +59,6 @@ public class CustomerInvoiceController {
         @NotBlank private String invoiceNumber;
         @NotNull @Positive private BigDecimal amount;
         @NotBlank private String currency;
+        @NotNull private Long customerId;
     }
 }

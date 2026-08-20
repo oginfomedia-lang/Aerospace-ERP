@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import com.aerospace.procurement_service.event.PoDeliveryOverdueEvent;
 import com.aerospace.procurement_service.event.SupplierRegisteredEvent;
 import com.aerospace.procurement_service.event.SupplierConfirmationDecidedEvent;
+import com.aerospace.procurement_service.event.SupplierUpdatedEvent;
 
 @Component
 @RequiredArgsConstructor
@@ -84,6 +85,12 @@ public class ProcurementEventPublisher {
     public void publishSupplierRegistered(SupplierRegisteredEvent event) {
         kafkaTemplate.send(KafkaTopics.SUPPLIER_REGISTERED, event);
         log.info("📢 [PROCUREMENT EVENT] Published SUPPLIER_REGISTERED — supplier={}", event.getSupplierName());
+    }
+
+    public void publishSupplierUpdated(SupplierUpdatedEvent event) {
+        kafkaTemplate.send(KafkaTopics.SUPPLIER_UPDATED, event);
+        log.info("📢 [PROCUREMENT EVENT] Published SUPPLIER_UPDATED — supplier={} active={}",
+                event.getSupplierName(), event.isActive());
     }
 
     public void publishSupplierConfirmationDecided(SupplierConfirmationDecidedEvent event) {

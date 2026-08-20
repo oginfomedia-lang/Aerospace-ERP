@@ -63,7 +63,16 @@ public class SupplierServiceImpl implements SupplierService {
             supplier.setConfirmedAt(null);
         }
 
-        return supplierRepository.save(supplier);
+        Supplier saved = supplierRepository.save(supplier);
+        eventPublisher.publishSupplierUpdated(
+                com.aerospace.procurement_service.event.SupplierUpdatedEvent.builder()
+                        .supplierId(saved.getId())
+                        .supplierName(saved.getName())
+                        .vendorCode(saved.getVendorCode())
+                        .active(saved.isActive())
+                        .updatedBy(saved.getUpdatedBy())
+                        .build());
+        return saved;
     }
 
     @Override
@@ -126,6 +135,15 @@ public class SupplierServiceImpl implements SupplierService {
     public Supplier setActive(Long id, boolean active) {
         Supplier supplier = getSupplierById(id);
         supplier.setActive(active);
-        return supplierRepository.save(supplier);
+        Supplier saved = supplierRepository.save(supplier);
+        eventPublisher.publishSupplierUpdated(
+                com.aerospace.procurement_service.event.SupplierUpdatedEvent.builder()
+                        .supplierId(saved.getId())
+                        .supplierName(saved.getName())
+                        .vendorCode(saved.getVendorCode())
+                        .active(saved.isActive())
+                        .updatedBy(saved.getUpdatedBy())
+                        .build());
+        return saved;
     }
 }

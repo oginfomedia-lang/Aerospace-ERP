@@ -13,8 +13,13 @@ import org.springframework.stereotype.Component;
  *   Dr Accounts Receivable (1200)   — the customer owes us
  *   Cr Revenue              (4000)   — revenue recognised
  *
- * The counterpartyRef on the GL line is set to the customerRef so that
- * the AR aging and ledger views can group by customer.
+ * event.getCustomerId() is resolved against the local CustomerReference mirror and
+ * tags the AR (debit) line, so the AR aging/ledger views can group by customer —
+ * counterpartyRef is auto-derived from it, not read from the deprecated customerRef.
+ *
+ * Note: as of this writing nothing in the backend actually publishes to topic
+ * "customer-invoice-created" yet (sales-service has no invoice concept today) — this
+ * consumer is correct and ready, just not yet exercised by real traffic.
  */
 @Component
 @RequiredArgsConstructor
@@ -38,7 +43,7 @@ public class CustomerInvoiceEventConsumer {
                     event.getCurrency(),
                     "CUSTOMER_INVOICE",
                     event.getInvoiceNumber(),
-                    null, null);
+                    null, null, null, event.getCustomerId());
         } catch (Exception ex) {
             log.error("Failed to post AR journal for CustomerInvoiceCreatedEvent invoice={}: {}",
                     event.getInvoiceNumber(), ex.getMessage(), ex);

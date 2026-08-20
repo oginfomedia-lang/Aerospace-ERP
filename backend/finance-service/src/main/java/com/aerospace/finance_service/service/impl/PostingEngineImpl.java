@@ -42,7 +42,8 @@ public class PostingEngineImpl implements PostingEngine {
     @Override
     public JournalEntryDTO postFromEvent(PostingTriggerType triggerEvent, BigDecimal amount, String currency,
                                           String sourceDocType, String sourceDocRef,
-                                          Long costCenterId, Long profitCenterId) {
+                                          Long costCenterId, Long profitCenterId,
+                                          Long supplierId, Long customerId) {
 
         PostingRule rule = postingRuleRepository.findByTriggerEventAndIsActiveTrue(triggerEvent)
                 .orElseThrow(() -> new ResourceNotFoundException("No active posting rule configured for trigger event: " + triggerEvent));
@@ -73,14 +74,23 @@ public class PostingEngineImpl implements PostingEngine {
             }
         }
 
-        lines.add(JournalLineCreateDTO.builder()
+        // Debit side = AR/customer by convention (the two only trigger types that ever
+        // carry a counterparty), credit side = AP/supplier — hardcoded rather than a
+        // generic PostingRule column, since only VENDOR_INVOICE_APPROVED and
+        // CUSTOMER_INVOICE ever pass a non-null supplierId/customerId here.
+        JournalLineCreateDTO.JournalLineCreateDTOBuilder debitLine = JournalLineCreateDTO.builder()
                 .accountCode(rule.getDebitAccountCode()).debitAmount(amount).currency(currency)
                 .costCenterId(effectiveCostCenter).profitCenterId(effectiveProfitCenter)
-                .description("Auto-posted: " + triggerEvent).build());
-        lines.add(JournalLineCreateDTO.builder()
+                .description("Auto-posted: " + triggerEvent);
+        if (customerId != null) debitLine.customerId(customerId);
+        lines.add(debitLine.build());
+
+        JournalLineCreateDTO.JournalLineCreateDTOBuilder creditLine = JournalLineCreateDTO.builder()
                 .accountCode(rule.getCreditAccountCode()).creditAmount(amount).currency(currency)
                 .costCenterId(effectiveCostCenter).profitCenterId(effectiveProfitCenter)
-                .description("Auto-posted: " + triggerEvent).build());
+                .description("Auto-posted: " + triggerEvent);
+        if (supplierId != null) creditLine.supplierId(supplierId);
+        lines.add(creditLine.build());
 
         JournalEntryCreateDTO entryDto = JournalEntryCreateDTO.builder()
                 .postingDate(LocalDate.now())

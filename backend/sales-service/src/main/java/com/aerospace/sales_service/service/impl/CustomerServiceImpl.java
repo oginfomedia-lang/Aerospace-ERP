@@ -5,6 +5,7 @@ import com.aerospace.sales_service.dto.CustomerRequestDTO;
 import com.aerospace.sales_service.dto.CustomerResponseDTO;
 import com.aerospace.sales_service.entity.Customer;
 import com.aerospace.sales_service.entity.CustomerStatus;
+import com.aerospace.sales_service.event.producer.SalesProducer;
 import com.aerospace.sales_service.exception.ResourceNotFoundException;
 import com.aerospace.sales_service.repository.CustomerRepository;
 import com.aerospace.sales_service.service.CustomerService;
@@ -22,6 +23,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerRepository customerRepository;
     private final DocumentSequenceService documentSequenceService;
+    private final SalesProducer salesProducer;
 
     @Override
     @Transactional
@@ -40,6 +42,7 @@ public class CustomerServiceImpl implements CustomerService {
                 .build();
         Customer saved = customerRepository.save(customer);
         log.info("Customer registered — customerCode: {}, name: {}", saved.getCustomerCode(), saved.getName());
+        salesProducer.sendCustomerRegistered(saved.getId(), saved.getCustomerCode(), saved.getName());
         return toDTO(saved);
     }
 
@@ -58,7 +61,9 @@ public class CustomerServiceImpl implements CustomerService {
         if (dto.getStatus() != null && !dto.getStatus().isBlank()) {
             customer.setStatus(CustomerStatus.valueOf(dto.getStatus()));
         }
-        return toDTO(customerRepository.save(customer));
+        Customer saved = customerRepository.save(customer);
+        salesProducer.sendCustomerUpdated(saved.getId(), saved.getCustomerCode(), saved.getName(), saved.getStatus().name());
+        return toDTO(saved);
     }
 
     @Override

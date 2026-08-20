@@ -16,9 +16,12 @@ public class SupplierReferenceServiceImpl implements SupplierReferenceService {
 
     private final SupplierReferenceRepository supplierReferenceRepository;
 
+    // Active-only: this feeds a picker dropdown, and nothing today needs an
+    // "all, including inactive" view. getById() stays unfiltered — an existing
+    // payment/journal line referencing a now-inactive supplier must still resolve.
     @Override
     public List<SupplierReferenceDTO> getAll() {
-        return supplierReferenceRepository.findAll().stream().map(this::toDTO).toList();
+        return supplierReferenceRepository.findByActiveTrue().stream().map(this::toDTO).toList();
     }
 
     @Override
@@ -30,6 +33,7 @@ public class SupplierReferenceServiceImpl implements SupplierReferenceService {
     private SupplierReferenceDTO toDTO(SupplierReference s) {
         return SupplierReferenceDTO.builder()
                 .id(s.getId()).supplierName(s.getSupplierName()).vendorCode(s.getVendorCode())
+                .active(s.getActive())
                 .build();
     }
 }

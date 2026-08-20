@@ -32,6 +32,13 @@ public class SupplierReference {
     @Column(nullable = false, length = 100)
     private String registeredBy;
 
+    // Reflects procurement-service's Supplier.active — kept in sync via
+    // SupplierUpdatedEvent (updateSupplier / setActive both publish it). Defaults true
+    // so a freshly-registered supplier is immediately pickable.
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean active = true;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime syncedAt;
 

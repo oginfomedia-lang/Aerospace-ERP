@@ -94,6 +94,7 @@ export interface JournalLine {
   currency: string;
   counterpartyRef?: string;
   supplierId?: number;
+  customerId?: number;
   costCenterId?: number;
   profitCenterId?: number;
   description?: string;
@@ -208,6 +209,15 @@ export interface Supplier {
   id: number;
   supplierName: string;
   vendorCode: string;
+}
+
+// ── Customers (local read-only mirror, synced from sales-service via Kafka) ──────
+
+export interface Customer {
+  id: number;
+  customerName: string;
+  customerCode: string;
+  status?: 'ACTIVE' | 'INACTIVE' | 'ON_HOLD';
 }
 
 // ── Supplier payments ──────────────────────────────────────────────────────

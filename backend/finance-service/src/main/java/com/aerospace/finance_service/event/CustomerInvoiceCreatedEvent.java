@@ -10,7 +10,9 @@ import java.time.LocalDate;
 @NoArgsConstructor
 public class CustomerInvoiceCreatedEvent {
     private String invoiceNumber;
-    private String customerRef;   // e.g. "CUSTOMER:207" — used as counterpartyRef on the GL line
+    private Long customerId;      // real FK — resolved against CustomerReference
+    @Deprecated
+    private String customerRef;   // superseded by customerId; kept for backward compat
     private BigDecimal totalAmount;
     private String currency;
     private LocalDate invoiceDate;

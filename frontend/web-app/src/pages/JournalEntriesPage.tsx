@@ -3,10 +3,11 @@ import financeApi from '../api/financeAxios';
 import toast from 'react-hot-toast';
 import { BookOpen, Loader2, ChevronRight, CheckCircle2, PlusCircle, Plus, Trash2 } from 'lucide-react';
 import { ApiResponse } from '../types/inventory';
-import { Account, JournalEntry, JournalEntryCreatePayload, JournalLine, Supplier } from '../types/finance';
+import { Account, JournalEntry, JournalEntryCreatePayload, JournalLine, Supplier, Customer } from '../types/finance';
 import { JournalEntryDetailModal } from '../components/JournalEntryDetailModal';
 import { Dropdown } from '../components/Dropdown';
 import { fetchSuppliers } from '../api/financeSuppliers';
+import { fetchCustomers } from '../api/financeCustomers';
 import { useAuth } from '../context/AuthContext';
 import { hasAnyRole, CAN_MANAGE_FINANCE } from '../utils/permissions';
 
@@ -32,6 +33,8 @@ const JournalEntriesPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [suppliersLoading, setSuppliersLoading] = useState(true);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<JournalEntry | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -61,6 +64,9 @@ const JournalEntriesPage = () => {
   }, []);
   useEffect(() => {
     fetchSuppliers().then(setSuppliers).catch(() => {}).finally(() => setSuppliersLoading(false));
+  }, []);
+  useEffect(() => {
+    fetchCustomers().then(setCustomers).catch(() => {}).finally(() => setCustomersLoading(false));
   }, []);
 
   const updateLine = (idx: number, patch: Partial<JournalLine>) => {
@@ -148,42 +154,60 @@ const JournalEntriesPage = () => {
             </div>
             <div className="space-y-2">
               {form.lines.map((l, i) => (
-                <div key={i} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <select value={l.accountCode} onChange={e => updateLine(i, { accountCode: e.target.value })}
-                    className="col-span-3 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs">
-                    <option value="">— Account —</option>
-                    {accounts.map(a => <option key={a.id} value={a.accountCode}>{a.accountCode} — {a.accountName}</option>)}
-                  </select>
-                  <input type="number" min={0} step="0.01" placeholder="Debit" value={l.debitAmount || ''}
-                    onChange={e => updateLine(i, { debitAmount: Number(e.target.value), creditAmount: 0 })}
-                    className="col-span-2 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
-                  <input type="number" min={0} step="0.01" placeholder="Credit" value={l.creditAmount || ''}
-                    onChange={e => updateLine(i, { creditAmount: Number(e.target.value), debitAmount: 0 })}
-                    className="col-span-2 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
-                  <input value={l.currency} onChange={e => updateLine(i, { currency: e.target.value.toUpperCase() })}
-                    placeholder="Currency" maxLength={3}
-                    className="col-span-1 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
-                  <div className="col-span-2">
-                    <Dropdown<number>
-                      options={suppliers.map(s => ({ value: s.id, label: s.supplierName, sublabel: s.vendorCode }))}
-                      value={l.supplierId ?? ''}
-                      loading={suppliersLoading}
-                      placeholder="— Supplier —"
-                      emptyMessage="No suppliers synced yet"
-                      onChange={(supplierId) => updateLine(i, {
-                        supplierId,
-                        counterpartyRef: l.counterpartyRef || `SUPPLIER:${supplierId}`,
-                      })}
-                      className="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs"
-                    />
+                <div key={i} className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <div className="grid grid-cols-12 gap-2 items-center">
+                    <select value={l.accountCode} onChange={e => updateLine(i, { accountCode: e.target.value })}
+                      className="col-span-4 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs">
+                      <option value="">— Account —</option>
+                      {accounts.map(a => <option key={a.id} value={a.accountCode}>{a.accountCode} — {a.accountName}</option>)}
+                    </select>
+                    <input type="number" min={0} step="0.01" placeholder="Debit" value={l.debitAmount || ''}
+                      onChange={e => updateLine(i, { debitAmount: Number(e.target.value), creditAmount: 0 })}
+                      className="col-span-2 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                    <input type="number" min={0} step="0.01" placeholder="Credit" value={l.creditAmount || ''}
+                      onChange={e => updateLine(i, { creditAmount: Number(e.target.value), debitAmount: 0 })}
+                      className="col-span-2 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                    <input value={l.currency} onChange={e => updateLine(i, { currency: e.target.value.toUpperCase() })}
+                      placeholder="Currency" maxLength={3}
+                      className="col-span-2 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                    <button type="button" onClick={() => removeLine(i)} disabled={form.lines.length === 2}
+                      className="col-span-2 flex items-center justify-center text-red-500 disabled:opacity-30">
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                  <input value={l.counterpartyRef || ''} onChange={e => updateLine(i, { counterpartyRef: e.target.value })}
-                    placeholder="Counterparty (optional)"
-                    className="col-span-1 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
-                  <button type="button" onClick={() => removeLine(i)} disabled={form.lines.length === 2}
-                    className="col-span-1 flex items-center justify-center text-red-500 disabled:opacity-30">
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="grid grid-cols-12 gap-2 items-center">
+                    <div className="col-span-4">
+                      <Dropdown<number>
+                        options={suppliers.map(s => ({ value: s.id, label: s.supplierName, sublabel: s.vendorCode }))}
+                        value={l.supplierId ?? ''}
+                        loading={suppliersLoading}
+                        placeholder="— Supplier (AP) —"
+                        emptyMessage="No suppliers synced yet"
+                        onChange={(supplierId) => updateLine(i, {
+                          supplierId, customerId: undefined,
+                          counterpartyRef: l.counterpartyRef || `SUPPLIER:${supplierId}`,
+                        })}
+                        className="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div className="col-span-4">
+                      <Dropdown<number>
+                        options={customers.map(c => ({ value: c.id, label: c.customerName, sublabel: c.customerCode }))}
+                        value={l.customerId ?? ''}
+                        loading={customersLoading}
+                        placeholder="— Customer (AR) —"
+                        emptyMessage="No customers synced yet"
+                        onChange={(customerId) => updateLine(i, {
+                          customerId, supplierId: undefined,
+                          counterpartyRef: l.counterpartyRef || `CUSTOMER:${customerId}`,
+                        })}
+                        className="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                    <input value={l.counterpartyRef || ''} onChange={e => updateLine(i, { counterpartyRef: e.target.value })}
+                      placeholder="Counterparty (optional)"
+                      className="col-span-4 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                  </div>
                 </div>
               ))}
             </div>

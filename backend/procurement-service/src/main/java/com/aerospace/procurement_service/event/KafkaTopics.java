@@ -24,6 +24,7 @@ public class KafkaTopics {
 
     public static final String SUPPLIER_REGISTERED = "supplier-registered-events";
     public static final String SUPPLIER_CONFIRMATION_DECIDED = "supplier-confirmation-decided-events";
+    public static final String SUPPLIER_UPDATED = "supplier-updated-events";
 
     // Published when a Vendor Invoice's status flips to APPROVED — consumed by
     // finance-service's PostingEngine to raise the AP liability journal entry.

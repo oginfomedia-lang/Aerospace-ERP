@@ -25,6 +25,10 @@ public class JournalLineCreateDTO {
     // non-AP lines) have no supplier at all.
     private Long supplierId;
 
+    // Mirrors supplierId for AR lines — a line must never set both (it's either an
+    // AP line, an AR line, or neither, never both).
+    private Long customerId;
+
     private Long costCenterId;
     private Long profitCenterId;
     private String description;

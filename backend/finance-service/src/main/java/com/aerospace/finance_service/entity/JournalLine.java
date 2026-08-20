@@ -42,6 +42,12 @@ public class JournalLine {
     @JoinColumn(name = "supplier_id", foreignKey = @ForeignKey(name = "fk_journal_line_supplier"))
     private SupplierReference supplier;
 
+    // Mirrors `supplier` above for AR lines — a line is never both AP and AR, so
+    // exactly one of supplier/customer is set, or neither.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", foreignKey = @ForeignKey(name = "fk_journal_line_customer"))
+    private CustomerReference customer;
+
     private Long costCenterId;
     private Long profitCenterId;
     @Column(length = 300)

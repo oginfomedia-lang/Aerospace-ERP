@@ -9,4 +9,5 @@ public class SupplierReferenceDTO {
     private Long id;
     private String supplierName;
     private String vendorCode;
+    private Boolean active;
 }

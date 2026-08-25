@@ -381,7 +381,7 @@ useEffect(() => {
               <Plane size={20} className="text-white" />
             </div>
             <div>
-              <div className="font-black text-white text-sm tracking-tight">AEROSPACE ERP</div>
+              <div className="font-black text-white text-sm tracking-tight">AEROSTREAM ONE</div>
               <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
                 Inventory & QA
               </div>
@@ -414,35 +414,9 @@ useEffect(() => {
           ))}
         </nav>
 
-        {/* Service status indicator */}
-        <div className="p-4 border-t border-slate-800 space-y-2">
-          <div className="text-[10px] text-slate-600 font-black uppercase tracking-widest mb-3">
-            Services
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] text-slate-400 font-bold">Inventory · :8081</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] text-slate-400 font-bold">QA Service · :8082</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] text-slate-400 font-bold">Notifications · :8083</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] text-slate-400 font-bold">Production · :8085</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] text-slate-400 font-bold">Procurement · :8086</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] text-slate-400 font-bold">Sales · :8091</span>
-          </div>
+        {/* Footer */}
+        <div className="shrink-0 border-t border-slate-800 px-4 py-3 text-center text-[10px] text-slate-500 font-medium">
+          Designed and developed by LiteCode
         </div>
       </aside>
 

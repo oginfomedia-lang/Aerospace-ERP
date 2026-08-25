@@ -95,7 +95,7 @@ const Dashboard = () => {
       val: stats.inventoryValue > 0 ? `$${stats.inventoryValue.toLocaleString()}` : 'Pending Pricing',
       icon: <TrendingUp size={20} />,
       color: 'from-indigo-600 to-indigo-700',
-      note: 'Finance integration pending',
+      note: 'Finance integration',
       roles: ['PROCUREMENT_OFFICER', 'MANAGER', 'ADMIN']
     },
   ];

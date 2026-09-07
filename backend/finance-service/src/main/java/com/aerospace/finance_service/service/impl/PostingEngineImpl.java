@@ -13,16 +13,21 @@ import com.aerospace.finance_service.service.JournalEntryService;
 import com.aerospace.finance_service.service.PostingEngine;
 import com.aerospace.finance_service.service.TaxCalculator;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class PostingEngineImpl implements PostingEngine {
+
+    private static final Logger log = LoggerFactory.getLogger(PostingEngineImpl.class);
 
     private final PostingRuleRepository postingRuleRepository;
     private final TaxCalculator taxCalculator;
@@ -98,6 +103,18 @@ public class PostingEngineImpl implements PostingEngine {
                 .sourceDocType(sourceDocType).sourceDocRef(sourceDocRef)
                 .costCenterId(effectiveCostCenter).profitCenterId(effectiveProfitCenter)
                 .lines(lines).build();
+
+        // Kafka gives at-least-once delivery — a legitimate event can be redelivered
+        // and land here twice. When the event carries a sourceDocType/sourceDocRef pair,
+        // treat a pre-existing journal for that same pair as this exact event already
+        // having been posted, and return it as-is instead of posting a duplicate.
+        if (sourceDocType != null && !sourceDocType.isBlank() && sourceDocRef != null && !sourceDocRef.isBlank()) {
+            Optional<JournalEntryDTO> existing = journalEntryService.findBySourceDoc(sourceDocType, sourceDocRef);
+            if (existing.isPresent()) {
+                log.warn("Duplicate posting event for {} {} — journal entry already exists, skipping", sourceDocType, sourceDocRef);
+                return existing.get();
+            }
+        }
 
         JournalEntryDTO created = journalEntryService.create(entryDto, SYSTEM_USER);
         return journalEntryService.submit(created.getId(), SYSTEM_USER);

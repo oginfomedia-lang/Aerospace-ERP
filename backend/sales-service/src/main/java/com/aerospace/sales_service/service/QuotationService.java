@@ -16,7 +16,7 @@ public interface QuotationService {
     // common-lib's ApprovalEngine. That's deliberately reserved for Sales Orders (the
     // real commitment), since a quotation is cheap and reversible.
     QuotationResponseDTO submitForApproval(Long id);
-    QuotationResponseDTO approve(Long id);
+    QuotationResponseDTO approve(Long id, String approverUsername);
     QuotationResponseDTO reject(Long id);
 
     // The actual "commitment" moment (§18.6: "Quotations may be converted into Sales

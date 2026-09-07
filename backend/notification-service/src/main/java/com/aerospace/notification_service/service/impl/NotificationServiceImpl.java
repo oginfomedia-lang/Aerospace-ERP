@@ -40,6 +40,11 @@ public class NotificationServiceImpl implements NotificationService {
                 event.getPartName(), event.getBatchNumber(),
                 event.getCurrentQuantity(), event.getReorderLevel(), event.getLocation());
 
+        // No dedup key: StockLowEvent carries no unique reference and this alert is
+        // expected to legitimately re-fire on every low-stock check while the
+        // condition persists, so a synthetic (partId+batchNumber) key would wrongly
+        // suppress real repeat alerts. Kafka-redelivery dedup is a follow-up if this
+        // topic ever gains a stable per-alert id.
         dispatch(NotificationLog.builder()
                 .type(NotificationType.LOW_STOCK)
                 .partId(event.getPartId())
@@ -97,8 +102,13 @@ public class NotificationServiceImpl implements NotificationService {
             };
         }
 
+        // Dedup key: the batch is the natural business identity of a QA decision;
+        // combined with `type` (PENDING/APPROVED/REJECTED/EXPIRED) this uniquely
+        // identifies "this decision for this batch" and correctly allows a later,
+        // genuinely different decision on the same batch through.
         dispatch(NotificationLog.builder()
                 .type(type)
+                .eventId(event.getBatchNumber())
                 .partId(event.getPartId())
                 .partName(event.getPartName())
                 .batchNumber(event.getBatchNumber())
@@ -122,6 +132,10 @@ public class NotificationServiceImpl implements NotificationService {
                 event.getIssuedTo(), event.getIssuedBy(),
                 event.getRemainingQuantity(), event.getLocation());
 
+        // No dedup key: MaterialIssuedEvent carries no issue/transaction number, and
+        // repeat issues of the same part/batch to the same recipient are normal
+        // business activity, not just redelivery — follow-up if a transaction id
+        // is ever added upstream.
         dispatch(NotificationLog.builder()
                 .type(NotificationType.MATERIAL_ISSUED)
                 .partId(event.getPartId())
@@ -145,6 +159,8 @@ public class NotificationServiceImpl implements NotificationService {
                 event.getQuantityReceived(), event.getPartName(), event.getBatchNumber(),
                 event.getSupplier(), event.getLocation(), event.getReceivedBy());
 
+        // No dedup key: StockReceivedEvent carries no GRN/transaction number despite
+        // the class comment mentioning one — follow-up if a GRN id is added upstream.
         dispatch(NotificationLog.builder()
                 .type(NotificationType.STOCK_RECEIVED)
                 .partId(event.getPartId())
@@ -169,6 +185,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         dispatch(NotificationLog.builder()
                 .type(NotificationType.PART_CREATED)
+                .eventId(event.getPartId() != null ? String.valueOf(event.getPartId()) : null)
                 .partId(event.getPartId())
                 .partName(event.getPartName())
                 .batchNumber(event.getBatchNumber())
@@ -191,6 +208,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         dispatch(NotificationLog.builder()
                 .type(NotificationType.VENDOR_RETURN)
+                .eventId(event.getNcrNumber())
                 .partId(event.getPartId())
                 .partName(event.getPartName())
                 .batchNumber(event.getBatchNumber())
@@ -219,6 +237,10 @@ public class NotificationServiceImpl implements NotificationService {
                         event.getAssetTag(), event.getEquipmentName(), event.getEquipmentType(),
                         event.getDaysUntilDue(), event.getNextCalibrationDueAt(), event.getLocation());
 
+        // No dedup key: this is a scheduler-driven recurring alert (daysUntilDue
+        // shrinks and overdue flips on each run) with no per-alert id, so an
+        // assetTag-based key would wrongly swallow later, genuinely new alerts
+        // for the same asset — follow-up if the scheduler ever attaches a run id.
         dispatch(NotificationLog.builder()
                 .type(NotificationType.CALIBRATION_DUE)
                 .partName(event.getEquipmentName())    // reusing partName for equipment name
@@ -244,6 +266,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         dispatch(NotificationLog.builder()
                 .type(NotificationType.FAI_COMPLETED)
+                .eventId(event.getFaiNumber())
                 .partId(event.getPartId())
                 .partName(event.getPartName())
                 .batchNumber(event.getBatchNumber())
@@ -275,8 +298,15 @@ public class NotificationServiceImpl implements NotificationService {
                     event.getRemarks() != null ? event.getRemarks() : "—");
         }
 
+        // Dedup key: capaNumber + toStatus (or "OVERDUE") identifies one specific
+        // transition of this CAPA, so a later genuinely different transition on the
+        // same CAPA still gets through.
+        String capaEventId = event.getCapaNumber() != null
+                ? event.getCapaNumber() + ":" + (event.isOverdue() ? "OVERDUE" : event.getToStatus())
+                : null;
         dispatch(NotificationLog.builder()
                 .type(event.isOverdue() ? NotificationType.CAPA_OVERDUE : NotificationType.CAPA_STATUS_CHANGED)
+                .eventId(capaEventId)
                 .batchNumber(event.getBatchNumber())
                 .message(message)
                 .actorUsername(event.getActor())
@@ -302,6 +332,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         dispatch(NotificationLog.builder()
                 .type(NotificationType.WORK_ORDER_CREATED)
+                .eventId(event.getWoNumber())
                 .partId(event.getWorkOrderId())       // reusing partId field for WO ID
                 .partName(event.getWoNumber())        // reusing partName for WO number
                 .batchNumber(event.getAircraftId())   // reusing batchNumber for aircraft ID
@@ -341,8 +372,11 @@ public class NotificationServiceImpl implements NotificationService {
                 event.getChangedBy() != null ? event.getChangedBy() : "System",
                 event.getRemarks()   != null ? event.getRemarks()   : "—");
 
+        // Dedup key: woNumber + toStatus identifies one specific status transition,
+        // so a later genuinely different transition of the same WO still gets through.
         dispatch(NotificationLog.builder()
                 .type(NotificationType.WORK_ORDER_UPDATED)
+                .eventId(event.getWoNumber() != null ? event.getWoNumber() + ":" + event.getToStatus() : null)
                 .partId(event.getWorkOrderId())
                 .partName(event.getWoNumber())
                 .batchNumber(event.getAircraftId())
@@ -368,6 +402,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         dispatch(NotificationLog.builder()
                 .type(NotificationType.WORK_ORDER_COMPLETED)
+                .eventId(event.getWoNumber())
                 .partId(event.getWorkOrderId())
                 .partName(event.getWoNumber())
                 .batchNumber(event.getAircraftId())
@@ -414,6 +449,18 @@ public class NotificationServiceImpl implements NotificationService {
     // ── Orchestration ─────────────────────────────────────────────────────────
 
     private void dispatch(NotificationLog log_, String message) {
+        // De-dup on Kafka redelivery: when the triggering event carries a stable
+        // business key (PO/WO/FAI/CAPA number, part id, etc. — set on the builder
+        // at the call site), skip re-sending the websocket/email side effects for
+        // an event+type pair we've already dispatched. Events with no natural key
+        // (see comments at their call sites) leave eventId null and are not deduped.
+        if (log_.getEventId() != null
+                && notificationRepository.existsByEventIdAndType(log_.getEventId(), log_.getType())) {
+            log.info("[NOTIFY] Skipping duplicate dispatch — already sent for eventId={}, type={}",
+                    log_.getEventId(), log_.getType());
+            return;
+        }
+
         boolean wsSent    = false;
         boolean emailSent = false;
         String  errorMsg  = null;
@@ -463,6 +510,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         dispatch(NotificationLog.builder()
                 .type(NotificationType.APPROVAL_ESCALATED)
+                .eventId(event.getModuleCode() + ":" + event.getDocumentId() + ":" + event.getApprovalLevel())
                 .message(message)
                 .severity("WARNING")
                 .build(), message);
@@ -478,6 +526,10 @@ public class NotificationServiceImpl implements NotificationService {
                 event.getPoNumber(), event.getSupplierName() != null ? event.getSupplierName() : "supplier",
                 event.getDeliveryDate(), event.getHoursOverdue());
 
+        // No dedup key: this is a scheduler-driven recurring reminder (hoursOverdue
+        // grows on each run) with no per-alert id, so a poNumber-only key would
+        // wrongly swallow later, genuinely new reminders for the same overdue PO —
+        // follow-up if the scheduler ever attaches a run id.
         dispatch(NotificationLog.builder()
                 .type(NotificationType.PO_DELIVERY_OVERDUE)
                 .partName(event.getPoNumber())   // reusing partName for the PO number, same convention WO events use
@@ -500,6 +552,7 @@ public class NotificationServiceImpl implements NotificationService {
         // Internal visibility — same in-app/ops-email path every other notification uses.
         dispatch(NotificationLog.builder()
                 .type(NotificationType.PO_SENT_TO_VENDOR)
+                .eventId(event.getPoNumber())
                 .partName(event.getPoNumber())
                 .message(message)
                 .severity("INFO")
@@ -541,6 +594,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         dispatch(NotificationLog.builder()
                 .type(NotificationType.SUPPLIER_PENDING_CONFIRMATION)
+                .eventId(event.getVendorCode())
                 .partName(event.getSupplierName())
                 .message(message)
                 .actorUsername(event.getRegisteredBy())
@@ -561,6 +615,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         dispatch(NotificationLog.builder()
                 .type(confirmed ? NotificationType.SUPPLIER_CONFIRMED : NotificationType.SUPPLIER_REJECTED)
+                .eventId(event.getSupplierId() != null ? String.valueOf(event.getSupplierId()) : null)
                 .partName(event.getSupplierName())
                 .message(message)
                 .actorUsername(event.getDecidedBy())
@@ -584,6 +639,8 @@ public class NotificationServiceImpl implements NotificationService {
                         event.getMachineCode(), event.getMachineName(), event.getMachineType(),
                         event.getDaysUntilDue(), event.getNextMaintenanceDueAt(), event.getLocation());
 
+        // No dedup key: same scheduler-driven recurring alert shape as
+        // CalibrationDueEvent — see comment on handleCalibrationDue().
         dispatch(NotificationLog.builder()
                 .type(NotificationType.MAINTENANCE_DUE)
                 .partName(event.getMachineName())
@@ -631,6 +688,7 @@ public class NotificationServiceImpl implements NotificationService {
 
                 dispatch(NotificationLog.builder()
                         .type(NotificationType.SALES_ORDER_DISPATCHED)
+                        .eventId(event.getDispatchNumber() != null ? event.getDispatchNumber() : event.getOrderNumber())
                         .partId(event.getSalesOrderId())
                         .partName(event.getOrderNumber())
                         .batchNumber(event.getDispatchNumber())

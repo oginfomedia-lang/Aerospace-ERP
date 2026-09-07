@@ -6,6 +6,7 @@ import com.aerospace.procurement_service.event.QAStatusChangedEvent;
 import com.aerospace.procurement_service.event.StockLowEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,9 +14,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.util.backoff.FixedBackOff;
 import com.aerospace.procurement_service.event.VendorReturnEvent;
 
 import java.util.HashMap;
@@ -50,6 +55,19 @@ public class KafkaConfig {
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate() {
         return new KafkaTemplate<>(producerFactory());
+    }
+
+    // ==========================================
+    // 1b. ERROR HANDLING (retry then DLT)
+    // ==========================================
+
+    @Bean
+    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, Object> kafkaTemplate) {
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate,
+                (record, ex) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(2000L, 3));
+        handler.addNotRetryableExceptions(DeserializationException.class);
+        return handler;
     }
 
     // ==========================================
@@ -91,6 +109,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, StockLowEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(stockLowConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler(kafkaTemplate()));
         return factory;
     }
 
@@ -118,6 +137,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, MaterialShortageEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(materialShortageConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler(kafkaTemplate()));
         return factory;
     }
 
@@ -145,6 +165,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, QAStatusChangedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(qaStatusChangedConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler(kafkaTemplate()));
         return factory;
     }
 
@@ -172,6 +193,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, VendorReturnEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(vendorReturnConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler(kafkaTemplate()));
         return factory;
     }
 
@@ -199,6 +221,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, MaterialReceivedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(materialReceivedConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler(kafkaTemplate()));
         return factory;
     }
 }

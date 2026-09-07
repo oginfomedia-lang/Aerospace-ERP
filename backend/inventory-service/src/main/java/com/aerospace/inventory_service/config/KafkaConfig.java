@@ -5,6 +5,7 @@ import com.aerospace.inventory_service.event.ProductionOrderCompletedEvent;
 import com.aerospace.inventory_service.event.QAStatusUpdatedEvent;
 import com.aerospace.inventory_service.event.WorkOrderCreatedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,8 +13,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.util.backoff.FixedBackOff;
 
 
 import java.util.HashMap;
@@ -24,6 +30,21 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
+
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    public KafkaConfig(KafkaTemplate<String, Object> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    @Bean
+    public DefaultErrorHandler kafkaErrorHandler() {
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate,
+                (record, ex) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(2000L, 3));
+        handler.addNotRetryableExceptions(DeserializationException.class);
+        return handler;
+    }
 
     // Shared base consumer properties
     private Map<String, Object> baseConsumerProps() {
@@ -57,6 +78,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, QAStatusUpdatedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(qaConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler());
         return factory;
     }
 
@@ -81,6 +103,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, PartCreatedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(partCreatedConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler());
         return factory;
     }
 
@@ -105,6 +128,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, WorkOrderCreatedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(workOrderCreatedConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler());
         return factory;
     }
 
@@ -125,6 +149,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, ProductionOrderCompletedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(productionOrderCompletedConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler());
         return factory;
         }
 

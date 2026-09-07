@@ -1,8 +1,10 @@
 package com.aerospace.auth_service.service;
 
+import com.aerospace.auth_service.client.ProcurementServiceClient;
 import com.aerospace.auth_service.dto.SupplierAuthDTOs.SupplierActivateRequest;
 import com.aerospace.auth_service.dto.SupplierAuthDTOs.SupplierInviteRequest;
 import com.aerospace.auth_service.dto.SupplierAuthDTOs.SupplierResendInviteRequest;
+import com.aerospace.auth_service.dto.SupplierLookupResponse;
 import com.aerospace.auth_service.entity.Role;
 import com.aerospace.auth_service.entity.SupplierInvite;
 import com.aerospace.auth_service.entity.User;
@@ -34,14 +36,10 @@ public class SupplierAuthService {
     private final SupplierInviteRepository inviteRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthEventProducer eventProducer;
-    private final org.springframework.web.client.RestTemplate restTemplate;
-    private final jakarta.servlet.http.HttpServletRequest httpRequest;
+    private final ProcurementServiceClient procurementServiceClient;
 
     @Value("${app.frontend.supplier-portal-base-url}")
     private String supplierPortalBaseUrl;
-
-    @Value("${services.procurement.base-url}")
-    private String procurementBaseUrl;
 
     @Transactional
     public void inviteSupplier(SupplierInviteRequest request) {
@@ -150,26 +148,10 @@ public class SupplierAuthService {
     // this is a live check (not a cached flag) — same pattern WorkOrderServiceImpl
     // already uses to validate against inventory-service before letting an action
     // through, with the caller's own JWT forwarded so the downstream call is authorized.
+    // The actual HTTP call (with its @Retry/@CircuitBreaker) lives in
+    // ProcurementServiceClient, not inline here — see that class for why.
     private void assertSupplierConfirmed(Long supplierId) {
-        String url = procurementBaseUrl + "/suppliers/" + supplierId;
-
-        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        String authHeader = httpRequest.getHeader(org.springframework.http.HttpHeaders.AUTHORIZATION);
-        if (authHeader != null) {
-            headers.set(org.springframework.http.HttpHeaders.AUTHORIZATION, authHeader);
-        }
-
-        com.aerospace.auth_service.dto.SupplierLookupResponse supplier;
-        try {
-            var response = restTemplate.exchange(
-                    url,
-                    org.springframework.http.HttpMethod.GET,
-                    new org.springframework.http.HttpEntity<>(headers),
-                    com.aerospace.auth_service.dto.SupplierLookupResponse.class);
-            supplier = response.getBody();
-        } catch (org.springframework.web.client.HttpStatusCodeException ex) {
-            throw new IllegalStateException("Could not verify supplier confirmation status: " + ex.getStatusCode());
-        }
+        SupplierLookupResponse supplier = procurementServiceClient.getSupplier(supplierId);
 
         if (supplier == null || !"CONFIRMED".equals(supplier.getConfirmationStatus())) {
             throw new IllegalStateException(

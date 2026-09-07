@@ -69,4 +69,10 @@ public class User {
 
     private String resetToken;
     private LocalDateTime resetTokenExpiry;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer failedLoginAttempts = 0;
+
+    private LocalDateTime lockedUntil;
 }

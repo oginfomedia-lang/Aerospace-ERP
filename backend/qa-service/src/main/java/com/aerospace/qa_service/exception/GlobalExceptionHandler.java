@@ -1,6 +1,7 @@
 package com.aerospace.qa_service.exception;
 
 import com.aerospace.qa_service.common.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     // Handles @Valid validation failures — returns field-level errors
@@ -39,8 +41,9 @@ public class GlobalExceptionHandler {
     // Handles all other errors
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<String>> handleRuntime(RuntimeException ex) {
+        log.error("[EXCEPTION] Unexpected error: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ApiResponse<>("ERROR", ex.getMessage()));
+                .body(new ApiResponse<>("ERROR", "Internal server error. Please try again or contact support."));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

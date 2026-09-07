@@ -2,7 +2,9 @@ package com.aerospace.inventory_service.repository;
 
 import com.aerospace.inventory_service.entity.StockBalance;
 import com.aerospace.inventory_service.entity.StockStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,6 +19,19 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Long
     // Traceability & Logic
     Optional<StockBalance> findByPartIdAndBatchNumberAndStatus(
             Long partId, String batchNumber, StockStatus status);
+
+    // Pessimistic row lock — must be called (inside an existing @Transactional method)
+    // immediately before mutating a StockBalance's quantity, and the quantity re-validated
+    // against THIS freshly-locked read, not any earlier unlocked one. A second concurrent
+    // caller blocks on the DB row lock until the first transaction commits, then sees the
+    // updated quantity — closing the oversell/lost-update race on concurrent decrements.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from StockBalance s where s.id = :id")
+    Optional<StockBalance> lockById(@Param("id") Long id);
+
+    // Existence check for Kafka redelivery dedup (Fix 5) — one StockBalance batch per
+    // completed production order.
+    boolean existsBySourceProductionOrderRef(String sourceProductionOrderRef);
 
     // Bin-to-Bin Transfers
     Optional<StockBalance> findByPartIdAndBatchNumberAndLocationAndStatus(

@@ -21,16 +21,19 @@ public class AccountController {
     private final AccountService accountService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<AccountDTO>> getAll() {
         return new ApiResponse<>("Accounts fetched", accountService.getAll());
     }
 
     @GetMapping("/tree")
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<AccountDTO>> getTree() {
         return new ApiResponse<>("Chart of accounts tree fetched", accountService.getTree());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<AccountDTO> getById(@PathVariable Long id) {
         return new ApiResponse<>("Account fetched", accountService.getById(id));
     }

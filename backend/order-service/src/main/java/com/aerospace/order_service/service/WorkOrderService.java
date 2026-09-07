@@ -22,10 +22,15 @@ public interface WorkOrderService {
 
     // Bookkeeping-only counterpart to issueMaterial — updates the line's
     // quantityIssued/status/batchNumber and the WO auto-transition check, WITHOUT
-    // re-calling inventory-service. Used by WorkOrderConsumer.onMaterialIssued, since
-    // inventory-service already performed the real stock deduction that triggered
-    // this event — calling issueMaterial there would deduct a second time.
-    WorkOrderResponse recordMaterialIssued(Long workOrderId, Long lineItemId, int quantityIssued, String batchNumber);
+    // re-calling inventory-service. Used by:
+    //   - issueMaterial() itself, right after inventory confirms the deduction
+    //     (eventRef=null — a direct in-process call, nothing to dedup against).
+    //   - WorkOrderConsumer.onMaterialIssued, since inventory-service already performed
+    //     the real stock deduction that triggered this event — calling issueMaterial
+    //     there would deduct a second time. Pass a stable eventRef (e.g. a Kafka
+    //     topic-partition-offset key) so a redelivered copy of the same event is
+    //     skipped (logged, no-op) instead of double-counting the quantity.
+    WorkOrderResponse recordMaterialIssued(Long workOrderId, Long lineItemId, int quantityIssued, String batchNumber, String eventRef);
     WorkOrderResponse addMaterialLineItem(Long workOrderId, MaterialLineItemRequest request);
 
     // ── Queries ───────────────────────────────────────────────────────────────

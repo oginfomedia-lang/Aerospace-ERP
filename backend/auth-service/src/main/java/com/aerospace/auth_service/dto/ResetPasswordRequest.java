@@ -1,6 +1,7 @@
 package com.aerospace.auth_service.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -11,6 +12,8 @@ public class ResetPasswordRequest {
     private String token;
 
     @NotBlank(message = "New password is required")
-    @Size(min = 6, max = 100, message = "Password must be at least 6 characters")
+    @Size(min = 10, max = 100, message = "Password must be at least 10 characters")
+    @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{10,100}$",
+            message = "Password must be at least 10 characters and include at least one uppercase letter, one lowercase letter, and one digit")
     private String newPassword;
 }

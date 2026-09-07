@@ -1,9 +1,10 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { tokenStorage } from '../utils/tokenStorage';
+import { API_URLS } from '../config/apiConfig';
 
 const procurementApi = axios.create({
-  baseURL: 'http://localhost:8086/api',
+  baseURL: API_URLS.procurement,
   headers: { 'Content-Type': 'application/json' },
 });
 

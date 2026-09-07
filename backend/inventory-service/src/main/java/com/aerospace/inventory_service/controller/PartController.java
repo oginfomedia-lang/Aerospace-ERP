@@ -8,6 +8,7 @@ import com.aerospace.inventory_service.service.PartService;
 import com.aerospace.inventory_service.service.TransactionService;
 import com.aerospace.inventory_service.common.ApiResponse;
 import com.aerospace.inventory_service.entity.InventoryTransaction;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;           // FIX 1: was org.hibernate.query.Page
 import org.springframework.data.domain.PageRequest;
@@ -26,7 +27,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/v1/inventory")
 @RequiredArgsConstructor
@@ -38,7 +38,7 @@ public class PartController {
     @Audited(action = "CREATE", entityType = "Part")
     @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PostMapping
-    public ResponseEntity<ApiResponse<PartResponseDTO>> create(@RequestBody PartRequestDTO dto) {
+    public ResponseEntity<ApiResponse<PartResponseDTO>> create(@Valid @RequestBody PartRequestDTO dto) {
         PartResponseDTO response = partService.createPart(dto);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ApiResponse<>("SUCCESS", response));
@@ -48,21 +48,24 @@ public class PartController {
     @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<PartResponseDTO>> update(
-            @PathVariable Long id, @RequestBody PartRequestDTO dto) {
+            @PathVariable Long id, @Valid @RequestBody PartRequestDTO dto) {
         PartResponseDTO response = partService.updatePart(id, dto);
         return ResponseEntity.ok(new ApiResponse<>("UPDATED", response));
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping
     public ResponseEntity<ApiResponse<List<PartResponseDTO>>> getAll() {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partService.getAllParts()));
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<PartResponseDTO>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partService.getById(id)));
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/sku/{skuCode}")
     public ResponseEntity<ApiResponse<PartResponseDTO>> getBySkuCode(@PathVariable String skuCode) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partService.getBySkuCode(skuCode)));
@@ -171,11 +174,13 @@ public class PartController {
                 .collect(Collectors.toSet());
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<PartResponseDTO>>> search(@RequestParam String name) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partService.searchByName(name)));
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/{id}/transactions")
     public ResponseEntity<ApiResponse<List<InventoryTransaction>>> getTransactionHistory(
             @PathVariable Long id) {
@@ -184,6 +189,7 @@ public class PartController {
     }
 
     // Batch traceability — auditors
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/transactions/batch/{batchNumber}")
     public ResponseEntity<ApiResponse<List<InventoryTransaction>>> getBatchHistory(
             @PathVariable String batchNumber) {
@@ -192,6 +198,7 @@ public class PartController {
     }
 
     // Paginated parts list
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/paged")
     public ResponseEntity<ApiResponse<Page<PartResponseDTO>>> getPaged(
             @RequestParam(defaultValue = "0") int page,

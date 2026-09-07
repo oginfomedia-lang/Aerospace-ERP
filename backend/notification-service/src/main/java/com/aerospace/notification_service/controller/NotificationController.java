@@ -15,7 +15,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @PreAuthorize("!hasRole('SUPPLIER')")
-@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor

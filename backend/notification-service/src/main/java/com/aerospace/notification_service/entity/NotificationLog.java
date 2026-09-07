@@ -23,6 +23,13 @@ public class NotificationLog {
     @Column(nullable = false)
     private NotificationType type;
 
+    // Natural business key of the triggering event (PO/WO/FAI/CAPA/NCR number, part
+    // id, etc.), when the upstream event carries one — used to de-dupe side effects
+    // (websocket/email/log) on Kafka redelivery of the same message. Nullable: not
+    // every event type carries a stable identity (see call sites in
+    // NotificationServiceImpl for events where no natural key exists).
+    private String eventId;
+
     // Who/what it's about
     private Long partId;
     private String partName;

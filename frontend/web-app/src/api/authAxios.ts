@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { tokenStorage } from '../utils/tokenStorage';
+import { API_URLS } from '../config/apiConfig';
 
-const AUTH_BASE_URL = 'http://localhost:8087/api/auth';
+const AUTH_BASE_URL = API_URLS.auth;
 
 export const authApi = axios.create({
     baseURL: AUTH_BASE_URL,

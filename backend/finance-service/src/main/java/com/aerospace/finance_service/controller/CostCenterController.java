@@ -21,11 +21,13 @@ public class CostCenterController {
     private final CostCenterService costCenterService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<CostCenterDTO>> getAll() {
         return new ApiResponse<>("Cost centers fetched", costCenterService.getAll());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<CostCenterDTO> getById(@PathVariable Long id) {
         return new ApiResponse<>("Cost center fetched", costCenterService.getById(id));
     }

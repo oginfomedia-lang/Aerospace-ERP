@@ -8,6 +8,8 @@ import com.aerospace.order_service.service.WorkOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -83,7 +85,11 @@ public class WorkOrderConsumer {
         groupId  = "workorder-group",
         containerFactory = "kafkaListenerContainerFactory"
     )
-    public void onMaterialIssued(Map<String, Object> event) {
+    public void onMaterialIssued(
+            Map<String, Object> event,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) long offset) {
         try {
             Long workOrderId = asLong(event.get("workOrderId"));
             Long lineItemId = asLong(event.get("lineItemId"));
@@ -96,10 +102,21 @@ public class WorkOrderConsumer {
             String batchNumber = String.valueOf(event.getOrDefault("batchNumber", ""));
             String issuedBy = String.valueOf(event.getOrDefault("issuedBy", "System"));
 
+            // Prefer inventory-service's own issueNumber (e.g. "ISS-000123") as the dedup
+            // key — it's the SAME reference issueMaterial()'s direct, synchronous call
+            // already recorded into appliedMaterialIssueRefs the moment inventory
+            // confirmed the deduction, so this event (published as a side effect of that
+            // very same call) is recognized as already-applied and skipped here, instead
+            // of double-counting the quantity through two different code paths. Fall back
+            // to the Kafka delivery coordinate only for older events that predate this
+            // field (still correctly guards against plain redelivery of those).
+            String issueNumber = String.valueOf(event.getOrDefault("issueNumber", ""));
+            String eventRef = !issueNumber.isBlank() ? issueNumber : (topic + "-" + partition + "-" + offset);
+
             // Bookkeeping only — inventory-service already performed the real stock
             // deduction that triggered this event (that's why it exists). Calling
             // issueMaterial here would re-deduct a second time.
-            workOrderService.recordMaterialIssued(workOrderId, lineItemId, quantityIssued, batchNumber);
+            workOrderService.recordMaterialIssued(workOrderId, lineItemId, quantityIssued, batchNumber, eventRef);
 
             log.info("[CONSUMER] MATERIAL_ISSUED → WO={} lineItemId={} qty={} batch={} — line updated",
                     workOrderId, lineItemId, quantityIssued, batchNumber);

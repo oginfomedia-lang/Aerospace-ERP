@@ -3,6 +3,7 @@ package com.aerospace.production_service.config;
 import com.aerospace.production_service.event.MaterialIssuedEvent;
 import com.aerospace.production_service.event.WorkOrderStatusChangedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -10,8 +11,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,6 +27,21 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
+
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    public KafkaConfig(KafkaTemplate<String, Object> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    @Bean
+    public DefaultErrorHandler kafkaErrorHandler() {
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate,
+                (record, ex) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(2000L, 3));
+        handler.addNotRetryableExceptions(DeserializationException.class);
+        return handler;
+    }
 
     private Map<String, Object> baseConsumerProps() {
         Map<String, Object> props = new HashMap<>();
@@ -51,6 +72,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, MaterialIssuedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(materialIssuedConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler());
         return factory;
     }
 
@@ -75,6 +97,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, WorkOrderStatusChangedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(workOrderStatusChangedConsumerFactory());
+        factory.setCommonErrorHandler(kafkaErrorHandler());
         return factory;
     }
 }

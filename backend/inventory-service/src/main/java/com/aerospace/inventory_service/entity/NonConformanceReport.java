@@ -35,6 +35,12 @@ public class NonConformanceReport {
     @Column(length = 1000)
     private String reason; // QA remarks captured at rejection time
 
+    // Soft reference to the FAI (compliance-service) whose NON_CONFORMING result
+    // auto-created this NCR (InventoryConsumer.consumeFaiResult) — null for NCRs raised
+    // any other way. Used to dedupe against Kafka at-least-once redelivery of the same
+    // FAI-completed event.
+    private String sourceFaiNumber;
+
     @Enumerated(EnumType.STRING)
     private NcrStatus status;
 

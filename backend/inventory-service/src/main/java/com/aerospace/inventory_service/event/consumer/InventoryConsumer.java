@@ -76,6 +76,13 @@ public class InventoryConsumer {
             log.warn("NON_CONFORMING FAI detected for Part {} ({}) — Auto-generating NCR",
                     event.getPartName(), event.getFaiNumber());
             try {
+                // Dedup against Kafka at-least-once redelivery: this same FAI-completed event
+                // landing twice must not double-create an NCR for the same non-conformance.
+                if (event.getFaiNumber() != null && ncrRepository.existsBySourceFaiNumber(event.getFaiNumber())) {
+                    log.warn("NCR already auto-created for FAI {} — skipping duplicate delivery", event.getFaiNumber());
+                    return;
+                }
+
                 NonConformanceReport ncr = NonConformanceReport.builder()
                         .ncrNumber(documentSequenceService.generate("NCR"))
                         .partId(event.getPartId())
@@ -84,6 +91,7 @@ public class InventoryConsumer {
                         .quantity(1)
                         .reason("Auto-generated from FAI " + event.getFaiNumber() + " NON_CONFORMING result: " + (event.getRemarks() != null ? event.getRemarks() : "First Article Inspection Failed"))
                         .status(NcrStatus.OPEN)
+                        .sourceFaiNumber(event.getFaiNumber())
                         .build();
 
                 NonConformanceReport saved = ncrRepository.save(ncr);

@@ -156,7 +156,10 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
     @Override
     @Transactional
     public VendorInvoiceResponse approve(Long id, InvoiceActionRequest request, String approverUsername, Set<String> approverRoles) {
-        VendorInvoice invoice = findOrThrow(id);
+        // Row-locked — without this, two concurrent approve calls on the same invoice can
+        // both pass the status check before either writes back, double-firing the AP
+        // posting event to finance-service.
+        VendorInvoice invoice = lockOrThrow(id);
         if (invoice.getStatus() != InvoiceStatus.MATCHED && invoice.getStatus() != InvoiceStatus.VARIANCE_HOLD) {
             throw new IllegalStateException("Only a MATCHED or VARIANCE_HOLD invoice can be approved (current: " + invoice.getStatus() + ").");
         }
@@ -170,7 +173,7 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
         // real chain exists, otherwise approve() would fail with "no pending approval".
         boolean hasChain = !approvalEngine.getHistory(MODULE, id).isEmpty();
         if (hasChain) {
-            ApprovalOutcome outcome = approvalEngine.approve(MODULE, id, approverUsername, approverRoles, request.getRemarks());
+            ApprovalOutcome outcome = approvalEngine.approve(MODULE, id, approverUsername, approverRoles, request.getRemarks(), invoice.getCreatedBy());
             if (request.getRemarks() != null && !request.getRemarks().isBlank()) {
                 invoice.setRemarks(request.getRemarks());
             }
@@ -204,7 +207,8 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
     @Override
     @Transactional
     public VendorInvoiceResponse reject(Long id, InvoiceActionRequest request, String approverUsername, Set<String> approverRoles) {
-        VendorInvoice invoice = findOrThrow(id);
+        // Row-locked for the same reason as approve() above.
+        VendorInvoice invoice = lockOrThrow(id);
         if (invoice.getStatus() == InvoiceStatus.APPROVED || invoice.getStatus() == InvoiceStatus.PAID) {
             throw new IllegalStateException("Cannot reject an invoice that is already " + invoice.getStatus() + ".");
         }
@@ -226,7 +230,9 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
     @Override
     @Transactional
     public VendorInvoiceResponse markPaid(Long id) {
-        VendorInvoice invoice = findOrThrow(id);
+        // Row-locked for the same reason as approve()/reject() above — prevents a
+        // double-click (or retry) from marking the same invoice paid twice.
+        VendorInvoice invoice = lockOrThrow(id);
         if (invoice.getStatus() != InvoiceStatus.APPROVED) {
             throw new IllegalStateException("Only an APPROVED invoice can be marked paid (current: " + invoice.getStatus() + ").");
         }
@@ -237,6 +243,11 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
 
     private VendorInvoice findOrThrow(Long id) {
         return invoiceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Vendor Invoice not found with id " + id));
+    }
+
+    private VendorInvoice lockOrThrow(Long id) {
+        return invoiceRepository.lockById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Vendor Invoice not found with id " + id));
     }
 }

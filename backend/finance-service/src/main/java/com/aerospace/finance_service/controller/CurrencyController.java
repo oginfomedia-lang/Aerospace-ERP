@@ -26,6 +26,7 @@ public class CurrencyController {
     private final RevaluationService revaluationService;
 
     @GetMapping("/currencies")
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<CurrencyDTO>> getCurrencies() {
         return new ApiResponse<>("Currencies fetched", currencyService.getAllCurrencies());
     }
@@ -39,6 +40,7 @@ public class CurrencyController {
     }
 
     @GetMapping("/exchange-rates")
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<ExchangeRateDTO>> getExchangeRates() {
         return new ApiResponse<>("Exchange rates fetched", currencyService.getAllExchangeRates());
     }

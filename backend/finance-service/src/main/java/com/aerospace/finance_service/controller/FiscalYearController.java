@@ -21,6 +21,7 @@ public class FiscalYearController {
     private final FiscalYearService fiscalYearService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<FiscalYearDTO>> getAll() {
         return new ApiResponse<>("Fiscal years fetched", fiscalYearService.getAll());
     }

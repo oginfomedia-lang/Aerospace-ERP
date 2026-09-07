@@ -8,7 +8,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/workorder_db
     username: postgres
-    password: postgres@123
+    password: ${DB_PASSWORD:postgres@123}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 5
@@ -63,7 +63,7 @@ logging:
 
 app:
   jwt:
-    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
 
 eureka:
   client:
@@ -75,3 +75,17 @@ eureka:
     prefer-ip-address: true
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 30
+
+# Circuit breaker (no retry) around WorkOrderServiceImpl.issueMaterial's call into
+# inventory-service's /issue-to-production — that call performs a real stock
+# deduction with no idempotency key, so it must never be blindly retried on a
+# timeout (a lost response could double-deduct). The circuit breaker alone still
+# lets repeated failures fail fast without resending anything.
+resilience4j:
+  circuitbreaker:
+    instances:
+      inventoryService:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3

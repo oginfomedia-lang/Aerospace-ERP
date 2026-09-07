@@ -21,11 +21,13 @@ public class OrganizationController {
     private final OrganizationService organizationService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<OrganizationDTO>> getAll() {
         return new ApiResponse<>("Organizations fetched", organizationService.getAll());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<OrganizationDTO> getById(@PathVariable Long id) {
         return new ApiResponse<>("Organization fetched", organizationService.getById(id));
     }

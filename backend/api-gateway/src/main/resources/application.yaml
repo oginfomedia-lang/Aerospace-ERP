@@ -2,8 +2,8 @@ server:
   port: 8089
   forward-headers-strategy: framework
   error:
-    include-message: always
-    include-binding-errors: always
+    include-message: never
+    include-binding-errors: never
     include-stacktrace: never
 
 spring:
@@ -183,7 +183,7 @@ spring:
 # JWT Configuration (must match auth-service)
 app:
   jwt:
-    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
 
 # Actuator endpoints for monitoring
 management:

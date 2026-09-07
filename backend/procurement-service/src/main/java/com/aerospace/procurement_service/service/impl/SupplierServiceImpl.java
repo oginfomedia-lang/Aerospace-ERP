@@ -78,6 +78,9 @@ public class SupplierServiceImpl implements SupplierService {
     @Override
     public Supplier confirmSupplier(Long id, String remarks, String actor) {
         Supplier supplier = getSupplierById(id);
+        if (supplier.getCreatedBy() != null && supplier.getCreatedBy().equalsIgnoreCase(actor)) {
+            throw new IllegalStateException("You cannot confirm a supplier record you registered yourself.");
+        }
         if (supplier.getConfirmationStatus() == SupplierConfirmationStatus.CONFIRMED) {
             throw new IllegalStateException("Supplier is already confirmed");
         }
@@ -105,6 +108,9 @@ public class SupplierServiceImpl implements SupplierService {
             throw new IllegalArgumentException("Rejection remarks are mandatory");
         }
         Supplier supplier = getSupplierById(id);
+        if (supplier.getCreatedBy() != null && supplier.getCreatedBy().equalsIgnoreCase(actor)) {
+            throw new IllegalStateException("You cannot reject a supplier record you registered yourself.");
+        }
         supplier.setConfirmationStatus(SupplierConfirmationStatus.REJECTED);
         supplier.setConfirmationRemarks(remarks);
         supplier.setConfirmedBy(actor);

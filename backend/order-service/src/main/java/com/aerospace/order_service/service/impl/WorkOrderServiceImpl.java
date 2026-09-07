@@ -9,12 +9,14 @@ import com.aerospace.order_service.exception.InvalidStatusTransitionException;
 import com.aerospace.order_service.repository.*;
 import com.aerospace.order_service.service.WorkOrderService;
 import com.aerospace.common.numbering.DocumentSequenceService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpStatusCodeException;
@@ -23,6 +25,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -230,8 +233,14 @@ public class WorkOrderServiceImpl implements WorkOrderService {
     }
 
     // ── ISSUE MATERIAL ────────────────────────────────────────────────────────
+    // No @Retry here on purpose: this call performs a REAL stock deduction on
+    // inventory-service's side. If the first attempt actually succeeded there but the
+    // response was lost (e.g. a read timeout on the way back), blindly retrying would
+    // double-deduct stock. @CircuitBreaker alone is safe to add — it only fails fast
+    // after repeated failures, it never resends anything.
     @Override
     @Transactional
+    @CircuitBreaker(name = "inventoryService", fallbackMethod = "issueMaterialFallback")
     public WorkOrderResponse issueMaterial(Long workOrderId, IssueMaterialRequest req) {
         WorkOrder wo = findById(workOrderId);
 
@@ -251,6 +260,11 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                 .queryParam("lineItemId", line.getId())
                 .buildAndExpand(line.getPartId())
                 .toUriString();
+        // The issueNumber inventory-service assigns this exact issuance — captured from
+        // the response and used below as the dedup key for BOTH this direct write and
+        // WorkOrderConsumer.onMaterialIssued's later processing of the same issuance's
+        // Kafka event, so the two code paths recognize each other and only one applies.
+        String issueNumber = null;
         try {
             // Forward the caller's own JWT — inventory-service's security filter requires
             // one, and without it every call here would be rejected at 403 before ever
@@ -261,14 +275,32 @@ public class WorkOrderServiceImpl implements WorkOrderService {
             if (authHeader != null) {
                 headers.set(HttpHeaders.AUTHORIZATION, authHeader);
             }
-            restTemplate.postForEntity(url, new HttpEntity<>(headers), Object.class);
+            ResponseEntity<Map> resp = restTemplate.postForEntity(url, new HttpEntity<>(headers), Map.class);
+            Object body = resp.getBody() != null ? resp.getBody().get("data") : null;
+            if (body instanceof Map<?, ?> data) {
+                Object rawIssueNumber = data.get("issueNumber");
+                issueNumber = rawIssueNumber != null ? rawIssueNumber.toString() : null;
+            }
         } catch (HttpStatusCodeException ex) {
             throw new InvalidStatusTransitionException(
                     "Inventory rejected this issue: " + ex.getResponseBodyAsString());
         }
 
-        // Inventory confirmed the deduction — now just record the bookkeeping.
-        return recordMaterialIssued(workOrderId, req.getLineItemId(), req.getQuantityIssued(), req.getBatchNumber());
+        // Inventory confirmed the deduction — now just record the bookkeeping. Passing
+        // issueNumber (instead of null) means this write is tracked in
+        // appliedMaterialIssueRefs, so if inventory-service's MATERIAL_ISSUED event for
+        // this same issueNumber arrives afterward, the consumer's existing dedup check
+        // recognizes it as already-applied and skips it instead of double-counting.
+        return recordMaterialIssued(workOrderId, req.getLineItemId(), req.getQuantityIssued(), req.getBatchNumber(), issueNumber);
+    }
+
+    // Matches the existing "downstream rejected/unreachable" pattern in this method
+    // (the catch(HttpStatusCodeException) block above already throws
+    // InvalidStatusTransitionException for a real rejection) — surfaces a clear,
+    // safe error instead of silently swallowing the failure.
+    private WorkOrderResponse issueMaterialFallback(Long workOrderId, IssueMaterialRequest req, Throwable ex) {
+        throw new InvalidStatusTransitionException(
+                "Inventory service is currently unavailable: " + ex.getMessage());
     }
 
     // ── RECORD MATERIAL ISSUED (bookkeeping only) ───────────────────────────────
@@ -278,10 +310,22 @@ public class WorkOrderServiceImpl implements WorkOrderService {
     // inventory again in that second case would double-deduct.
     @Override
     @Transactional
-    public WorkOrderResponse recordMaterialIssued(Long workOrderId, Long lineItemId, int quantityIssued, String batchNumber) {
+    public WorkOrderResponse recordMaterialIssued(Long workOrderId, Long lineItemId, int quantityIssued, String batchNumber, String eventRef) {
         WorkOrder wo = findById(workOrderId);
         MaterialLineItem line = lineItemRepository.findById(lineItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Line item not found: " + lineItemId));
+
+        // ── Dedup: skip (log + no-op) if this exact Kafka delivery was already
+        // applied — protects against at-least-once redelivery double-counting the
+        // quantity. eventRef is null for the direct, non-Kafka call from issueMaterial().
+        if (eventRef != null && !eventRef.isBlank()) {
+            if (line.getAppliedMaterialIssueRefs().contains(eventRef)) {
+                log.info("[WO] Skipping already-applied material-issued event ref={} for WO={} lineItemId={}",
+                        eventRef, wo.getWoNumber(), lineItemId);
+                return toResponse(wo);
+            }
+            line.getAppliedMaterialIssueRefs().add(eventRef);
+        }
 
         // ── Accumulate quantity (don't overwrite) ───────────────────────────────
         int alreadyIssued = line.getQuantityIssued() != null ? line.getQuantityIssued() : 0;

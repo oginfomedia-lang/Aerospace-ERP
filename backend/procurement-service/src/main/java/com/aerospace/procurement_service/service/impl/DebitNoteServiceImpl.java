@@ -43,6 +43,14 @@ public class DebitNoteServiceImpl implements DebitNoteService {
             return; // not traceable to a PO (e.g. manual stock add) — nothing to bill back
         }
 
+        // Idempotency guard against Kafka redelivery: a debit note already exists for this
+        // NCR, so skip instead of raising a duplicate credit against the supplier.
+        if (event.getNcrNumber() != null && debitNoteRepository.existsByNcrNumber(event.getNcrNumber())) {
+            log.info("[DEBIT-NOTE] Debit note already exists for NCR {} — skipping duplicate (redelivery?)",
+                    event.getNcrNumber());
+            return;
+        }
+
         PurchaseOrder po = poRepository.findByPoNumber(event.getPoNumber()).orElse(null);
         if (po == null) {
             log.warn("[DEBIT-NOTE] No PO found for {} — skipping debit note for NCR {}",

@@ -5,6 +5,7 @@ import com.aerospace.finance_service.dto.AgingBucketDTO;
 import com.aerospace.finance_service.dto.LedgerViewDTO;
 import com.aerospace.finance_service.service.LedgerViewService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -19,11 +20,13 @@ public class AccountsReceivableController {
     private final LedgerViewService ledgerViewService;
 
     @GetMapping("/ledger")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<LedgerViewDTO>> getCustomerLedger() {
         return new ApiResponse<>("Customer ledger fetched", ledgerViewService.getLedger(AR_CONTROL_ACCOUNT));
     }
 
     @GetMapping("/aging")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<AgingBucketDTO>> getAging(@RequestParam(required = false) LocalDate asOfDate) {
         return new ApiResponse<>("AR aging fetched", ledgerViewService.getAging(AR_CONTROL_ACCOUNT, asOfDate == null ? LocalDate.now() : asOfDate));
     }

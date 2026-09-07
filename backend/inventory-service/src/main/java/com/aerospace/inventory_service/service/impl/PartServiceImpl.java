@@ -319,9 +319,22 @@ public class PartServiceImpl implements PartService {
         boolean multiBatch = allocations.size() > 1;
 
         for (java.util.Map.Entry<StockBalance, Integer> alloc : allocations) {
-            StockBalance b = alloc.getKey();
+            StockBalance unlocked = alloc.getKey();
             int take = alloc.getValue();
-            b.setQuantity(b.getQuantity() - take);
+
+            // Re-fetch under a pessimistic write lock immediately before mutating, and
+            // re-validate against the freshly-locked value — closes the race where a
+            // concurrent issue/reservation against the same row already consumed stock
+            // this method's earlier (unlocked) read of `candidates`/`allocations` never saw.
+            StockBalance b = balanceRepository.lockById(unlocked.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Stock balance not found: " + unlocked.getId()));
+            int available = b.getQuantity() != null ? b.getQuantity() : 0;
+            if (available < take) {
+                throw new RuntimeException("Concurrent stock change detected: batch " + b.getBatchNumber()
+                        + " now has only " + available + " available (needed " + take + ").");
+            }
+
+            b.setQuantity(available - take);
             balanceRepository.save(b);
             lastLocation = b.getLocation();
 
@@ -377,6 +390,7 @@ public class PartServiceImpl implements PartService {
                     .workOrderId(workOrderId)
                     .woNumber(woNumber)
                     .lineItemId(lineItemId)
+                    .issueNumber(savedIssueRecord.getIssueNumber())
                     .partId(id)
                     .partName(part.getName())
                     .batchNumber(result.batchSummary())
@@ -646,8 +660,13 @@ public class PartServiceImpl implements PartService {
             throw new RuntimeException("Insufficient stock to reserve");
 
         int remaining = quantity;
-        for (StockBalance b : approvedBalances) {
+        for (StockBalance unlocked : approvedBalances) {
             if (remaining <= 0) break;
+            // Lock immediately before mutating and re-validate against the freshly-locked
+            // quantity — the pre-check above (totalApproved < quantity) used an unlocked
+            // read that a concurrent reservation/issue could have already invalidated.
+            StockBalance b = balanceRepository.lockById(unlocked.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Stock balance not found: " + unlocked.getId()));
             int have = b.getQuantity() != null ? b.getQuantity() : 0;
             if (have <= 0) continue;
             int take = Math.min(remaining, have);
@@ -655,13 +674,23 @@ public class PartServiceImpl implements PartService {
             balanceRepository.save(b);
             remaining -= take;
         }
+        if (remaining > 0) {
+            throw new RuntimeException("Insufficient stock to reserve — concurrent update reduced "
+                    + "available quantity for batch " + batch);
+        }
 
         List<StockBalance> reservedBalances = balanceRepository
                 .findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(partId, batch, StockStatus.RESERVED);
-        StockBalance reservedStock = !reservedBalances.isEmpty() ? reservedBalances.get(0)
-                : StockBalance.builder()
-                        .partId(partId).batchNumber(batch)
-                        .status(StockStatus.RESERVED).quantity(0).build();
+        StockBalance reservedStock;
+        if (!reservedBalances.isEmpty()) {
+            reservedStock = balanceRepository.lockById(reservedBalances.get(0).getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Stock balance not found: " + reservedBalances.get(0).getId()));
+        } else {
+            reservedStock = StockBalance.builder()
+                    .partId(partId).batchNumber(batch)
+                    .status(StockStatus.RESERVED).quantity(0).build();
+        }
 
         reservedStock.setExpiryDate(approvedBalances.get(0).getExpiryDate());
         reservedStock.setQuantity(reservedStock.getQuantity() + quantity);
@@ -699,8 +728,12 @@ public class PartServiceImpl implements PartService {
         }
 
         int remaining = quantity;
-        for (StockBalance b : reservedBalances) {
+        for (StockBalance unlocked : reservedBalances) {
             if (remaining <= 0) break;
+            // Lock immediately before mutating and re-validate against the freshly-locked
+            // quantity — closes the same race as reserveStock/deductAndBuildLines.
+            StockBalance b = balanceRepository.lockById(unlocked.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Stock balance not found: " + unlocked.getId()));
             int have = b.getQuantity() != null ? b.getQuantity() : 0;
             if (have <= 0) continue;
             int take = Math.min(remaining, have);
@@ -708,13 +741,23 @@ public class PartServiceImpl implements PartService {
             balanceRepository.save(b);
             remaining -= take;
         }
+        if (remaining > 0) {
+            throw new RuntimeException("Cannot release " + quantity + " units - concurrent update reduced "
+                    + "RESERVED quantity for batch " + batch);
+        }
 
         List<StockBalance> approvedBalances = balanceRepository
                 .findAllByPartIdAndBatchNumberAndStatusOrderByIdAsc(partId, batch, StockStatus.APPROVED);
-        StockBalance approvedStock = !approvedBalances.isEmpty() ? approvedBalances.get(0)
-                : StockBalance.builder()
-                        .partId(partId).batchNumber(batch)
-                        .status(StockStatus.APPROVED).quantity(0).build();
+        StockBalance approvedStock;
+        if (!approvedBalances.isEmpty()) {
+            approvedStock = balanceRepository.lockById(approvedBalances.get(0).getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Stock balance not found: " + approvedBalances.get(0).getId()));
+        } else {
+            approvedStock = StockBalance.builder()
+                    .partId(partId).batchNumber(batch)
+                    .status(StockStatus.APPROVED).quantity(0).build();
+        }
 
         approvedStock.setExpiryDate(reservedBalances.get(0).getExpiryDate());
         approvedStock.setQuantity(approvedStock.getQuantity() + quantity);
@@ -746,14 +789,22 @@ public class PartServiceImpl implements PartService {
         }
 
         int remaining = quantity;
-        for (StockBalance b : reservedBalances) {
+        for (StockBalance unlocked : reservedBalances) {
             if (remaining <= 0) break;
+            // Lock immediately before mutating and re-validate against the freshly-locked
+            // quantity — closes the same race as reserveStock/releaseReservation.
+            StockBalance b = balanceRepository.lockById(unlocked.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Stock balance not found: " + unlocked.getId()));
             int have = b.getQuantity() != null ? b.getQuantity() : 0;
             if (have <= 0) continue;
             int take = Math.min(remaining, have);
             b.setQuantity(have - take);
             balanceRepository.save(b);
             remaining -= take;
+        }
+        if (remaining > 0) {
+            throw new RuntimeException("Cannot ship " + quantity + " units - concurrent update reduced "
+                    + "RESERVED quantity for batch " + batch);
         }
 
         // Unlike reserve/release, this is a real decrease — the stock physically left the
@@ -791,9 +842,14 @@ public class PartServiceImpl implements PartService {
         }
         locationService.assertActive(toBin);
 
-        StockBalance source = balanceRepository
+        StockBalance sourceUnlocked = balanceRepository
                 .findByPartIdAndBatchNumberAndLocation(id, batch, fromBin)
                 .orElseThrow(() -> new RuntimeException("Source bin location not found"));
+
+        // Lock immediately before mutating and re-validate against the freshly-locked
+        // quantity — closes the same race as the other StockBalance mutators.
+        StockBalance source = balanceRepository.lockById(sourceUnlocked.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Stock balance not found: " + sourceUnlocked.getId()));
 
         if (source.getQuantity() < qty) throw new RuntimeException("Not enough stock in source bin");
 
@@ -804,11 +860,18 @@ public class PartServiceImpl implements PartService {
             balanceRepository.save(source);
         }
 
-        StockBalance target = balanceRepository
+        StockBalance targetUnlocked = balanceRepository
                 .findByPartIdAndBatchNumberAndLocation(id, batch, toBin)
-                .orElse(StockBalance.builder()
-                        .partId(id).batchNumber(batch)
-                        .location(toBin).status(source.getStatus()).quantity(0).build());
+                .orElse(null);
+        StockBalance target;
+        if (targetUnlocked != null) {
+            target = balanceRepository.lockById(targetUnlocked.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Stock balance not found: " + targetUnlocked.getId()));
+        } else {
+            target = StockBalance.builder()
+                    .partId(id).batchNumber(batch)
+                    .location(toBin).status(source.getStatus()).quantity(0).build();
+        }
 
         target.setQuantity(target.getQuantity() + qty);
         target.setExpiryDate(source.getExpiryDate());

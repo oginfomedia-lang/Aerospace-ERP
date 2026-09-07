@@ -21,6 +21,7 @@ public class TaxJurisdictionController {
     private final TaxAdminService taxAdminService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<TaxJurisdictionDTO>> getAll() {
         return new ApiResponse<>("Tax jurisdictions fetched", taxAdminService.getAllJurisdictions());
     }

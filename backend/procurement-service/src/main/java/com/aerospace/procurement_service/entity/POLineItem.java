@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "po_line_items")
@@ -65,6 +67,16 @@ public class POLineItem {
     // on another PO's NCR — lets the UI detect a replacement was already raised for that
     // NCR and stop offering the raise action again.
     private String replacementForNcrNumber;
+
+    // De-dup guard for the two Kafka handlers below (applyQaOutcome/applyMaterialReceipt
+    // in PurchaseOrderServiceImpl) — a redelivered event must not increment
+    // accepted/rejected/receivedQuantity a second time. Holds prefixed refs like
+    // "QA:<batchNumber>" and "GRN:<grnNumber>" so the two event types can't collide.
+    @ElementCollection
+    @CollectionTable(name = "po_line_item_applied_events", joinColumns = @JoinColumn(name = "po_line_item_id"))
+    @Column(name = "event_ref")
+    @Builder.Default
+    private Set<String> appliedEventRefs = new HashSet<>();
 
     @PrePersist
     @PreUpdate

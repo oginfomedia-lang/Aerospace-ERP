@@ -81,12 +81,25 @@ public class AuthService {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
 
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now())) {
+            throw new IllegalStateException(
+                    "Account temporarily locked due to repeated failed login attempts. Try again after "
+                            + user.getLockedUntil() + ".");
+        }
+
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            registerFailedLogin(user);
             throw new BadCredentialsException("Invalid username or password");
         }
 
         if (!user.getEnabled()) {
             throw new IllegalStateException("User account is disabled");
+        }
+
+        if (user.getFailedLoginAttempts() != 0 || user.getLockedUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
         }
 
         Set<String> roleNames = user.getRoles().stream()
@@ -156,6 +169,21 @@ public class AuthService {
                     token.setRevoked(true);
                     refreshTokenRepository.save(token);
                 });
+    }
+
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
+    private static final long ACCOUNT_LOCK_MINUTES = 15;
+
+    private void registerFailedLogin(User user) {
+        int attempts = user.getFailedLoginAttempts() == null ? 0 : user.getFailedLoginAttempts();
+        attempts++;
+        if (attempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+            user.setLockedUntil(LocalDateTime.now().plusMinutes(ACCOUNT_LOCK_MINUTES));
+            user.setFailedLoginAttempts(0);
+        } else {
+            user.setFailedLoginAttempts(attempts);
+        }
+        userRepository.save(user);
     }
 
     private String createRefreshToken(User user, LocalDateTime sessionStartAt) {

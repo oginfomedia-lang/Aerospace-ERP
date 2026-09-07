@@ -15,7 +15,6 @@ import java.util.List;
 // Non-Conformance Reports — auto-generated when QA rejects a batch
 // (PartServiceImpl.processQADecision). A rejected batch stays blocked until its
 // NCR is dispositioned here.
-@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/v1/inventory/ncr")
 @RequiredArgsConstructor
@@ -23,12 +22,14 @@ public class NcrController {
 
     private final NcrService ncrService;
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping
     public ResponseEntity<ApiResponse<List<NcrResponse>>> getAll(
             @RequestParam(required = false) String status) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", ncrService.getAll(status)));
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<NcrResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", ncrService.getById(id)));

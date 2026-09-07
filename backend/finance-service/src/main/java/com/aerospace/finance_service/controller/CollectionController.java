@@ -23,11 +23,13 @@ public class CollectionController {
     private final CollectionService collectionService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','ADMIN','MANAGER')")
     public ApiResponse<List<CollectionActivityDTO>> getAll() {
         return new ApiResponse<>("Collection activities fetched", collectionService.getAll());
     }
 
     @GetMapping("/customer/{customerRef}")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','ADMIN','MANAGER')")
     public ApiResponse<List<CollectionActivityDTO>> getByCustomer(@PathVariable String customerRef) {
         return new ApiResponse<>("Collection activities fetched",
                 collectionService.getByCustomer(customerRef));

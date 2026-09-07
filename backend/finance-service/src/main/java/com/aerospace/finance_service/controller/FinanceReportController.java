@@ -27,6 +27,7 @@ public class FinanceReportController {
      * Optional: ?reportingCurrency=USD to see amounts converted to a 3rd currency.
      */
     @GetMapping("/summary")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','ADMIN','MANAGER')")
     public ApiResponse<FinanceReportSummaryDTO> getSummary(
             @RequestParam(required = false) String reportingCurrency) {
         return new ApiResponse<>("Finance summary fetched",

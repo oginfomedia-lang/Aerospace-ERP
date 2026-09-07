@@ -23,11 +23,13 @@ public class InvoiceMatchController {
     private final InvoiceMatchService invoiceMatchService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','ADMIN','MANAGER')")
     public ApiResponse<List<InvoiceMatchDTO>> getAll() {
         return new ApiResponse<>("Invoice match records fetched", invoiceMatchService.getAll());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','ADMIN','MANAGER')")
     public ApiResponse<InvoiceMatchDTO> getById(@PathVariable Long id) {
         return new ApiResponse<>("Invoice match record fetched", invoiceMatchService.getById(id));
     }

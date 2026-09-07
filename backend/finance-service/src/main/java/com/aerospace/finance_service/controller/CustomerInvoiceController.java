@@ -49,6 +49,7 @@ public class CustomerInvoiceController {
 
     /** View all AR ledger entries (customer receivable balances). */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','ADMIN','MANAGER')")
     public ApiResponse<List<LedgerViewDTO>> getARLedger() {
         return new ApiResponse<>("AR ledger fetched",
                 ledgerViewService.getLedger(AR_CONTROL_ACCOUNT));

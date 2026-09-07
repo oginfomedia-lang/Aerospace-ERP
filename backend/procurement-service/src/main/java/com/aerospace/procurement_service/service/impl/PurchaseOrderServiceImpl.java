@@ -251,7 +251,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         }
 
         ApprovalOutcome outcome = approvalEngine.approve(
-                MODULE, id, approverUsername, new HashSet<>(approverRoles), request.getRemarks());
+                MODULE, id, approverUsername, new HashSet<>(approverRoles), request.getRemarks(), po.getCreatedBy());
 
         if (outcome.status() == ApprovalOutcome.Status.FULLY_APPROVED) {
             // Last qualifying level cleared → fully approved
@@ -524,6 +524,17 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             return;
         }
 
+        // Idempotency guard against Kafka redelivery: the event carries no dedicated unique
+        // id, so batchNumber is used as the de-dup key — inventory-service publishes exactly
+        // one QA-decision event per batch transition (see PartServiceImpl.decideBatch), so a
+        // redelivery of the same message carries the same batchNumber and is safely skipped.
+        String eventRef = event.getBatchNumber() != null ? "QA:" + event.getBatchNumber() : null;
+        if (eventRef != null && line.getAppliedEventRefs().contains(eventRef)) {
+            log.warn("QA outcome for PO {} line {} — batch {} already applied, skipping duplicate (redelivery?)",
+                    event.getPoNumber(), event.getSkuCode(), event.getBatchNumber());
+            return;
+        }
+
         // Split quantities drive this directly rather than branching on newStatus — a
         // PARTIALLY_APPROVED decision moves both buckets in the same event.
         int approvedQty = event.getApprovedQty() != null ? event.getApprovedQty() : 0;
@@ -534,6 +545,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         if (rejectedQty > 0) {
             line.setRejectedQuantity((line.getRejectedQuantity() != null ? line.getRejectedQuantity() : 0) + rejectedQty);
             line.setNcrNumber(event.getNcrNumber());
+        }
+        if (eventRef != null) {
+            line.getAppliedEventRefs().add(eventRef);
         }
         poRepository.save(po);
         log.info("📢 [PROCUREMENT] Applied QA outcome {} (approved {}, rejected {}) to PO {} line {}",
@@ -565,8 +579,22 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             return;
         }
 
+        // Idempotency guard against Kafka redelivery: inventory-service publishes exactly one
+        // MaterialReceivedEvent per line item per GRN (see MaterialReceivedEvent javadoc), so
+        // grnNumber is a safe de-dup key — a redelivery of the same message carries the same
+        // grnNumber and is skipped instead of double-counting the receipt.
+        String eventRef = event.getGrnNumber() != null ? "GRN:" + event.getGrnNumber() : null;
+        if (eventRef != null && line.getAppliedEventRefs().contains(eventRef)) {
+            log.warn("Material receipt for PO {} line {} — GRN {} already applied, skipping duplicate (redelivery?)",
+                    event.getPoNumber(), event.getSkuCode(), event.getGrnNumber());
+            return;
+        }
+
         int updatedReceived = (line.getReceivedQuantity() != null ? line.getReceivedQuantity() : 0) + event.getQuantityReceived();
         line.setReceivedQuantity(updatedReceived);
+        if (eventRef != null) {
+            line.getAppliedEventRefs().add(eventRef);
+        }
         // Over-receipt (more delivered than ordered) is a real-world variance, not an error —
         // flagged here for visibility, same tolerance-not-block philosophy as invoice matching.
         if (updatedReceived > line.getQuantity()) {

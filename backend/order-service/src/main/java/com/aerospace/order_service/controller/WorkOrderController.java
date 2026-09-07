@@ -16,7 +16,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/work-orders")
-@CrossOrigin(origins = "http://localhost:3000")
 @RequiredArgsConstructor
 @Slf4j
 @PreAuthorize("hasAnyRole('PRODUCTION_ENGINEER','MANAGER','ADMIN')")

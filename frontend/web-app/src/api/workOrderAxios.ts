@@ -5,9 +5,10 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { tokenStorage } from '../utils/tokenStorage';
+import { API_URLS } from '../config/apiConfig';
 
 const workOrderApi = axios.create({
-  baseURL: 'http://localhost:8084/api/v1',
+  baseURL: API_URLS.workOrder,
   headers: { 'Content-Type': 'application/json' },
 });
 

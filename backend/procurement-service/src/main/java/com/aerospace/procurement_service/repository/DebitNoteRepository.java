@@ -6,4 +6,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface DebitNoteRepository extends JpaRepository<DebitNote, Long> {
+
+    // Idempotency check for createFromVendorReturn — a redelivered VendorReturnEvent for
+    // the same NCR must not raise a second debit note against the supplier.
+    boolean existsByNcrNumber(String ncrNumber);
 }

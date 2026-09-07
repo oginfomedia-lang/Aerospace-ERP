@@ -16,6 +16,7 @@ public class OrganizationProfileController {
 
     private final OrganizationProfileService organizationProfileService;
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping
     public ResponseEntity<OrganizationProfile> getProfile() {
         return ResponseEntity.ok(organizationProfileService.getProfile());

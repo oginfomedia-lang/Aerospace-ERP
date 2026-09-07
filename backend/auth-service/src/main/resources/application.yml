@@ -10,7 +10,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/auth_db
     username: postgres
-    password: postgres@123
+    password: ${DB_PASSWORD:postgres@123}
     hikari:
       maximum-pool-size: 5
 
@@ -37,7 +37,7 @@ eureka:
 app:
   jwt:
     # 256-bit base64 secret key
-    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     expiration-ms: 86400000 # 24 hours
     refresh-expiration-ms: 604800000 # 7 days
   bootstrap-admin:
@@ -53,4 +53,22 @@ app.frontend.base-url: http://localhost:3000
 services:
   procurement:
     base-url: http://localhost:8086/api
+
+# Retry + circuit breaker around ProcurementServiceClient.getSupplier — a GET, safe
+# to retry. See the @Retry/@CircuitBreaker annotations there.
+resilience4j:
+  retry:
+    instances:
+      procurementService:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+  circuitbreaker:
+    instances:
+      procurementService:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3
 

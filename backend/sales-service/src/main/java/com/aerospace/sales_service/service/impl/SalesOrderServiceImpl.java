@@ -183,7 +183,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         if (order.getStatus() != SalesOrderStatus.PENDING_APPROVAL) {
             throw new IllegalStateException("Order is not awaiting approval (current: " + order.getStatus() + ")");
         }
-        ApprovalOutcome outcome = approvalEngine.approve(MODULE, order.getId(), approverUsername, approverRoles, remarks);
+        ApprovalOutcome outcome = approvalEngine.approve(MODULE, order.getId(), approverUsername, approverRoles, remarks, order.getCreatedBy());
         if (outcome.status() == ApprovalOutcome.Status.FULLY_APPROVED) {
             order.setStatus(SalesOrderStatus.CONFIRMED); // every approval level cleared — a real commitment now
             log.info("[SALES_ORDER] Fully approved and CONFIRMED — orderNumber={}", order.getOrderNumber());

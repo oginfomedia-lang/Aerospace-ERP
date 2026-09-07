@@ -6,6 +6,7 @@ import com.aerospace.inventory_service.dto.FormGrnRequest;
 import com.aerospace.inventory_service.dto.MaterialReceiptRequest;
 import com.aerospace.inventory_service.dto.MaterialReceiptResponse;
 import com.aerospace.inventory_service.service.MaterialReceiptService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +18,6 @@ import java.util.List;
 // Step 1 of the gate-to-GRN flow: goods are logged here at the physical gate/dock
 // BEFORE any GRN or QC bucket exists. GRN is only ever formed from an existing
 // Material Receipt via /form-grn — never directly from a Purchase Order.
-@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/v1/inventory/material-receipts")
 @RequiredArgsConstructor
@@ -28,18 +28,20 @@ public class MaterialReceiptController {
     @Audited(action = "CREATE", entityType = "MaterialReceipt")
     @PreAuthorize("hasAnyRole('STORE_KEEPER','MANAGER','ADMIN')")
     @PostMapping
-    public ResponseEntity<ApiResponse<MaterialReceiptResponse>> create(@RequestBody MaterialReceiptRequest request) {
+    public ResponseEntity<ApiResponse<MaterialReceiptResponse>> create(@Valid @RequestBody MaterialReceiptRequest request) {
         MaterialReceiptResponse response = materialReceiptService.createReceipt(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ApiResponse<>("RECEIVED_AT_GATE", response));
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping
     public ResponseEntity<ApiResponse<List<MaterialReceiptResponse>>> getAll(
             @RequestParam(required = false) String status) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", materialReceiptService.getAll(status)));
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<MaterialReceiptResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", materialReceiptService.getById(id)));

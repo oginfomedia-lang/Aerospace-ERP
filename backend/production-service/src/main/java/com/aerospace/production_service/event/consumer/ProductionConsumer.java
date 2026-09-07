@@ -8,6 +8,8 @@ import com.aerospace.production_service.repository.ProductionOrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +28,11 @@ public class ProductionConsumer {
         containerFactory = "materialIssuedKafkaListenerContainerFactory"
     )
     @Transactional
-    public void consumeMaterialIssued(@Payload MaterialIssuedEvent event) {
+    public void consumeMaterialIssued(
+            @Payload MaterialIssuedEvent event,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) long offset) {
         log.info("[KAFKA] MATERIAL_ISSUED received — partId={}, batch={}, qty={}, issuedTo={}",
                 event.getPartId(), event.getBatchNumber(),
                 event.getQuantityIssued(), event.getIssuedTo());
@@ -35,12 +41,25 @@ public class ProductionConsumer {
             return; // ad-hoc issue, not tied to any Work Order / production order
         }
 
+        // The event carries no business-level unique reference (inventory-service's
+        // MaterialIssuedEvent has no issue/transaction number), so we dedup on the
+        // Kafka delivery coordinate itself — unique per message and stable across
+        // redeliveries of that same message (consumer restarts, retries, rebalances).
+        String eventRef = topic + "-" + partition + "-" + offset;
+
         for (ProductionOrder order : productionOrderRepository.findByWorkOrderId(event.getWorkOrderId())) {
             order.getMaterials().stream()
                     .filter(m -> m.getPartId() != null && m.getPartId().equals(event.getPartId()))
                     .filter(m -> m.getStatus() == ProductionMaterial.MaterialStatus.PENDING)
                     .findFirst()
                     .ifPresent(material -> {
+                        if (material.getAppliedMaterialIssueRefs().contains(eventRef)) {
+                            log.info("[CONSUMER] Skipping already-applied material-issued event ref={} for ProductionOrder={} partId={}",
+                                    eventRef, order.getPoNumber(), event.getPartId());
+                            return;
+                        }
+                        material.getAppliedMaterialIssueRefs().add(eventRef);
+
                         int alreadyConsumed = material.getQuantityConsumed() != null ? material.getQuantityConsumed() : 0;
                         int newTotalConsumed = alreadyConsumed + event.getQuantityIssued();
                         material.setQuantityConsumed(newTotalConsumed);

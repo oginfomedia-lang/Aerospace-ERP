@@ -8,7 +8,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/sales_db
     username: postgres
-    password: postgres@123
+    password: ${DB_PASSWORD:postgres@123}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 5
@@ -38,7 +38,7 @@ logging:
 
 app:
   jwt:
-    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
 
 # Base URLs for every OTHER service this one calls directly over HTTP (not Kafka) —
 # see the SalesResourceClients in Phase 4/5/8 below.
@@ -60,3 +60,33 @@ eureka:
     prefer-ip-address: true
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 30
+
+# Retry + circuit breaker around the direct HTTP calls in SalesResourceClient — see
+# the @Retry/@CircuitBreaker annotations there. Only GET (read) calls carry @Retry;
+# POSTs with real side effects (reserve/release/consume/return/qa-decision) get the
+# circuit breaker alone since inventory-service has no dedup guard on them.
+resilience4j:
+  retry:
+    instances:
+      inventoryService:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+      productionService:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+  circuitbreaker:
+    instances:
+      inventoryService:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3
+      productionService:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3

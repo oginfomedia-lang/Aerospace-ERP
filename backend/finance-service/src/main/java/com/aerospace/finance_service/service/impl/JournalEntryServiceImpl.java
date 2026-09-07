@@ -194,7 +194,7 @@ public class JournalEntryServiceImpl implements JournalEntryService {
     @Override
     @Transactional
     public JournalEntryDTO submit(Long id, String currentUser) {
-        JournalEntry entry = getEntityOrThrow(id);
+        JournalEntry entry = getLockedEntityOrThrow(id);
         if (entry.getStatus() != JournalStatus.DRAFT) {
             throw new IllegalStateException("Only DRAFT journals can be submitted");
         }
@@ -218,14 +218,14 @@ public class JournalEntryServiceImpl implements JournalEntryService {
     @Override
     @Transactional
     public JournalEntryDTO approve(Long id, String approverUsername, Set<String> approverRoles, String remarks) {
-        JournalEntry entry = getEntityOrThrow(id);
+        JournalEntry entry = getLockedEntityOrThrow(id);
         if (entry.getStatus() != JournalStatus.PENDING_APPROVAL) {
             throw new IllegalStateException("Journal is not pending approval");
         }
-        // ApprovalEngine's own resolveActingRow already skips the acting candidate whose
-        // approverUsername matches the document's own creator — segregation of duties
-        // is inherited for free, same as PurchaseOrder/SalesOrder approval.
-        ApprovalOutcome outcome = approvalEngine.approve(MODULE_CODE, entry.getId(), approverUsername, approverRoles, remarks);
+        // ApprovalEngine itself now rejects the approval outright (IllegalStateException)
+        // when approverUsername matches the document's own recorded creator — segregation
+        // of duties, same as PurchaseOrder/SalesOrder approval.
+        ApprovalOutcome outcome = approvalEngine.approve(MODULE_CODE, entry.getId(), approverUsername, approverRoles, remarks, entry.getCreatedBy());
         if (outcome.status() == ApprovalOutcome.Status.FULLY_APPROVED) {
             entry.setStatus(JournalStatus.POSTED);
             entry.setApprovedBy(approverUsername);
@@ -238,7 +238,7 @@ public class JournalEntryServiceImpl implements JournalEntryService {
     @Override
     @Transactional
     public JournalEntryDTO reject(Long id, String approverUsername, Set<String> approverRoles, String remarks) {
-        JournalEntry entry = getEntityOrThrow(id);
+        JournalEntry entry = getLockedEntityOrThrow(id);
         if (entry.getStatus() != JournalStatus.PENDING_APPROVAL) {
             throw new IllegalStateException("Journal is not pending approval");
         }
@@ -259,6 +259,9 @@ public class JournalEntryServiceImpl implements JournalEntryService {
         JournalEntry original = getEntityOrThrow(id);
         if (original.getStatus() != JournalStatus.POSTED) {
             throw new IllegalStateException("Only POSTED journals can be reversed");
+        }
+        if (original.getReversedByJournalId() != null) {
+            throw new IllegalStateException("Journal " + original.getJournalNumber() + " has already been reversed.");
         }
         accountingPeriodService.assertOpenForPosting(LocalDate.now());
 
@@ -294,6 +297,14 @@ public class JournalEntryServiceImpl implements JournalEntryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Journal entry not found: " + id));
     }
 
+    // Row-locking variant used by submit()/approve()/reject() so two concurrent
+    // approvers (etc.) can't both read the same PENDING_APPROVAL row and both write
+    // back a "successful" approval, silently clobbering one signature with the other.
+    private JournalEntry getLockedEntityOrThrow(Long id) {
+        return journalEntryRepository.lockById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Journal entry not found: " + id));
+    }
+
     private BigDecimal nvl(BigDecimal v) { return v == null ? BigDecimal.ZERO : v; }
 
     @Override
@@ -301,6 +312,11 @@ public class JournalEntryServiceImpl implements JournalEntryService {
 
     @Override
     public List<JournalEntryDTO> getAll() { return journalEntryRepository.findAll().stream().map(this::toDTO).toList(); }
+
+    @Override
+    public java.util.Optional<JournalEntryDTO> findBySourceDoc(String sourceDocType, String sourceDocRef) {
+        return journalEntryRepository.findBySourceDocTypeAndSourceDocRef(sourceDocType, sourceDocRef).map(this::toDTO);
+    }
 
     private JournalEntryDTO toDTO(JournalEntry e) {
         return JournalEntryDTO.builder()

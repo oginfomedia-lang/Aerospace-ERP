@@ -17,6 +17,7 @@ import com.aerospace.common.numbering.DocumentSequenceService;
 import com.aerospace.procurement_service.service.PurchaseRequisitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -101,7 +102,7 @@ public class PurchaseRequisitionServiceImpl implements PurchaseRequisitionServic
                 .sourceType(PRSourceType.MANUAL)
                 .status(PRStatus.PENDING_APPROVAL)
                 .remarks(request.getRemarks())
-                .createdBy("PROCUREMENT_OFFICER") // swap for the real authenticated username if available
+                .createdBy(currentActor())
                 .build();
         PurchaseRequisition saved = prRepository.save(pr);
         publishSubmitted(saved);
@@ -115,6 +116,9 @@ public class PurchaseRequisitionServiceImpl implements PurchaseRequisitionServic
         if (pr.getStatus() != PRStatus.PENDING_APPROVAL) {
             throw new IllegalStateException(
                     "PR " + pr.getPrNumber() + " is not awaiting approval (current: " + pr.getStatus() + ").");
+        }
+        if (pr.getCreatedBy() != null && pr.getCreatedBy().equalsIgnoreCase(approverUsername)) {
+            throw new IllegalStateException("You cannot approve a purchase requisition you created yourself.");
         }
         pr.setStatus(PRStatus.DRAFT);
         pr.setApprovedBy(approverUsername);
@@ -171,6 +175,13 @@ public class PurchaseRequisitionServiceImpl implements PurchaseRequisitionServic
     @Override
     public PurchaseRequisitionResponse getById(Long id) {
         return toDTO(findOrThrow(id));
+    }
+
+    // Same convention as Supplier.currentActor(): read the authenticated username off the
+    // security context, falling back to "SYSTEM" for non-request-bound callers.
+    private static String currentActor() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null ? auth.getName() : "SYSTEM";
     }
 
     private PurchaseRequisition findOrThrow(Long id) {

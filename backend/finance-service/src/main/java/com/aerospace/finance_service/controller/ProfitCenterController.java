@@ -21,11 +21,13 @@ public class ProfitCenterController {
     private final ProfitCenterService profitCenterService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<ProfitCenterDTO>> getAll() {
         return new ApiResponse<>("Profit centers fetched", profitCenterService.getAll());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<ProfitCenterDTO> getById(@PathVariable Long id) {
         return new ApiResponse<>("Profit center fetched", profitCenterService.getById(id));
     }

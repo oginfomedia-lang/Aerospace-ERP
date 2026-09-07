@@ -59,8 +59,8 @@ public class QuotationController {
     @Audited(action = "APPROVE", entityType = "Quotation")
     @PreAuthorize("hasAnyRole('SALES_MANAGER','MANAGER','ADMIN')")
     @PostMapping("/{id}/approve")
-    public ResponseEntity<ApiResponse<QuotationResponseDTO>> approve(@PathVariable Long id) {
-        return ResponseEntity.ok(new ApiResponse<>("APPROVED", quotationService.approve(id)));
+    public ResponseEntity<ApiResponse<QuotationResponseDTO>> approve(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(new ApiResponse<>("APPROVED", quotationService.approve(id, auth.getName())));
     }
 
     @Audited(action = "REJECT", entityType = "Quotation")

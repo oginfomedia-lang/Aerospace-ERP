@@ -21,11 +21,13 @@ public class PlantController {
     private final PlantService plantService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<PlantDTO>> getAll() {
         return new ApiResponse<>("Plants fetched", plantService.getAll());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<PlantDTO> getById(@PathVariable Long id) {
         return new ApiResponse<>("Plant fetched", plantService.getById(id));
     }

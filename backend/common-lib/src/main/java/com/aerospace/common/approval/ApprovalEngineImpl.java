@@ -55,7 +55,11 @@ public class ApprovalEngineImpl implements ApprovalEngine {
     @Override
     @Transactional
     public ApprovalOutcome approve(String moduleCode, Long documentId, String approverUsername,
-                                    Set<String> approverRoles, String remarks) {
+                                    Set<String> approverRoles, String remarks, String documentCreatedBy) {
+        if (documentCreatedBy != null && documentCreatedBy.equalsIgnoreCase(approverUsername)) {
+            throw new IllegalStateException(
+                    "You cannot approve a document you created yourself — segregation of duties requires a different approver.");
+        }
         List<ApprovalHistory> rows = historyRepository
                 .findByModuleCodeAndDocumentIdOrderByApprovalLevelAsc(moduleCode, documentId);
 

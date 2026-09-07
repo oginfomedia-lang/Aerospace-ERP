@@ -3,6 +3,7 @@ package com.aerospace.procurement_service.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -84,4 +85,18 @@ public class PurchaseOrder {
     //set once an overdue-delivery notification has fired for this PO — prevents the
     // daily scheduler from re-notifying every single day for the same overdue PO.
     private LocalDateTime overdueNotifiedAt;
+
+    // Who actually created this PO — needed so the approval self-check (an approver can't
+    // approve their own document) has something to compare against. Stamped the same way
+    // as Supplier.createdBy: from the security context at persist time, falling back to
+    // "SYSTEM" for the Kafka-driven auto-raise flows where there's no authenticated user.
+    private String createdBy;
+
+    @PrePersist
+    private void stampCreatedBy() {
+        if (this.createdBy == null) {
+            var auth = SecurityContextHolder.getContext().getAuthentication();
+            this.createdBy = auth != null ? auth.getName() : "SYSTEM";
+        }
+    }
 }

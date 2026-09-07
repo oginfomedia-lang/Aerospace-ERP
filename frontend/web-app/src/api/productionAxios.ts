@@ -1,9 +1,10 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { tokenStorage } from '../utils/tokenStorage';
+import { API_URLS } from '../config/apiConfig';
 
 const productionApi = axios.create({
-  baseURL: 'http://localhost:8085/api/v1',
+  baseURL: API_URLS.production,
   headers: { 'Content-Type': 'application/json' },
 });
 

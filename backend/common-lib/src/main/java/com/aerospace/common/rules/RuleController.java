@@ -1,5 +1,6 @@
 package com.aerospace.common.rules;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,14 +28,22 @@ public class RuleController {
 
     @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PostMapping
-    public ResponseEntity<Rule> create(@RequestBody Rule rule) {
-        rule.setId(null);
+    public ResponseEntity<Rule> create(@Valid @RequestBody RuleRequest request) {
+        Rule rule = Rule.builder()
+                .moduleCode(request.getModuleCode())
+                .fieldName(request.getFieldName())
+                .operator(request.getOperator())
+                .value(request.getValue())
+                .action(request.getAction())
+                .actionValue(request.getActionValue())
+                .isActive(request.isActive())
+                .build();
         return ResponseEntity.ok(repository.save(rule));
     }
 
     @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<Rule> update(@PathVariable Long id, @RequestBody Rule request) {
+    public ResponseEntity<Rule> update(@PathVariable Long id, @Valid @RequestBody RuleRequest request) {
         Rule rule = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Rule not found: " + id));
         rule.setModuleCode(request.getModuleCode());

@@ -2,6 +2,7 @@ package com.aerospace.notification_service.config;
 
 import com.aerospace.notification_service.event.*;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -9,7 +10,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.util.backoff.FixedBackOff;
@@ -22,6 +26,22 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
+
+    private final KafkaTemplate<Object, Object> kafkaTemplate;
+
+    public KafkaConfig(KafkaTemplate<Object, Object> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    // ── Shared error handler (retry then publish to <topic>.DLT) ───────────
+
+    private DefaultErrorHandler commonErrorHandler() {
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate,
+                (record, ex) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(2000L, 3));
+        handler.addNotRetryableExceptions(DeserializationException.class);
+        return handler;
+    }
 
     // ── Shared base consumer properties ────────────────────────────────────
 
@@ -51,8 +71,8 @@ public class KafkaConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         f.setConsumerFactory(cf);
 
-        // Retry failed messages 3 times with 2s backoff before logging and skipping
-        f.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(2000L, 3)));
+        // Retry failed messages 3 times with 2s backoff, then publish to the DLT
+        f.setCommonErrorHandler(commonErrorHandler());
 
         return f;
     }
@@ -215,8 +235,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, ApprovalEscalatedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(approvalEscalatedConsumerFactory());
-        factory.setCommonErrorHandler(new org.springframework.kafka.listener.DefaultErrorHandler(
-                new org.springframework.util.backoff.FixedBackOff(2000L, 3)));
+        factory.setCommonErrorHandler(commonErrorHandler());
         return factory;
     }
 

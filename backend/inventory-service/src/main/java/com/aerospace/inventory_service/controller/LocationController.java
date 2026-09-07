@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/v1/inventory/locations")
 @RequiredArgsConstructor
@@ -26,11 +25,13 @@ public class LocationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(locationService.create(request));
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/{id}")
     public ResponseEntity<Location> getById(@PathVariable Long id) {
         return ResponseEntity.ok(locationService.getById(id));
     }
 
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping
     public ResponseEntity<List<Location>> getAll(
             @RequestParam(required = false, defaultValue = "false") boolean activeOnly) {

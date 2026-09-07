@@ -1,6 +1,7 @@
 package com.aerospace.production_service.exception;
 
 import com.aerospace.production_service.common.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.List;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -35,7 +37,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneric(RuntimeException ex) {
+        log.error("[EXCEPTION] Unexpected error: {}", ex.getMessage(), ex);
         return ResponseEntity.internalServerError()
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error("Internal server error. Please try again or contact support."));
     }
 }

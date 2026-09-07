@@ -1,5 +1,6 @@
 package com.aerospace.common.approval;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,7 +26,7 @@ public class ApprovalMatrixController {
 
     @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PostMapping
-    public ResponseEntity<ApprovalMatrix> create(@RequestBody ApprovalMatrixRequest request) {
+    public ResponseEntity<ApprovalMatrix> create(@Valid @RequestBody ApprovalMatrixRequest request) {
         ApprovalMatrix matrix = ApprovalMatrix.builder()
                 .moduleCode(request.getModuleCode())
                 .amountFrom(request.getAmountFrom())
@@ -42,7 +43,7 @@ public class ApprovalMatrixController {
 
     @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<ApprovalMatrix> update(@PathVariable Long id, @RequestBody ApprovalMatrixRequest request) {
+    public ResponseEntity<ApprovalMatrix> update(@PathVariable Long id, @Valid @RequestBody ApprovalMatrixRequest request) {
         ApprovalMatrix matrix = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Approval matrix band not found: " + id));
         matrix.setModuleCode(request.getModuleCode());

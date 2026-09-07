@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 
 // Printable record of exactly which batches fed a material issue — the outbound
 // counterpart to MaterialReceiptController.
-@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/v1/inventory/material-issue-records")
 @RequiredArgsConstructor

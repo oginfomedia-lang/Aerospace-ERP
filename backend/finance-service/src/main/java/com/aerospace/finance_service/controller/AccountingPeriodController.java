@@ -18,6 +18,7 @@ public class AccountingPeriodController {
     private final AccountingPeriodService periodService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','ADMIN', 'MANAGER')")
     public ApiResponse<List<AccountingPeriodDTO>> getAll() {
         return new ApiResponse<>("Accounting periods fetched", periodService.getAll());
     }

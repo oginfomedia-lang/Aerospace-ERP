@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "material_line_items")
@@ -48,6 +50,17 @@ public class MaterialLineItem {
 
     @Column(length = 2000)
     private String description;
+
+    // Tracks which material-issued Kafka deliveries have already been applied to this
+    // line, so a redelivered/replayed copy of the same event (Kafka is at-least-once)
+    // is a no-op instead of double-counting quantityIssued. Populated with a delivery
+    // coordinate (topic-partition-offset) by WorkOrderConsumer.onMaterialIssued — see
+    // WorkOrderServiceImpl.recordMaterialIssued.
+    @ElementCollection
+    @CollectionTable(name = "material_line_item_applied_refs", joinColumns = @JoinColumn(name = "line_item_id"))
+    @Column(name = "event_ref", length = 255)
+    @Builder.Default
+    private Set<String> appliedMaterialIssueRefs = new HashSet<>();
 
     public enum LineItemStatus {
         PENDING,    // not yet issued

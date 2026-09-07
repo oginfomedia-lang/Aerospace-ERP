@@ -17,7 +17,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/inventory")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3000")
 public class PartSupplierController {
 
     private final PartSupplierService partSupplierService;
@@ -41,6 +40,11 @@ public class PartSupplierController {
         return ResponseEntity.ok(new ApiResponse<>("REMOVED", "Supplier removed from the approved vendor list"));
     }
 
+    // Internal staff lookup only ("which parts is this supplier approved for") — this
+    // service's JwtAuthenticationFilter sets no supplierId claim/attribute a supplier's
+    // own token could be scoped by, so a supplier account must not be able to call this
+    // with an arbitrary path supplierId (cross-company data leak).
+    @PreAuthorize("!hasRole('SUPPLIER')")
     @GetMapping("/suppliers/{supplierId}/parts")
     public ResponseEntity<ApiResponse<List<PartBasicDTO>>> getPartsForSupplier(@PathVariable Long supplierId) {
         return ResponseEntity.ok(new ApiResponse<>("SUCCESS", partSupplierService.getPartsForSupplier(supplierId)));

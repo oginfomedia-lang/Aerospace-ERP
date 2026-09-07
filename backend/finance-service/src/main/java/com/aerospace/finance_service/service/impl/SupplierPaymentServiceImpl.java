@@ -111,7 +111,12 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
     @Override
     @Transactional
     public SupplierPaymentDTO cancel(Long id, String currentUser) {
-        SupplierPayment payment = getOrThrow(id);
+        // Row-locked fetch: without it, two concurrent cancel requests can both read
+        // status != CANCELLED before either writes back, and both proceed to reverse
+        // the journal — reverse() itself is now guarded (see JournalEntryServiceImpl),
+        // but the "already cancelled" check here should be race-free in its own right too.
+        SupplierPayment payment = paymentRepository.lockById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier payment not found: " + id));
         if (payment.getStatus() == PaymentStatus.CANCELLED) {
             throw new IllegalStateException("Payment is already cancelled");
         }

@@ -53,6 +53,29 @@ if ($Stop) {
     exit 0
 }
 
+# ---- Load secrets from .env into THIS session's environment -
+# Every service window below is spawned via Start-Process, and a spawned
+# process inherits its parent's environment variables automatically - so
+# loading .env once here, before any window opens, is enough for all 13
+# services to pick up JWT_SECRET / DB_PASSWORD / MAIL_USERNAME / MAIL_PASSWORD
+# without each window needing to load it again itself.
+$EnvFile = Join-Path $PSScriptRoot ".env"
+if (Test-Path $EnvFile) {
+    Write-Step "Loading secrets from .env"
+    & (Join-Path $PSScriptRoot "scripts\load-env.ps1")
+    Write-OK "Secrets loaded - every spawned service window will inherit them."
+} else {
+    Write-Warn "No .env file found at $EnvFile"
+    Write-Warn "Every service will fall back to the OLD default secrets still baked into"
+    Write-Warn "application.yml as fallbacks - fine for a quick local test, not fine for"
+    Write-Warn "anything beyond your own machine. Run: Copy-Item .env.example .env"
+    $resp = Read-Host "   Continue without .env? (y/N)"
+    if ($resp -ne "y" -and $resp -ne "Y") {
+        Write-Host "Aborted. Create .env first, then re-run this script." -ForegroundColor Red
+        exit 1
+    }
+}
+
 # ---- START MODE --------------------------------------------
 Write-Host "`n======================================================" -ForegroundColor Cyan
 Write-Host "  Aerospace ERP - Starting All Backend Services" -ForegroundColor Cyan

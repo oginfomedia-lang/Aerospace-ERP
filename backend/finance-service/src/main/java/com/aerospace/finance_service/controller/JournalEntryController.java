@@ -28,11 +28,13 @@ public class JournalEntryController {
     private final JournalEntryService journalEntryService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<JournalEntryDTO>> getAll() {
         return new ApiResponse<>("Journal entries fetched", journalEntryService.getAll());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<JournalEntryDTO> getById(@PathVariable Long id) {
         return new ApiResponse<>("Journal entry fetched", journalEntryService.getById(id));
     }

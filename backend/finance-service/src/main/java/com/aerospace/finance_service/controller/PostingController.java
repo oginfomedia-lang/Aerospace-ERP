@@ -33,6 +33,7 @@ public class PostingController {
     }
 
     @GetMapping("/rules")
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','ADMIN', 'MANAGER')")
     public ApiResponse<List<PostingRuleDTO>> getRules() {
         return new ApiResponse<>("Posting rules fetched", postingRuleService.getAll());
     }

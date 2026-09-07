@@ -122,10 +122,13 @@ public class QuotationServiceImpl implements QuotationService {
 
     @Override
     @Transactional
-    public QuotationResponseDTO approve(Long id) {
+    public QuotationResponseDTO approve(Long id, String approverUsername) {
         Quotation quotation = findOrThrow(id);
         if (quotation.getStatus() != QuotationStatus.SUBMITTED) {
             throw new IllegalStateException("Only a SUBMITTED quotation can be approved (current: " + quotation.getStatus() + ")");
+        }
+        if (quotation.getCreatedBy() != null && quotation.getCreatedBy().equalsIgnoreCase(approverUsername)) {
+            throw new IllegalStateException("You cannot approve a quotation you created yourself.");
         }
         quotation.setStatus(QuotationStatus.APPROVED);
         return toDTO(quotationRepository.save(quotation));

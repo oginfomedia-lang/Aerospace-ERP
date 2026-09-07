@@ -3,6 +3,9 @@ package com.aerospace.production_service.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Entity
 @Table(name = "production_materials")
 @Data
@@ -44,6 +47,16 @@ public class ProductionMaterial {
     // final-assembly gate (see ProductionOrderServiceImpl.checkFinalAssemblyGate).
     @Builder.Default
     private Boolean readyForAssembly = false;
+
+    // Tracks which material-issued Kafka deliveries have already been applied to this
+    // material line, so a redelivered/replayed copy of the same event (Kafka is
+    // at-least-once) is a no-op instead of double-counting quantityConsumed. Populated
+    // with a delivery coordinate (topic-partition-offset) by ProductionConsumer.
+    @ElementCollection
+    @CollectionTable(name = "production_material_applied_refs", joinColumns = @JoinColumn(name = "material_id"))
+    @Column(name = "event_ref", length = 255)
+    @Builder.Default
+    private Set<String> appliedMaterialIssueRefs = new HashSet<>();
 
     public enum MaterialStatus {
         PENDING,    // not yet drawn from inventory

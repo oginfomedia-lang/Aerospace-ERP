@@ -2,6 +2,8 @@ package com.aerospace.reporting_service.client;
 
 import com.aerospace.reporting_service.client.dto.SalesReportSummaryDTO;
 import com.aerospace.reporting_service.dto.ApiResponse;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +31,9 @@ public class SalesResourceClient {
     @Value("${services.sales.base-url}")
     private String salesBaseUrl;
 
+    // GET — safe to retry on a connect/read timeout, nothing is mutated downstream.
+    @Retry(name = "salesService")
+    @CircuitBreaker(name = "salesService", fallbackMethod = "getSummaryFallback")
     public SalesReportSummaryDTO getSummary(int days) {
         URI uri = UriComponentsBuilder.fromHttpUrl(salesBaseUrl + "/sales/reports/summary")
                 .queryParam("days", days).build().toUri();
@@ -43,5 +48,9 @@ public class SalesResourceClient {
         } catch (HttpStatusCodeException ex) {
             throw new IllegalStateException(ex.getResponseBodyAsString());
         }
+    }
+
+    private SalesReportSummaryDTO getSummaryFallback(int days, Throwable ex) {
+        throw new IllegalStateException("Sales service is currently unavailable: " + ex.getMessage());
     }
 }

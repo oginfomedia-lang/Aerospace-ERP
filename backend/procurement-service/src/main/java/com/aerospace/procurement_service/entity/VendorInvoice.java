@@ -2,6 +2,7 @@ package com.aerospace.procurement_service.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -48,4 +49,18 @@ public class VendorInvoice {
     private String approvedBy;
     private LocalDateTime approvedAt;
     private LocalDateTime paidAt;
+
+    // Who actually created this invoice record — needed so the approval self-check (an
+    // approver can't approve an invoice they themselves entered) has something to compare
+    // against. Stamped the same way as Supplier.createdBy: from the security context at
+    // persist time.
+    private String createdBy;
+
+    @PrePersist
+    private void stampCreatedBy() {
+        if (this.createdBy == null) {
+            var auth = SecurityContextHolder.getContext().getAuthentication();
+            this.createdBy = auth != null ? auth.getName() : "SYSTEM";
+        }
+    }
 }

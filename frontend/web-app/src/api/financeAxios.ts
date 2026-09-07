@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { tokenStorage } from '../utils/tokenStorage';
+import { API_URLS } from '../config/apiConfig';
 
 const financeApi = axios.create({
-  baseURL: 'http://localhost:8092/api/v1',
+  baseURL: API_URLS.finance,
   headers: { 'Content-Type': 'application/json' },
 });
 

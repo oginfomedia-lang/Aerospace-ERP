@@ -1,9 +1,10 @@
 import axios, { AxiosError } from 'axios';
 import { tokenStorage } from '../utils/tokenStorage';
 import { refreshAccessToken } from './authAxios';
+import { API_URLS } from '../config/apiConfig';
 
 const api = axios.create({
-    baseURL: 'http://localhost:8081/api/v1',
+    baseURL: API_URLS.inventory,
     headers: {
         'Content-Type': 'application/json',
     }

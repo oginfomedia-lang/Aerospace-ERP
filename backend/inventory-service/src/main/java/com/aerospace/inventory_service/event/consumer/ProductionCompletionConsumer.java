@@ -75,6 +75,17 @@ public class ProductionCompletionConsumer {
             return;
         }
 
+        // Dedup against Kafka at-least-once redelivery: this same PRODUCTION_ORDER_COMPLETED
+        // event landing twice must not credit finished-goods stock twice.
+        String sourceRef = event.getPoNumber() != null && !event.getPoNumber().isBlank()
+                ? event.getPoNumber()
+                : (event.getProductionOrderId() != null ? "PO_ID:" + event.getProductionOrderId() : null);
+        if (sourceRef != null && balanceRepository.existsBySourceProductionOrderRef(sourceRef)) {
+            log.warn("[PRODUCTION-CREDIT] PO {} already credited to stock — skipping duplicate delivery",
+                    event.getPoNumber());
+            return;
+        }
+
         String batch = documentSequenceService.generate("BATCH");
         StockBalance balance = StockBalance.builder()
                 .partId(part.getId())
@@ -83,6 +94,7 @@ public class ProductionCompletionConsumer {
                 .status(StockStatus.APPROVED)
                 .uom(part.getUom())
                 .location(event.getOutputLocationCode())
+                .sourceProductionOrderRef(sourceRef)
                 .lastUpdated(LocalDateTime.now())
                 .build();
         balanceRepository.save(balance);

@@ -23,11 +23,13 @@ public class SupplierPaymentController {
     private final SupplierPaymentService paymentService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','ADMIN','MANAGER')")
     public ApiResponse<List<SupplierPaymentDTO>> getAll() {
         return new ApiResponse<>("Supplier payments fetched", paymentService.getAll());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','FINANCE_MANAGER','ADMIN','MANAGER')")
     public ApiResponse<SupplierPaymentDTO> getById(@PathVariable Long id) {
         return new ApiResponse<>("Supplier payment fetched", paymentService.getById(id));
     }

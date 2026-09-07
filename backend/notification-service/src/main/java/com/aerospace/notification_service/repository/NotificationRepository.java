@@ -25,4 +25,8 @@ public interface NotificationRepository extends JpaRepository<NotificationLog, L
 
     // Filter by batch
     List<NotificationLog> findByBatchNumberOrderByCreatedAtDesc(String batchNumber);
+
+    // Dedup check for Kafka redelivery: has this exact (event, notification type)
+    // already been dispatched? See NotificationServiceImpl#dispatch().
+    boolean existsByEventIdAndType(String eventId, NotificationType type);
 }

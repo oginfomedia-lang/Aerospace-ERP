@@ -74,7 +74,12 @@ public class NcrServiceImpl implements NcrService {
     @Transactional
     @CacheEvict(value = "dashboardStats", allEntries = true)
     public NcrResponse disposition(Long id, DispositionRequest request) {
-        NonConformanceReport ncr = findOrThrow(id);
+        // Locked read: two concurrent disposition calls against the same NCR must not both
+        // observe status != DISPOSITIONED and both proceed to deduct/return the same
+        // REJECTED stock. The second caller blocks here until the first transaction commits,
+        // then sees DISPOSITIONED and is correctly rejected below.
+        NonConformanceReport ncr = ncrRepository.lockById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("NCR not found: " + id));
         if (ncr.getStatus() == NcrStatus.DISPOSITIONED) {
             throw new IllegalStateException("NCR " + ncr.getNcrNumber() + " has already been dispositioned.");
         }
@@ -89,8 +94,16 @@ public class NcrServiceImpl implements NcrService {
             throw new IllegalArgumentException("Unknown disposition type: " + request.getDispositionType());
         }
 
-        StockBalance rejected = balanceRepository
+        StockBalance rejectedUnlocked = balanceRepository
                 .findByPartIdAndBatchNumberAndStatus(ncr.getPartId(), ncr.getBatchNumber(), StockStatus.REJECTED)
+                .orElseThrow(() -> new IllegalStateException(
+                        "No REJECTED stock found for batch " + ncr.getBatchNumber()
+                                + " — it may have already been dispositioned elsewhere."));
+
+        // Lock the exact row we're about to deduct, immediately before mutating it, and
+        // recompute qty against the freshly-locked (authoritative) quantity — reuses the
+        // same StockBalanceRepository.lockById used by PartServiceImpl's stock mutators.
+        StockBalance rejected = balanceRepository.lockById(rejectedUnlocked.getId())
                 .orElseThrow(() -> new IllegalStateException(
                         "No REJECTED stock found for batch " + ncr.getBatchNumber()
                                 + " — it may have already been dispositioned elsewhere."));
@@ -138,13 +151,21 @@ public class NcrServiceImpl implements NcrService {
                 rejected.setQuantity(rejected.getQuantity() - qty);
                 balanceRepository.save(rejected);
 
-                StockBalance approved = balanceRepository
+                StockBalance approvedUnlocked = balanceRepository
                         .findByPartIdAndBatchNumberAndStatus(ncr.getPartId(), ncr.getBatchNumber(), StockStatus.APPROVED)
-                        .orElse(StockBalance.builder()
-                                .partId(ncr.getPartId()).batchNumber(ncr.getBatchNumber())
-                                .status(StockStatus.APPROVED).quantity(0)
-                                .location(rejected.getLocation()).expiryDate(rejected.getExpiryDate())
-                                .build());
+                        .orElse(null);
+                StockBalance approved;
+                if (approvedUnlocked != null) {
+                    approved = balanceRepository.lockById(approvedUnlocked.getId())
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "APPROVED stock row for batch " + ncr.getBatchNumber() + " vanished mid-disposition."));
+                } else {
+                    approved = StockBalance.builder()
+                            .partId(ncr.getPartId()).batchNumber(ncr.getBatchNumber())
+                            .status(StockStatus.APPROVED).quantity(0)
+                            .location(rejected.getLocation()).expiryDate(rejected.getExpiryDate())
+                            .build();
+                }
                 approved.setQuantity(approved.getQuantity() + qty);
                 balanceRepository.save(approved);
 

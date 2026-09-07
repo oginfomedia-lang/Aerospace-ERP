@@ -21,6 +21,7 @@ public class TaxCategoryController {
     private final TaxAdminService taxAdminService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('FINANCE_MANAGER','MANAGER','ADMIN')")
     public ApiResponse<List<TaxCategoryDTO>> getAll() {
         return new ApiResponse<>("Tax categories fetched", taxAdminService.getAllCategories());
     }

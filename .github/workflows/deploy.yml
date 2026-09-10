@@ -1,0 +1,26 @@
+name: Deploy to VPS
+
+# Runs on every push to main: builds nothing in CI itself (the VPS builds its
+# own jars/frontend via deploy.sh, since that's the environment secrets/DB
+# actually live in) — this workflow's only job is to SSH in, pull, and run it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # lets you trigger a redeploy manually from the Actions tab
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH in and deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/aerospace-erp
+            git fetch origin main
+            git reset --hard origin/main
+            sudo devops/vps/deploy.sh

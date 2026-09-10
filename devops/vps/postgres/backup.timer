@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Aerospace-ERP Postgres backup daily
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+# Persistent=true: if the VPS was down at 02:30 (reboot, maintenance), the
+# missed backup runs as soon as the timer is next active instead of silently
+# skipping a whole day.
+
+[Install]
+WantedBy=timers.target

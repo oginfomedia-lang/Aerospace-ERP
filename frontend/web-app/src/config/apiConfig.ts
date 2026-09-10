@@ -15,3 +15,8 @@ export const API_URLS = {
   procurement: process.env.REACT_APP_PROCUREMENT_API_URL || 'http://localhost:8086/api',
   workOrder: process.env.REACT_APP_WORK_ORDER_API_URL || 'http://localhost:8084/api/v1',
 };
+
+// Notification websocket — goes through api-gateway's dedicated `/ws/**` route
+// (see application.yaml) rather than any of the REST base URLs above.
+export const NOTIFICATION_WS_URL =
+  process.env.REACT_APP_NOTIFICATION_WS_URL || 'http://localhost:8083/ws';

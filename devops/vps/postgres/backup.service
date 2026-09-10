@@ -1,0 +1,6 @@
+[Unit]
+Description=Aerospace-ERP Postgres backup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/aerospace-erp/devops/vps/postgres/backup.sh

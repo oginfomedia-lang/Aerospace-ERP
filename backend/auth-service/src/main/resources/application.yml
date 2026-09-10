@@ -16,11 +16,24 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      # Flyway now owns schema changes (see db/migration/) — Hibernate just
+      # verifies the schema matches the entities at boot and refuses to start
+      # if they've drifted, instead of silently auto-altering the schema.
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+
+  flyway:
+    enabled: true
+    # This service's schema already exists (built up via ddl-auto: update over
+    # the course of development) — baseline-on-migrate tells Flyway "if the
+    # target database already has tables, treat V1 as already applied rather
+    # than trying to re-run CREATE TABLE against existing tables." A genuinely
+    # fresh/empty database (e.g. a new environment) still gets V1 run for real.
+    baseline-on-migrate: true
+    baseline-version: 1
 
 eureka:
   client:

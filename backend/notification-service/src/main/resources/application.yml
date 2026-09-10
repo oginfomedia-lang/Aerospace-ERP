@@ -15,11 +15,28 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      # Flyway now owns schema changes (see db/migration/) — Hibernate just
+      # verifies the schema matches the entities at boot and refuses to start
+      # if they've drifted, instead of silently auto-altering the schema.
+      ddl-auto: validate
     show-sql: false
+
+  flyway:
+    enabled: true
+    # This service's schema already exists (built up via ddl-auto: update over
+    # the course of development) — baseline-on-migrate tells Flyway "if the
+    # target database already has tables, treat V1 as already applied rather
+    # than trying to re-run CREATE TABLE against existing tables." A genuinely
+    # fresh/empty database (e.g. a new environment) still gets V1 run for real.
+    baseline-on-migrate: true
+    baseline-version: 1
 
   kafka:
     bootstrap-servers: localhost:9092
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_USERNAME:}" password="${KAFKA_PASSWORD:}";
     consumer:
       group-id: notification-group
       auto-offset-reset: latest

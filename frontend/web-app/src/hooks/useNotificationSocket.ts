@@ -15,6 +15,7 @@ import { useEffect, useRef } from 'react';
 import { Client, IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { NotificationLog } from '../types/notification';
+import { NOTIFICATION_WS_URL } from '../config/apiConfig';
 
 interface Options {
   token: string | null; // the logged-in user's JWT — reconnects if this changes
@@ -38,7 +39,7 @@ export function useNotificationSocket({ token, onMessage, onConnect, onDisconnec
     if (!token) return; // not logged in — nothing to connect for
 
     const client = new Client({
-      webSocketFactory: () => new SockJS('http://localhost:8083/ws'),
+      webSocketFactory: () => new SockJS(NOTIFICATION_WS_URL),
       reconnectDelay: 5000,
       connectHeaders: { Authorization: `Bearer ${token}` },
 
